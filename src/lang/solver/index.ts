@@ -176,6 +176,7 @@ function placeVertices(model: GeomModel): void {
   let hdX = 1, hdY = 0
 
   let changed = true
+  let isolatedSeedIndex = 0  // counts how many isolated components we've seeded
   while (changed) {
     changed = false
 
@@ -315,11 +316,19 @@ function placeVertices(model: GeomModel): void {
       }
       if (changed) break
     }
-  }
+    if (changed) continue
 
-  // Remaining isolated vertices
-  for (const v of model.points.keys()) {
-    if (!placed.has(v)) setPoint(model, v, DEFAULT_LEN, 0, true)
+    // Priority 5 — completely isolated vertex (no connection to any placed vertex).
+    // Seed one at a time so constraint propagation can resolve its neighbors next round.
+    for (const v of model.points.keys()) {
+      if (placed.has(v)) continue
+      // Stack isolated components vertically so they don't overlap each other or the main figure
+      setPoint(model, v, 0, -(isolatedSeedIndex + 1) * DEFAULT_LEN * 2, true)
+      isolatedSeedIndex++
+      placed.add(v)
+      changed = true
+      break
+    }
   }
 }
 
