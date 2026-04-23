@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "paths": {
+      "@lang/*": ["./src/lang/*"],
+      "@renderer/*": ["./src/renderer/*"]
+    },
+    "outDir": "./dist"
+  },
+  "include": ["src", "playground"]
+}

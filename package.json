@@ -1,0 +1,25 @@
+{
+  "name": "tilde",
+  "version": "0.1.0",
+  "description": "A declarative geometric programming language",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"vitepress dev docs --port 5173\" \"vite --port 5174\"",
+    "playground": "vite --port 5174",
+    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
+    "docs:dev": "vitepress dev docs --port 5173",
+    "docs:build": "vitepress build docs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0",
+    "vitepress": "^1.6.4"
+  },
+  "dependencies": {
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/lint": "^6.9.5",
+    "codemirror": "^6.0.2"
+  }
+}
