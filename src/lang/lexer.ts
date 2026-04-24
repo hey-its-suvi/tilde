@@ -10,7 +10,7 @@ export type TokenKind =
   // Output
   | 'PRINT'
   // Settings
-  | 'SET' | 'UNIT' | 'LENGTH' | 'ANCHOR' | 'WINDING'
+  | 'SET' | 'UNIT' | 'WINDING'
   | 'CLOCKWISE' | 'COUNTERCLOCKWISE'
   | 'DEGREES' | 'RADIANS'
   | 'GRID' | 'ON' | 'OFF'
@@ -58,8 +58,6 @@ const KEYWORDS: Record<string, TokenKind> = {
   print:            'PRINT',
   set:              'SET',
   unit:             'UNIT',
-  length:           'LENGTH',
-  anchor:           'ANCHOR',
   winding:          'WINDING',
   clockwise:        'CLOCKWISE',
   counterclockwise: 'COUNTERCLOCKWISE',

@@ -62,7 +62,6 @@ export type PickStmt = {
 export type SettingStmt =
   | { kind: 'SetUnitLength'; unit: LengthUnit }
   | { kind: 'SetUnitAngle'; unit: AngleUnit }
-  | { kind: 'SetAnchor'; vertex: VertexRef }
   | { kind: 'SetWinding'; dir: 'clockwise' | 'counterclockwise' }
   | { kind: 'SetGrid'; on: boolean }
 

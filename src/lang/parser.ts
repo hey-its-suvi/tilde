@@ -381,27 +381,19 @@ export function parse(tokens: Token[]): Program {
 
     if (check('UNIT')) {
       advance()
-      if (check('LENGTH')) {
-        advance()
+      const lengthNames = new Set(['cm', 'mm', 'm', 'in', 'inches'])
+      if (check('UNIT_CM', 'UNIT_MM', 'UNIT_M', 'UNIT_IN', 'UNIT_INCHES') || check('UNIT') ||
+          (check('LOWER_NAME') && lengthNames.has(peek().value))) {
         const unit = parseLengthUnit()
         eat('NEWLINE', 'EOF')
         return { kind: 'SetUnitLength', unit }
       }
       if (check('DEGREES', 'RADIANS')) {
-        // 'set unit degrees' shorthand (no 'angle' keyword)
         const unit = parseAngleUnit()
         eat('NEWLINE', 'EOF')
         return { kind: 'SetUnitAngle', unit }
       }
-      // 'set unit angle degrees'
-      eat('DEGREES', 'RADIANS') // will throw with a clear message if neither
-    }
-
-    if (check('ANCHOR')) {
-      advance()
-      const vertex = parseVertexRef()
-      eat('NEWLINE', 'EOF')
-      return { kind: 'SetAnchor', vertex }
+      throw new ParseError(`Expected a unit (cm, mm, m, in, inches, degrees, radians)`, peek().line, peek().col)
     }
 
     if (check('WINDING')) {

@@ -2,6 +2,8 @@
 // Points always have coordinates — the solver picks a representative position
 // for underconstrained things. `free` drives squiggle vs crisp rendering.
 
+import { LengthUnit } from '../ast.js'
+
 export type GeomPoint = {
   x: number
   y: number
@@ -21,6 +23,7 @@ export type GeomModel = {
   onSegment:    Map<string, { v1: string; v2: string }>  // vertex name → segment endpoints
   solutionPicks: Map<string, number>                     // vertex name → 1-based solution index
   anchorKey: string | null
+  activeUnit: LengthUnit | null                          // null = pure abstract (no units used)
 }
 
 export function makeModel(): GeomModel {
@@ -30,6 +33,7 @@ export function makeModel(): GeomModel {
     lines: new Map(), onLine: new Map(), onSegment: new Map(),
     solutionPicks: new Map(),
     anchorKey: null,
+    activeUnit: null,
   }
 }
 

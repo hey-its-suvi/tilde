@@ -7,7 +7,8 @@ export class ConstraintError extends Error {
   }
 }
 
-import { Program, ShapeDecl, LineDecl, PointDecl, Constraint } from '../ast.js'
+import { Program, ShapeDecl, LineDecl, PointDecl, Constraint, LengthUnit } from '../ast.js'
+import { resolveLength } from '../units.js'
 import {
   GeomModel, GeomLine, makeModel,
   touchPoint, setPoint, getPoint,
@@ -25,6 +26,43 @@ const DEFAULT_LEN = 3
 export function solve(program: Program): { scene: SceneGraph; config: RenderConfig } {
   const model = makeModel()
   const config: RenderConfig = { ...DEFAULT_CONFIG }
+
+  // Pass 0: determine active unit.
+  // `set unit` must appear before any geometry — validate and extract it.
+  // If absent, infer the active unit from the first length that carries a unit suffix.
+  {
+    let seenGeometry = false
+    for (const stmt of program.statements) {
+      const isGeometry = stmt.kind === 'ShapeDecl' || stmt.kind === 'LineDecl' ||
+                         stmt.kind === 'PointDecl'  || stmt.kind === 'ConstraintStmt'
+      if (isGeometry) { seenGeometry = true; continue }
+
+      const isSetting = stmt.kind === 'SetUnitLength' || stmt.kind === 'SetUnitAngle' ||
+                        stmt.kind === 'SetWinding'   || stmt.kind === 'SetGrid'
+      if (isSetting && seenGeometry) {
+        throw new ConstraintError('`set` statements must appear before any geometry declarations')
+      }
+      if (stmt.kind === 'SetUnitLength') {
+        model.activeUnit = stmt.unit
+        break
+      }
+    }
+
+    // No explicit set unit — infer from first length that carries a unit suffix
+    if (model.activeUnit === null) {
+      outer: for (const stmt of program.statements) {
+        const constraints =
+          stmt.kind === 'ShapeDecl'      ? stmt.constraints :
+          stmt.kind === 'ConstraintStmt' ? [stmt.constraint] : []
+        for (const c of constraints) {
+          if (c.kind === 'MeasureConstraint' && c.value.unit !== null) {
+            model.activeUnit = c.value.unit as LengthUnit
+            break outer
+          }
+        }
+      }
+    }
+  }
 
   // Pass 1: register all shapes + apply explicit constraints + read settings
   for (const stmt of program.statements) {
@@ -126,7 +164,7 @@ function applyConstraint(model: GeomModel, c: Constraint) {
     if (target.kind === 'ExplicitSegment') {
       touchPoint(model, target.v1)
       touchPoint(model, target.v2)
-      setLength(model, target.v1, target.v2, value.value)
+      setLength(model, target.v1, target.v2, resolveLength(value, model.activeUnit))
     }
     if (target.kind === 'ExplicitAngle') {
       touchPoint(model, target.v1)
