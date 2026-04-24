@@ -164,6 +164,7 @@ function applyConstraint(model: GeomModel, c: Constraint) {
     if (target.kind === 'ExplicitSegment') {
       touchPoint(model, target.v1)
       touchPoint(model, target.v2)
+      model.segments.add(segKey(target.v1, target.v2))
       setLength(model, target.v1, target.v2, resolveLength(value, model.activeUnit))
     }
     if (target.kind === 'ExplicitAngle') {

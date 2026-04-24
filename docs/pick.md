@@ -29,7 +29,7 @@ line l = (1, 0, -3)
 point a = (0, 0)
 b on l
 ab = 5
-" :cx="3" :cy="0" :zoom="1.1"/>
+" :cx="1.5" :cy="0" :zoom="0.5"/>
 
 With `pick b 2`:
 
@@ -39,7 +39,7 @@ point a = (0, 0)
 b on l
 ab = 5
 pick b 2
-" :cx="3" :cy="-1" :zoom="1.1"/>
+" :cx="1.5" :cy="-2" :zoom="0.7"/>
 
 ## Multiple ambiguous vertices
 

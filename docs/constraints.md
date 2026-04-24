@@ -41,7 +41,7 @@ a = b
 
 ## On-line
 
-Constrains a point to lie on a named line. The point's position along the line is underconstrained (`infinite`) unless a distance to a known neighbor pins it down.
+Constrains a point to lie on a named line. The point's position along the line is underconstrained unless a distance to a known neighbor pins it down.
 
 ```
 p on l
@@ -62,7 +62,7 @@ pick b 1
 
 ## On-segment
 
-Constrains a point to lie somewhere on a segment. Always `infinite` — its position along the segment is free. Multiple underconstrained points on the same segment are distributed evenly: `t = (i+1)/(n+1)`.
+Constrains a point to lie somewhere on a segment. Its position along the segment is always underconstrained — free to be anywhere on it. Multiple underconstrained points on the same segment are distributed evenly.
 
 ```
 p on ab

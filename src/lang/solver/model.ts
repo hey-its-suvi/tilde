@@ -90,5 +90,8 @@ export function getAngle(model: GeomModel, v1: string, vertex: string, v3: strin
 export type Solutions = 'one' | 'multiple' | 'infinite'
 
 export function segmentSolutions(model: GeomModel, v1: string, v2: string): Solutions {
+  const p1 = model.points.get(v1)
+  const p2 = model.points.get(v2)
+  if (p1 && !p1.free && p2 && !p2.free) return 'one'
   return getLength(model, v1, v2) !== null ? 'one' : 'infinite'
 }

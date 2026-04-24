@@ -1,12 +1,35 @@
 # Settings
 
-Settings configure the figure environment. They can appear anywhere in a program.
+Settings configure the figure environment. They must appear before any geometry declarations.
+
+---
+
+## Unit
+
+Sets the default unit for all length values in the program. Unitless numbers are interpreted in this unit. If omitted, the first unit used in any constraint becomes the default — or lengths stay abstract if no units appear at all.
+
+```
+set unit cm
+set unit mm
+set unit m
+set unit in
+```
+
+Available units: `cm`, `mm`, `m`, `in`, `inches`.
+
+Mixed units are supported — values convert automatically relative to the active unit:
+
+```
+set unit cm
+segment ab = 5       # 5 cm
+segment cd = 50mm    # also 5 cm internally
+```
 
 ---
 
 ## Grid
 
-Toggles the background grid in the renderer.
+Toggles the background grid.
 
 ```
 set grid on
@@ -19,11 +42,7 @@ Default: `on`.
 
 ## Coming soon
 
-The following settings are parsed but not yet active:
-
 | Setting | Syntax | Description |
 |---|---|---|
-| Anchor | `set anchor a` | Fix a specific vertex at the origin instead of the first declared point |
 | Winding | `set winding clockwise` | Default winding direction for shape construction |
-| Unit length | `set unit length cm` | Default unit for length values |
 | Unit angle | `set unit degrees` | Default unit for angle values |

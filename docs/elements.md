@@ -56,7 +56,7 @@ line m = (1, 1, -4)
 
 ## Point
 
-An explicit point at exact world coordinates. Renders as `one` (crisp) immediately.
+An explicit point at exact world coordinates.
 
 ```
 point p = (3, 5)
