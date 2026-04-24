@@ -1,5 +1,9 @@
 # Tilde — Claude Code Instructions
 
+## Changelog rule
+
+After every commit (or group of related commits), add an entry to `docs/changelog.md` under a new patch version. Use patch versions liberally — we are far from 1.0 so `0.x.y` versions are cheap. Format: `## 0.x.y` with bullet points describing user-visible changes. Implementation details that don't affect language behaviour don't need entries.
+
 ## Docs sync rule
 
 After every code change, check whether the docs need to be updated.

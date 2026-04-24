@@ -1,11 +1,30 @@
 # Changelog
 
-## 0.3.0 — current
+## 0.3.3 — current
+
+- Length constraint `ab = 5` now implicitly declares and renders the segment
+- Segments where both endpoints are explicitly placed render crisp (not wavy)
+- Docs: settings page updated with unit documentation, stale entries removed
+- Added `CLAUDE.md` with project conventions
+
+## 0.3.2
+
+- **Length units**: `set unit cm` (or `mm`, `m`, `in`, `inches`) sets the default unit for the program
+- Mixed units convert automatically — `50mm` and `5cm` are the same length when `set unit cm`
+- Without `set unit`, the first unit used in any constraint becomes the default; fully unitless programs stay abstract
+- `set` statements are now validated to appear before any geometry declarations
+- Removed `set anchor` (use explicit point coordinates instead)
+
+## 0.3.1
+
+- Fixed isolated disconnected components (e.g. two unconnected segments) stacking both vertices at the same point — each component now seeds separately so constraint propagation resolves it correctly
+
+## 0.3.0
 
 - **Multiple solutions**: ambiguous placements now render all discrete solutions simultaneously as jagged numbered alternatives
 - `pick v N` statement to select a specific solution
 - **On-segment constraint**: `p on ab` places a point on a segment (always `infinite`)
-- Multiple underconstrained points on the same segment distribute evenly: `t = (i+1)/(n+1)`
+- Multiple underconstrained points on the same segment distribute evenly
 - `solutions` model replaces old `certainty` model: `one | multiple | infinite`
 - Jagged line and circle style for `multiple` state (amber)
 
