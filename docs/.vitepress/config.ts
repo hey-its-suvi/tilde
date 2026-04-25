@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: '~tilde',
   description: 'A geometric programming language for school-level geometry',
   base: '/',
@@ -22,7 +23,7 @@ export default defineConfig({
       { text: 'Playground', link: '/playground/' },
       { text: 'Elements', link: '/elements' },
       { text: 'Constraints', link: '/constraints' },
-      { text: 'Solver', link: '/solver' },
+      { text: 'Solver', link: '/solver/' },
     ],
 
     sidebar: [
@@ -45,7 +46,16 @@ export default defineConfig({
       {
         text: 'Internals',
         items: [
-          { text: 'Solver', link: '/solver' },
+          {
+            text: 'Solver',
+            link: '/solver/',
+            items: [
+              { text: 'Pass 0 — Unit Resolution', link: '/solver/unit-resolution' },
+              { text: 'Pass 1 — Constraint Model', link: '/solver/constraint-model' },
+              { text: 'Pass 2 — Anchor', link: '/solver/anchor' },
+              { text: 'Pass 3 — Placement', link: '/solver/placement' },
+            ],
+          },
           { text: 'Certainty Model', link: '/certainty' },
         ],
       },
@@ -60,4 +70,6 @@ export default defineConfig({
     socialLinks: [],
     footer: { message: '~tilde — geometric language' },
   },
-})
+
+  mermaid: {},
+}))

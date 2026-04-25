@@ -196,6 +196,14 @@ function applyConstraint(model: GeomModel, c: Constraint) {
 // ─── Vertex placement ─────────────────────────────────────────────────────────
 // Vertex-centric fixpoint algorithm. Does not care about declaration order or
 // shape type — only the constraint graph matters.
+//
+// Each constraint on a vertex defines a locus — the set of positions where it
+// could legally sit (circle, line, segment). Rules are tried in priority order,
+// highest locus count first:
+//
+//   2+ loci  →  intersect them  →  finite solutions (exact)
+//   1 locus  →  place at a default point on the locus  →  free
+//   0 loci   →  no geometric info, structural fallback  →  free
 
 function placeVertices(model: GeomModel): void {
   const placed = new Set<string>()
@@ -209,9 +217,9 @@ function placeVertices(model: GeomModel): void {
   // "solved" by convention rather than underconstrained).
   let orientationFixed = false
 
-  // Heading for P2 placements. Starts pointing +x, rotates 90° CCW each time.
-  // This prevents collinear degeneracy in cycles (e.g. a rhombus becomes a
-  // square rather than a flat line).
+  // Heading for 1-locus circle placements. Starts pointing +x, rotates 90° CCW
+  // each time to prevent collinear degeneracy (e.g. a rhombus becomes a square
+  // rather than a flat line).
   let hdX = 1, hdY = 0
 
   let changed = true
@@ -219,7 +227,8 @@ function placeVertices(model: GeomModel): void {
   while (changed) {
     changed = false
 
-    // Priority 1 — circle intersection: vertex has 2+ placed neighbors with known distances.
+    // ── 2+ loci (exact) ───────────────────────────────────────────────────────
+    // 2a. Circle ∩ Circle — 2+ placed neighbors with known distances.
     for (const v of model.points.keys()) {
       if (placed.has(v)) continue
       const nbrs = placedNeighborsWithDist(model, placed, v)
@@ -246,7 +255,7 @@ function placeVertices(model: GeomModel): void {
     }
     if (changed) continue
 
-    // Priority 1b — circle-line: vertex is on a line AND has 1 placed neighbor with known distance.
+    // 2b. Circle ∩ Line — on a named line AND has a placed neighbor with known distance.
     for (const v of model.points.keys()) {
       if (placed.has(v)) continue
       const lineName = model.onLine.get(v)
@@ -274,11 +283,11 @@ function placeVertices(model: GeomModel): void {
     }
     if (changed) continue
 
-    // Priority 2 — single known-dist neighbor: place using current heading.
-    // The heading rotates 90° CCW after each placement to avoid collinear
-    // degeneracy in cycles (e.g. rhombus → square instead of flat line).
-    // The first placement fixes orientation (free=false); subsequent ones
-    // are genuinely underconstrained in angle (free=true, shows wavy circle).
+    // ── 1 locus (free) ────────────────────────────────────────────────────────
+    // 1a. Circle — exactly 1 placed neighbor with known distance, no other loci.
+    //     Heading rotates 90° CCW after each placement to avoid collinear
+    //     degeneracy (e.g. rhombus → square instead of flat line).
+    //     First placement fixes orientation (free=false); subsequent are free.
     for (const v of model.points.keys()) {
       if (placed.has(v)) continue
       const nbrs = placedNeighborsWithDist(model, placed, v)
@@ -294,8 +303,8 @@ function placeVertices(model: GeomModel): void {
     }
     if (changed) continue
 
-    // Priority 3 — on-line only: no distance neighbors yet. Place at the foot
-    // of perpendicular from the anchor (or origin) to the line.
+    // 1b. Line — on a named line, no distance neighbors yet.
+    //     Place at foot of perpendicular from origin to the line.
     for (const v of model.points.keys()) {
       if (placed.has(v)) continue
       const lineName = model.onLine.get(v)
@@ -312,8 +321,8 @@ function placeVertices(model: GeomModel): void {
     }
     if (changed) continue
 
-    // Priority 3b — on-segment, both endpoints placed: distribute evenly along
-    // the segment. t = (i+1)/(n+1) where n = total unplaced points on same seg.
+    // 1c. Segment — on a segment, both endpoints placed.
+    //     Distribute evenly: t = (i+1)/(n+1) for n unplaced points on same seg.
     {
       // Group unplaced on-segment points by their segment key
       const groups = new Map<string, string[]>()
@@ -341,7 +350,8 @@ function placeVertices(model: GeomModel): void {
     }
     if (changed) continue
 
-    // Priority 4 — segment neighbor, no known dist: default length placeholder.
+    // ── 0 loci (fallback) ─────────────────────────────────────────────────────
+    // 0a. Segment neighbor — shares a segment with a placed vertex but no known length.
     for (const v of model.points.keys()) {
       if (placed.has(v)) continue
       for (const p of placed) {
@@ -357,8 +367,8 @@ function placeVertices(model: GeomModel): void {
     }
     if (changed) continue
 
-    // Priority 5 — completely isolated vertex (no connection to any placed vertex).
-    // Seed one at a time so constraint propagation can resolve its neighbors next round.
+    // 0b. Isolated — no connection to any placed vertex.
+    //     Seed one at a time so constraint propagation can reach its neighbors next round.
     for (const v of model.points.keys()) {
       if (placed.has(v)) continue
       // Stack isolated components vertically so they don't overlap each other or the main figure

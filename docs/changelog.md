@@ -1,6 +1,18 @@
 # Changelog
 
-## 0.3.3 — current
+## 0.3.5 — current
+
+- Docs: expanded solver internals into five pages — overview, unit resolution, constraint model, anchor, and placement loop
+- Docs: introduced locus-intersection model as the unifying framing for the placement algorithm
+- Docs: added Mermaid flow diagrams throughout solver internals
+
+## 0.3.4
+
+- Docs: fixed incorrect example in certainty page (underconstrained example now correctly shows a point on a circle, not a fully free point)
+- Docs: removed internal terminology (`infinite`, `one`, `heading`, `P2`) from user-facing pages
+- Docs: fixed zoom levels on pick and certainty examples
+
+## 0.3.3
 
 - Length constraint `ab = 5` now implicitly declares and renders the segment
 - Segments where both endpoints are explicitly placed render crisp (not wavy)
