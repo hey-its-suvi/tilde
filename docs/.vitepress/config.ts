@@ -60,6 +60,12 @@ export default withMermaid(defineConfig({
         ],
       },
       {
+        text: 'Reference',
+        items: [
+          { text: 'Language Reference', link: '/reference' },
+        ],
+      },
+      {
         text: 'Meta',
         items: [
           { text: 'Changelog', link: '/changelog' },

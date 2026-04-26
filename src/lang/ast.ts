@@ -73,6 +73,15 @@ export type Constraint =
   | EqualityConstraint
   | PointCoincidence
   | OnConstraint
+  | PositionConstraint
+
+/** a = (1, 2)  — set vertex position inline, errors if already placed at a different position */
+export type PositionConstraint = {
+  kind: 'PositionConstraint'
+  vertex: string
+  x: number
+  y: number
+}
 
 /** point p on line l  |  point p on segment ab  |  p on l  |  p on ab */
 export type OnConstraint = {

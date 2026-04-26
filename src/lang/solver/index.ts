@@ -179,6 +179,19 @@ function applyConstraint(model: GeomModel, c: Constraint) {
     }
   }
 
+  if (c.kind === 'PositionConstraint') {
+    const existing = model.points.get(c.vertex)
+    if (existing && !existing.free) {
+      if (Math.abs(existing.x - c.x) > 1e-9 || Math.abs(existing.y - c.y) > 1e-9) {
+        throw new ConstraintError(`vertex "${c.vertex}" is already placed at (${existing.x}, ${existing.y}), cannot redefine as (${c.x}, ${c.y})`)
+      }
+      // same position — no-op
+    } else {
+      setPoint(model, c.vertex, c.x, c.y, false)
+    }
+    return
+  }
+
   if (c.kind === 'OnConstraint') {
     touchPointChecked(model, c.point)
     if (model.lines.has(c.target)) {

@@ -6,7 +6,7 @@ import { Token, TokenKind } from './lexer.js'
 import {
   Program, Statement, ShapeDecl, ShapeKind, LineDecl, PointDecl,
   ConstraintStmt, PrintStmt, SettingStmt, PickStmt,
-  Constraint, MeasureConstraint, RelationConstraint, EqualityConstraint, PointCoincidence, OnConstraint,
+  Constraint, MeasureConstraint, RelationConstraint, EqualityConstraint, PointCoincidence, OnConstraint, PositionConstraint,
   SegmentRef, AngleRef, VertexRef, Printable,
   MeasureValue, LengthUnit, AngleUnit,
 } from './ast.js'
@@ -81,9 +81,8 @@ export function parse(tokens: Token[]): Program {
     if (check('PICK')) return parsePickStmt()
     if (check('ANGLE')) return parseConstraintStmt()
 
-    // Ambiguous: LOWER_NAME could start a constraint (ab = 5, abc = ..., a = b)
-    // UPPER_NAME followed by UNDERSCORE is a subscript reference
-    if (check('LOWER_NAME', 'UPPER_NAME')) return parseConstraintStmt()
+    // NAME could start a constraint (ab = 5, abc = ..., a = b, ABC_1 = ...)
+    if (check('NAME')) return parseConstraintStmt()
 
     throw new ParseError(`Unexpected token ${tok.kind} ("${tok.value}")`, tok.line, tok.col)
   }
@@ -100,23 +99,23 @@ export function parse(tokens: Token[]): Program {
       polygonSides = parseFloat(n.value)
     }
 
-    const nameTok = eat('UPPER_NAME', 'LOWER_NAME')
+    const nameTok = eat('NAME')
     const name = nameTok.value
-    const named = /^[A-Z]/.test(name)
 
-    // Validate name length vs shape (only for lowercase explicit mode)
-    if (!named) {
-      const expectedLengths: Partial<Record<ShapeKind, number>> = {
-        triangle: 3, square: 4, rectangle: 4, segment: 2,
-      }
-      const expected = expectedLengths[shapeKind]
-      if (expected !== undefined && name.length !== expected) {
-        throw new ParseError(
-          `A ${shapeKind} needs exactly ${expected} vertex characters, got "${name}" (${name.length})`,
-          nameTok.line, nameTok.col
-        )
-      }
+    // Decompose mode: exact-length lowercase name — each character is a vertex.
+    // Subscript mode: any other name (wrong length, uppercase, or multi-word label).
+    const expectedLengths: Partial<Record<ShapeKind, number>> = {
+      triangle: 3, square: 4, rectangle: 4, segment: 2,
     }
+    const expectedForShape = shapeKind === 'polygon' ? polygonSides : expectedLengths[shapeKind]
+    // Decompose mode: exact-length lowercase name with all-distinct chars.
+    // Anything else (wrong length, uppercase, repeated chars) → subscript mode.
+    const isAllDistinct = new Set(name).size === name.length
+    const decompose = name === name.toLowerCase()
+      && expectedForShape !== undefined
+      && name.length === expectedForShape
+      && isAllDistinct
+    const named = !decompose
 
     const constraints: Constraint[] = []
 
@@ -163,10 +162,10 @@ export function parse(tokens: Token[]): Program {
     // point p on line l  |  point p on segment ab  |  point p on l  |  point p on ab
     if (check('POINT')) {
       advance()
-      const pointTok = eat('LOWER_NAME')
+      const pointTok = eat('NAME')
       eat('ON')
       if (check('LINE', 'SEGMENT')) advance()  // optional keyword
-      const targetTok = eat('LOWER_NAME', 'UPPER_NAME')
+      const targetTok = eat('NAME')
       return { kind: 'OnConstraint', point: pointTok.value, target: targetTok.value } satisfies OnConstraint
     }
 
@@ -186,7 +185,7 @@ export function parse(tokens: Token[]): Program {
     if (check('ON') && left.kind === 'ExplicitVertex') {
       advance()
       if (check('LINE', 'SEGMENT')) advance()  // optional keyword
-      const targetTok = eat('LOWER_NAME', 'UPPER_NAME')
+      const targetTok = eat('NAME')
       return { kind: 'OnConstraint', point: left.name, target: targetTok.value } satisfies OnConstraint
     }
 
@@ -198,6 +197,15 @@ export function parse(tokens: Token[]): Program {
 
     if (check('EQUALS')) {
       advance()
+      // a = (x, y)  →  position constraint
+      if (check('LPAREN') && left.kind === 'ExplicitVertex') {
+        eat('LPAREN')
+        const x = parseSignedNumber()
+        eat('COMMA')
+        const y = parseSignedNumber()
+        eat('RPAREN')
+        return { kind: 'PositionConstraint', vertex: left.name, x, y } satisfies PositionConstraint
+      }
       // Right side: number → measure constraint; name → equality or point coincidence
       if (check('NUMBER')) {
         const value = parseMeasureValue()
@@ -223,13 +231,18 @@ export function parse(tokens: Token[]): Program {
 
   // ── References ─────────────────────────────────────────────────────────────
 
+  /** Returns true if the current token is a NAME followed by UNDERSCORE (subscript ref) */
+  function isSubscriptRef(): boolean {
+    return check('NAME') && tokens[pos + 1]?.kind === 'UNDERSCORE'
+  }
+
   /** Parse a segment or vertex ref — determined by what follows */
   function parseSegmentOrVertex(): SegmentRef | VertexRef {
-    if (check('UPPER_NAME')) {
+    if (isSubscriptRef()) {
       const name = advance().value
       eat('UNDERSCORE')
       const i = parseInt(eat('NUMBER').value)
-      // ABC_12 (two digits) vs ABC_1 (one digit) — check if another number follows immediately
+      // shape_12 (two digits) vs shape_1 (one digit) — check if another number follows immediately
       if (check('NUMBER')) {
         const j = parseInt(eat('NUMBER').value)
         return { kind: 'SubscriptSegment', shape: name, i, j }
@@ -237,8 +250,8 @@ export function parse(tokens: Token[]): Program {
       return { kind: 'SubscriptVertex', shape: name, i }
     }
 
-    // lowercase: single char = vertex, two chars = segment, three chars = angle (handled elsewhere)
-    const name = eat('LOWER_NAME').value
+    // plain name: single char = vertex, two chars = segment, three chars = angle (handled elsewhere)
+    const name = eat('NAME').value
     if (name.length === 1) return { kind: 'ExplicitVertex', name }
     if (name.length === 2) return { kind: 'ExplicitSegment', v1: name[0]!, v2: name[1]! }
 
@@ -254,14 +267,14 @@ export function parse(tokens: Token[]): Program {
   }
 
   function parseAngleRef(): AngleRef {
-    if (check('UPPER_NAME')) {
+    if (isSubscriptRef()) {
       const name = advance().value
       eat('UNDERSCORE')
       const i = parseInt(eat('NUMBER').value)
       return { kind: 'SubscriptAngle', shape: name, i }
     }
 
-    const name = eat('LOWER_NAME').value
+    const name = eat('NAME').value
     if (name.length !== 3) {
       throw new ParseError(`Angle reference must be exactly 3 lowercase chars, got "${name}"`, peek().line, peek().col)
     }
@@ -269,13 +282,13 @@ export function parse(tokens: Token[]): Program {
   }
 
   function parseVertexRef(): VertexRef {
-    if (check('UPPER_NAME')) {
+    if (isSubscriptRef()) {
       const name = advance().value
       eat('UNDERSCORE')
       const i = parseInt(eat('NUMBER').value)
       return { kind: 'SubscriptVertex', shape: name, i }
     }
-    const name = eat('LOWER_NAME').value
+    const name = eat('NAME').value
     if (name.length !== 1) {
       throw new ParseError(`Vertex reference must be a single char, got "${name}"`, peek().line, peek().col)
     }
@@ -307,7 +320,7 @@ export function parse(tokens: Token[]): Program {
 
   function parseLineDecl(): LineDecl {
     eat('LINE')
-    const nameTok = eat('LOWER_NAME', 'UPPER_NAME')
+    const nameTok = eat('NAME')
 
     // Bare declaration: default to y = x  (m=1, k=0 → a=1, b=-1, c=0)
     if (!check('EQUALS')) {
@@ -338,7 +351,7 @@ export function parse(tokens: Token[]): Program {
 
   function parsePointDecl(): PointDecl {
     eat('POINT')
-    const nameTok = eat('LOWER_NAME', 'UPPER_NAME')
+    const nameTok = eat('NAME')
     if (!check('EQUALS')) {
       eat('NEWLINE', 'EOF')
       return { kind: 'PointDecl', name: nameTok.value, x: null, y: null }
@@ -395,7 +408,7 @@ export function parse(tokens: Token[]): Program {
       advance()
       const lengthNames = new Set(['cm', 'mm', 'm', 'in', 'inches'])
       if (check('UNIT_CM', 'UNIT_MM', 'UNIT_M', 'UNIT_IN', 'UNIT_INCHES') || check('UNIT') ||
-          (check('LOWER_NAME') && lengthNames.has(peek().value))) {
+          (check('NAME') && lengthNames.has(peek().value))) {
         const unit = parseLengthUnit()
         eat('NEWLINE', 'EOF')
         return { kind: 'SetUnitLength', unit }
@@ -437,8 +450,8 @@ export function parse(tokens: Token[]): Program {
     if (check('UNIT')) { advance(); return 'unit' }
     const unitKind = tok.kind
     if (unitKind in map) { advance(); return map[unitKind]! }
-    // Try reading as a lower_name (cm/mm/m/in/inches appear as LOWER_NAME if not attached to a number)
-    if (check('LOWER_NAME')) {
+    // Try reading as a NAME (cm/mm/m/in/inches appear as NAME if not attached to a number)
+    if (check('NAME')) {
       const name = advance().value
       const nameMap: Record<string, LengthUnit> = { cm: 'cm', mm: 'mm', m: 'm', in: 'in', inches: 'inches' }
       if (name in nameMap) return nameMap[name]!

@@ -19,8 +19,7 @@ export type TokenKind =
   // Connectors
   | 'WITH' | 'AND'
   // Names
-  | 'UPPER_NAME'   // all uppercase: ABC, RED
-  | 'LOWER_NAME'   // all lowercase: abc, red
+  | 'NAME'         // any alphanumeric identifier: abc, ABC, MyShape, t1
   // Literals
   | 'NUMBER'
   // Unit suffixes (only appear attached to NUMBER, e.g. 5cm)
@@ -151,18 +150,7 @@ export function lex(source: string): Token[] {
       return makeToken(kwKind, name, startLine, startCol)
     }
 
-    // Validate casing
-    const isAllUpper = /^[A-Z0-9]+$/.test(name)
-    const isAllLower = /^[a-z0-9]+$/.test(name)
-
-    if (!isAllUpper && !isAllLower) {
-      throw new LexError(
-        `Mixed case identifier "${name}" — names must be all-uppercase (named shapes) or all-lowercase (explicit vertices)`,
-        startLine, startCol
-      )
-    }
-
-    return makeToken(isAllUpper ? 'UPPER_NAME' : 'LOWER_NAME', name, startLine, startCol)
+    return makeToken('NAME', name, startLine, startCol)
   }
 
   while (pos < source.length) {

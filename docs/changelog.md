@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.3.6 — current
+## 0.3.7 — current
+
+- **Any-case identifiers**: names can now be any mix of upper and lowercase (`MyTriangle`, `Seg1`, `hello`) — the previous all-upper / all-lower restriction is removed
+- **Flexible shape naming**: exact-length all-distinct lowercase names decompose into vertices (`triangle abc` → vertices `a`, `b`, `c`); any other name uses subscript mode (`triangle t` → `t_1`, `t_2`, `t_3`)
+- **Repeated characters in shape names** route to subscript mode instead of erroring (`segment ss` → `ss_1`, `ss_2`)
+- **Position constraint inline**: `a = (1, 2)` in a `with` clause or as a standalone statement places a vertex at exact coordinates; errors if already placed at a different position
+- **Language reference**: new `/reference` page with complete syntax listing, marking unimplemented features
+
+## 0.3.6
 
 - **Line ∩ Line constraint**: a point constrained to two named lines is placed at their intersection (`point p on a; p on b`)
 - Constraining a point to three or more lines checks that all lines share a common point, throwing a constraint error if not
