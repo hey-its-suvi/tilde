@@ -120,7 +120,11 @@ function registerPoint(model: GeomModel, decl: PointDecl) {
   if (model.points.has(decl.name)) {
     throw new ConstraintError(`"${decl.name}" is already declared`)
   }
-  setPoint(model, decl.name, decl.x, decl.y, false)
+  if (decl.x !== null && decl.y !== null) {
+    setPoint(model, decl.name, decl.x, decl.y, false)  // explicit coordinates — fixed
+  } else {
+    touchPoint(model, decl.name)                         // bare declaration — free, solver places it
+  }
 }
 
 // ─── Shape registration ───────────────────────────────────────────────────────
@@ -178,8 +182,9 @@ function applyConstraint(model: GeomModel, c: Constraint) {
   if (c.kind === 'OnConstraint') {
     touchPointChecked(model, c.point)
     if (model.lines.has(c.target)) {
-      // target is a named line
-      model.onLine.set(c.point, c.target)
+      // target is a named line — accumulate (supports 2+ lines for line ∩ line)
+      const existing = model.onLine.get(c.point) ?? []
+      model.onLine.set(c.point, [...existing, c.target])
     } else if (c.target.length === 2) {
       // target is a 2-char segment name (e.g. "ab")
       const v1 = c.target[0]!, v2 = c.target[1]!
@@ -228,6 +233,29 @@ function placeVertices(model: GeomModel): void {
     changed = false
 
     // ── 2+ loci (exact) ───────────────────────────────────────────────────────
+    // 2c. Line ∩ Line — on 2+ named lines. No placed neighbors needed; fires first.
+    for (const v of model.points.keys()) {
+      if (placed.has(v)) continue
+      const lineNames = model.onLine.get(v)
+      if (!lineNames || lineNames.length < 2) continue
+      const l1 = model.lines.get(lineNames[0]!)!
+      const l2 = model.lines.get(lineNames[1]!)!
+      const pt = lineIntersect(l1, l2)
+      if (!pt) {
+        throw new ConstraintError(`no position for vertex ${v}: lines "${lineNames[0]}" and "${lineNames[1]}" are parallel`)
+      }
+      for (let i = 2; i < lineNames.length; i++) {
+        const { a, b, c } = model.lines.get(lineNames[i]!)!
+        if (Math.abs(a * pt.x + b * pt.y + c) > 1e-9) {
+          throw new ConstraintError(`no position for vertex ${v}: lines "${lineNames[0]}", "${lineNames[1]}", and "${lineNames[i]}" have no common point`)
+        }
+      }
+      setPoint(model, v, pt.x, pt.y, false)
+      placed.add(v)
+      changed = true
+    }
+    if (changed) continue
+
     // 2a. Circle ∩ Circle — 2+ placed neighbors with known distances.
     for (const v of model.points.keys()) {
       if (placed.has(v)) continue
@@ -255,11 +283,12 @@ function placeVertices(model: GeomModel): void {
     }
     if (changed) continue
 
-    // 2b. Circle ∩ Line — on a named line AND has a placed neighbor with known distance.
+    // 2b. Circle ∩ Line — on exactly one named line AND has a placed neighbor with known distance.
     for (const v of model.points.keys()) {
       if (placed.has(v)) continue
-      const lineName = model.onLine.get(v)
-      if (!lineName) continue
+      const lineNames = model.onLine.get(v)
+      if (!lineNames || lineNames.length !== 1) continue  // 2+ lines handled by 2c
+      const lineName = lineNames[0]!
       const line = model.lines.get(lineName)!
       const nbrs = placedNeighborsWithDist(model, placed, v)
       if (nbrs.length >= 1) {
@@ -307,9 +336,9 @@ function placeVertices(model: GeomModel): void {
     //     Place at foot of perpendicular from origin to the line.
     for (const v of model.points.keys()) {
       if (placed.has(v)) continue
-      const lineName = model.onLine.get(v)
-      if (!lineName) continue
-      const { a, b, c } = model.lines.get(lineName)!
+      const lineNames = model.onLine.get(v)
+      if (!lineNames || lineNames.length === 0) continue
+      const { a, b, c } = model.lines.get(lineNames[0]!)!
       const denom = a * a + b * b
       // Foot of perpendicular from (0,0) to ax+by+c=0
       const fx = -a * c / denom
@@ -395,6 +424,17 @@ function placedNeighborsWithDist(
     }
   }
   return result
+}
+
+// Line-line intersection. Returns null if lines are parallel or identical.
+// Solves a₁x + b₁y + c₁ = 0, a₂x + b₂y + c₂ = 0 via Cramer's rule.
+function lineIntersect(l1: GeomLine, l2: GeomLine): { x: number; y: number } | null {
+  const det = l1.a * l2.b - l2.a * l1.b
+  if (Math.abs(det) < 1e-10) return null
+  return {
+    x: (l1.b * l2.c - l2.b * l1.c) / det,
+    y: (l2.a * l1.c - l1.a * l2.c) / det,
+  }
 }
 
 // Two-circle intersection. Returns both solutions ordered CCW-first (solution 1

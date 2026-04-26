@@ -19,7 +19,7 @@ export type GeomModel = {
   lengths:    Map<string, number | null>           // null = unknown
   angles:     Map<string, number | null>           // degrees, null = unknown
   lines:      Map<string, GeomLine>                // named lines
-  onLine:     Map<string, string>                  // vertex name → line name
+  onLine:     Map<string, string[]>                // vertex name → line names (supports 2+ for intersection)
   onSegment:    Map<string, { v1: string; v2: string }>  // vertex name → segment endpoints
   solutionPicks: Map<string, number>                     // vertex name → 1-based solution index
   anchorKey: string | null

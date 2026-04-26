@@ -71,7 +71,25 @@ Given placed points `a` and `b` at distance `d`, with radii `r₁` and `r₂`:
 
 Solution 1 is left of `a→b` (counter-clockwise). Solution 2 is right (clockwise).
 
-### b. Circle ∩ Line
+### b. Line ∩ Line
+
+**Condition:** vertex is constrained to two or more named lines.
+
+Two lines in general position intersect at exactly one point — no placed neighbors are needed. This fires in the very first iteration, before circle intersection.
+
+Given lines `a₁x + b₁y + c₁ = 0` and `a₂x + b₂y + c₂ = 0`, the intersection is found via Cramer's rule:
+
+```
+x = (b₁c₂ − b₂c₁) / det
+y = (a₂c₁ − a₁c₂) / det
+where det = a₁b₂ − a₂b₁
+```
+
+If `det ≈ 0` the lines are parallel and the solver throws a constraint error.
+
+When three or more lines are specified, the solver intersects the first two to get a candidate point, then verifies that the candidate satisfies every remaining line equation. If any line does not pass through that point, the constraints are inconsistent and the solver throws a constraint error.
+
+### c. Circle ∩ Line
 
 **Condition:** vertex is on a named line, and has at least one placed neighbor with a known distance.
 

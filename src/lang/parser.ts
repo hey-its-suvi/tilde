@@ -71,9 +71,10 @@ export function parse(tokens: Token[]): Program {
     if (check('LINE')) return parseLineDecl()
     if (check('POINT')) {
       // POINT is at pos, name at pos+1, operator at pos+2
-      // point x = (3,5)  →  PointDecl
-      // point x on ...   →  ConstraintStmt
-      return tokens[pos + 2]?.kind === 'EQUALS' ? parsePointDecl() : parseConstraintStmt()
+      const op = tokens[pos + 2]?.kind
+      if (op === 'EQUALS') return parsePointDecl()               // point a = (x, y)
+      if (op === 'NEWLINE' || op === 'EOF' || op === undefined) return parsePointDecl() // point a
+      return parseConstraintStmt()                                // point a on ...
     }
     if (check('PRINT')) return parsePrintStmt()
     if (check('SET')) return parseSettingStmt()
@@ -307,6 +308,13 @@ export function parse(tokens: Token[]): Program {
   function parseLineDecl(): LineDecl {
     eat('LINE')
     const nameTok = eat('LOWER_NAME', 'UPPER_NAME')
+
+    // Bare declaration: default to y = x  (m=1, k=0 → a=1, b=-1, c=0)
+    if (!check('EQUALS')) {
+      eat('NEWLINE', 'EOF')
+      return { kind: 'LineDecl', name: nameTok.value, a: 1, b: -1, c: 0 }
+    }
+
     eat('EQUALS')
     eat('LPAREN')
     const first  = parseSignedNumber()
@@ -331,6 +339,10 @@ export function parse(tokens: Token[]): Program {
   function parsePointDecl(): PointDecl {
     eat('POINT')
     const nameTok = eat('LOWER_NAME', 'UPPER_NAME')
+    if (!check('EQUALS')) {
+      eat('NEWLINE', 'EOF')
+      return { kind: 'PointDecl', name: nameTok.value, x: null, y: null }
+    }
     eat('EQUALS')
     eat('LPAREN')
     const x = parseSignedNumber()

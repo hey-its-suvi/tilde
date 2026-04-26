@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.3.5 — current
+## 0.3.6 — current
+
+- **Line ∩ Line constraint**: a point constrained to two named lines is placed at their intersection (`point p on a; p on b`)
+- Constraining a point to three or more lines checks that all lines share a common point, throwing a constraint error if not
+- **Bare point declaration**: `let point a` now works without coordinates — declares a free vertex the solver places normally
+- **Bare line declaration**: `let line l` now works without an equation — defaults to `y = x`
+
+## 0.3.5
 
 - Docs: expanded solver internals into five pages — overview, unit resolution, constraint model, anchor, and placement loop
 - Docs: introduced locus-intersection model as the unifying framing for the placement algorithm

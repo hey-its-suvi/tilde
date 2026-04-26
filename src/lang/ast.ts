@@ -28,8 +28,8 @@ export type LineDecl = {
 export type PointDecl = {
   kind: 'PointDecl'
   name: string
-  x: number
-  y: number
+  x: number | null  // null = bare declaration, no coordinates
+  y: number | null
 }
 
 export type ShapeKind = 'triangle' | 'square' | 'rectangle' | 'segment' | 'polygon'
