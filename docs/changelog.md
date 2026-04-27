@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.3.7 — current
+## 0.3.8 — current
+
+- **Subscript shape support**: shapes in subscript mode (`triangle t`, `segment s`) now register vertices (`t_1`, `t_2`, `t_3`) and edges in the solver
+- **Subscript segment syntax**: `t_1_2` (double underscore) is the canonical edge ref for subscript shapes — unambiguous regardless of vertex count
+- **Unified ref system**: parser now produces only `NameRef | SubscriptRef`; all semantic resolution (line vs segment vs vertex) moved to the solver where the symbol table is available
+- **`p on t_1_2` works**: on-constraints now accept subscript segment targets
+- **`point a` after `segment ab`**: re-declaring an implicitly created vertex is now allowed — coordinates are applied as a position constraint rather than throwing
+- Internal: `MeasureConstraint` split into `LengthConstraint` and `AngleConstraint`; `PointCoincidence` merged into `EqualityConstraint`
+
+## 0.3.7
 
 - **Any-case identifiers**: names can now be any mix of upper and lowercase (`MyTriangle`, `Seg1`, `hello`) — the previous all-upper / all-lower restriction is removed
 - **Flexible shape naming**: exact-length all-distinct lowercase names decompose into vertices (`triangle abc` → vertices `a`, `b`, `c`); any other name uses subscript mode (`triangle t` → `t_1`, `t_2`, `t_3`)

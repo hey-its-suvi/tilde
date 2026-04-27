@@ -19,7 +19,7 @@ export type Statement =
 
 export type LineDecl = {
   kind: 'LineDecl'
-  name: string   // line name (multi-char lowercase recommended)
+  name: string
   a: number      // ax + by + c = 0
   b: number
   c: number
@@ -37,9 +37,9 @@ export type ShapeKind = 'triangle' | 'square' | 'rectangle' | 'segment' | 'polyg
 export type ShapeDecl = {
   kind: 'ShapeDecl'
   shapeKind: ShapeKind
-  name: string           // 'abc' (explicit) or 'ABC' (named)
-  named: boolean         // true if all-uppercase (named mode)
-  polygonSides?: number  // only for polygon
+  name: string           // declaration label — not a ref
+  named: boolean         // true = subscript mode
+  polygonSides?: number
   constraints: Constraint[]
 }
 
@@ -50,12 +50,13 @@ export type ConstraintStmt = {
 
 export type PrintStmt = {
   kind: 'PrintStmt'
-  target: Printable
+  target: Ref
+  angle: boolean  // true if `print angle ...` — signals angle measurement
 }
 
 export type PickStmt = {
   kind: 'PickStmt'
-  vertex: VertexRef
+  vertex: Ref
   index: number  // 1-based solution index
 }
 
@@ -65,35 +66,42 @@ export type SettingStmt =
   | { kind: 'SetWinding'; dir: 'clockwise' | 'counterclockwise' }
   | { kind: 'SetGrid'; on: boolean }
 
+// ─── Refs ─────────────────────────────────────────────────────────────────────
+// The parser never knows the semantic type of a name — that's the solver's job.
+// SubscriptRef is the only structurally distinct form (t_1, t_1_2).
+
+/** A plain name — solver resolves what entity it refers to */
+export type NameRef = { kind: 'NameRef'; name: string }
+
+/** A subscript reference — structurally unambiguous due to _ separator
+ *  indices.length === 1  →  vertex (t_1) or angle vertex (angle t_2)
+ *  indices.length === 2  →  segment (t_1_2)
+ */
+export type SubscriptRef = { kind: 'SubscriptRef'; shape: string; indices: number[] }
+
+export type Ref = NameRef | SubscriptRef
+
 // ─── Constraints ─────────────────────────────────────────────────────────────
 
 export type Constraint =
-  | MeasureConstraint
+  | LengthConstraint
+  | AngleConstraint
   | RelationConstraint
   | EqualityConstraint
-  | PointCoincidence
   | OnConstraint
   | PositionConstraint
 
-/** a = (1, 2)  — set vertex position inline, errors if already placed at a different position */
-export type PositionConstraint = {
-  kind: 'PositionConstraint'
-  vertex: string
-  x: number
-  y: number
+/** ab = 5  |  t_1_2 = 5 */
+export type LengthConstraint = {
+  kind: 'LengthConstraint'
+  target: Ref
+  value: MeasureValue
 }
 
-/** point p on line l  |  point p on segment ab  |  p on l  |  p on ab */
-export type OnConstraint = {
-  kind: 'OnConstraint'
-  point: string   // vertex name
-  target: string  // line name or segment vertex pair — solver resolves which
-}
-
-/** ab = 5  |  angle abc = 60 */
-export type MeasureConstraint = {
-  kind: 'MeasureConstraint'
-  target: SegmentRef | AngleRef
+/** angle abc = 60  |  angle t_2 = 60 */
+export type AngleConstraint = {
+  kind: 'AngleConstraint'
+  target: Ref
   value: MeasureValue
 }
 
@@ -101,42 +109,31 @@ export type MeasureConstraint = {
 export type RelationConstraint = {
   kind: 'RelationConstraint'
   relation: 'parallel' | 'perpendicular'
-  left: SegmentRef
-  right: SegmentRef
+  left: Ref
+  right: Ref
 }
 
-/** ab = cd  (same length, no numeric value) */
+/** ab = cd  (equal length)  |  a = b  (coincidence)  — solver resolves which */
 export type EqualityConstraint = {
   kind: 'EqualityConstraint'
-  left: SegmentRef
-  right: SegmentRef
+  left: Ref
+  right: Ref
 }
 
-/** a = b  (point coincidence) */
-export type PointCoincidence = {
-  kind: 'PointCoincidence'
-  left: VertexRef
-  right: VertexRef
+/** a = (1, 2)  — place vertex at exact coordinates */
+export type PositionConstraint = {
+  kind: 'PositionConstraint'
+  vertex: Ref
+  x: number
+  y: number
 }
 
-// ─── References ──────────────────────────────────────────────────────────────
-
-/** ab  |  ABC_12 */
-export type SegmentRef =
-  | { kind: 'ExplicitSegment'; v1: string; v2: string }
-  | { kind: 'SubscriptSegment'; shape: string; i: number; j: number }
-
-/** abc (angle at b)  |  ABC_2 (angle at 2nd vertex) */
-export type AngleRef =
-  | { kind: 'ExplicitAngle'; v1: string; v2: string; v3: string }
-  | { kind: 'SubscriptAngle'; shape: string; i: number }
-
-/** a  |  ABC_1 */
-export type VertexRef =
-  | { kind: 'ExplicitVertex'; name: string }
-  | { kind: 'SubscriptVertex'; shape: string; i: number }
-
-export type Printable = SegmentRef | AngleRef | VertexRef
+/** point p on line l  |  p on ab  |  p on t_1_2 */
+export type OnConstraint = {
+  kind: 'OnConstraint'
+  point: Ref
+  target: Ref
+}
 
 // ─── Values ──────────────────────────────────────────────────────────────────
 

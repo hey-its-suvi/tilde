@@ -1,13 +1,20 @@
 // ─── Tilde Parser ────────────────────────────────────────────────────────────
 // Recursive descent parser. Consumes a token stream from the lexer
 // and produces a Program AST node.
+//
+// The parser's job is structural — it recognises syntax, not semantics.
+// It does not know whether a name refers to a line, point, or shape.
+// The only structurally distinct reference form is the subscript (t_1, t_1_2),
+// because the underscore separator makes it unambiguous from the token stream.
+// Everything else is a plain NameRef; the solver resolves what it is.
 
 import { Token, TokenKind } from './lexer.js'
 import {
   Program, Statement, ShapeDecl, ShapeKind, LineDecl, PointDecl,
   ConstraintStmt, PrintStmt, SettingStmt, PickStmt,
-  Constraint, MeasureConstraint, RelationConstraint, EqualityConstraint, PointCoincidence, OnConstraint, PositionConstraint,
-  SegmentRef, AngleRef, VertexRef, Printable,
+  Constraint, LengthConstraint, AngleConstraint, RelationConstraint,
+  EqualityConstraint, OnConstraint, PositionConstraint,
+  Ref, NameRef, SubscriptRef,
   MeasureValue, LengthUnit, AngleUnit,
 } from './ast.js'
 
@@ -64,27 +71,47 @@ export function parse(tokens: Token[]): Program {
   function parseStatement(): Statement {
     const tok = peek()
 
-    // 'let' is optional sugar — consume it and continue
-    if (check('LET')) advance()
+    if (check('LET')) advance()  // optional sugar
 
     if (check('TRIANGLE', 'SQUARE', 'RECTANGLE', 'SEGMENT', 'POLYGON')) return parseShapeDecl()
     if (check('LINE')) return parseLineDecl()
     if (check('POINT')) {
-      // POINT is at pos, name at pos+1, operator at pos+2
       const op = tokens[pos + 2]?.kind
-      if (op === 'EQUALS') return parsePointDecl()               // point a = (x, y)
-      if (op === 'NEWLINE' || op === 'EOF' || op === undefined) return parsePointDecl() // point a
-      return parseConstraintStmt()                                // point a on ...
+      if (op === 'EQUALS') return parsePointDecl()
+      if (op === 'NEWLINE' || op === 'EOF' || op === undefined) return parsePointDecl()
+      return parseConstraintStmt()  // point a on ...
     }
     if (check('PRINT')) return parsePrintStmt()
     if (check('SET')) return parseSettingStmt()
     if (check('PICK')) return parsePickStmt()
     if (check('ANGLE')) return parseConstraintStmt()
-
-    // NAME could start a constraint (ab = 5, abc = ..., a = b, ABC_1 = ...)
     if (check('NAME')) return parseConstraintStmt()
 
     throw new ParseError(`Unexpected token ${tok.kind} ("${tok.value}")`, tok.line, tok.col)
+  }
+
+  // ── Ref ────────────────────────────────────────────────────────────────────
+  // One function for all references. The parser produces:
+  //   NameRef      — any plain name; solver resolves the entity
+  //   SubscriptRef — t_1 or t_1_2; structurally distinct via underscore
+
+  function isSubscriptRef(): boolean {
+    return check('NAME') && tokens[pos + 1]?.kind === 'UNDERSCORE'
+  }
+
+  function parseRef(): Ref {
+    if (isSubscriptRef()) {
+      const shape = advance().value
+      eat('UNDERSCORE')
+      const i = parseInt(eat('NUMBER').value)
+      if (check('UNDERSCORE')) {
+        eat('UNDERSCORE')
+        const j = parseInt(eat('NUMBER').value)
+        return { kind: 'SubscriptRef', shape, indices: [i, j] } satisfies SubscriptRef
+      }
+      return { kind: 'SubscriptRef', shape, indices: [i] } satisfies SubscriptRef
+    }
+    return { kind: 'NameRef', name: eat('NAME').value } satisfies NameRef
   }
 
   // ── Shape declaration ──────────────────────────────────────────────────────
@@ -95,21 +122,15 @@ export function parse(tokens: Token[]): Program {
 
     let polygonSides: number | undefined
     if (shapeKind === 'polygon') {
-      const n = eat('NUMBER')
-      polygonSides = parseFloat(n.value)
+      polygonSides = parseFloat(eat('NUMBER').value)
     }
 
-    const nameTok = eat('NAME')
-    const name = nameTok.value
+    const name = eat('NAME').value
 
-    // Decompose mode: exact-length lowercase name — each character is a vertex.
-    // Subscript mode: any other name (wrong length, uppercase, or multi-word label).
     const expectedLengths: Partial<Record<ShapeKind, number>> = {
       triangle: 3, square: 4, rectangle: 4, segment: 2,
     }
     const expectedForShape = shapeKind === 'polygon' ? polygonSides : expectedLengths[shapeKind]
-    // Decompose mode: exact-length lowercase name with all-distinct chars.
-    // Anything else (wrong length, uppercase, repeated chars) → subscript mode.
     const isAllDistinct = new Set(name).size === name.length
     const decompose = name === name.toLowerCase()
       && expectedForShape !== undefined
@@ -119,15 +140,11 @@ export function parse(tokens: Token[]): Program {
 
     const constraints: Constraint[] = []
 
-    // Inline value: `let segment ab = 5` — sugar for `with ab = 5`
+    // `segment ab = 5` — inline length sugar
     if (check('EQUALS') && !named) {
       advance()
       const value = parseMeasureValue()
-      // build a segment or angle measure constraint from the name itself
-      if (name.length === 2) {
-        const seg: SegmentRef = { kind: 'ExplicitSegment', v1: name[0]!, v2: name[1]! }
-        constraints.push({ kind: 'MeasureConstraint', target: seg, value })
-      }
+      constraints.push({ kind: 'LengthConstraint', target: { kind: 'NameRef', name }, value })
     } else if (check('WITH')) {
       advance()
       constraints.push(...parseConstraintList())
@@ -142,13 +159,13 @@ export function parse(tokens: Token[]): Program {
   function parseConstraintList(): Constraint[] {
     const constraints = [parseConstraint()]
     while (check('AND')) {
-      advance() // consume 'and'
+      advance()
       constraints.push(parseConstraint())
     }
     return constraints
   }
 
-  // ── Constraint statement (standalone) ─────────────────────────────────────
+  // ── Constraint statement ───────────────────────────────────────────────────
 
   function parseConstraintStmt(): ConstraintStmt {
     const constraint = parseConstraint()
@@ -159,147 +176,69 @@ export function parse(tokens: Token[]): Program {
   // ── Constraint ─────────────────────────────────────────────────────────────
 
   function parseConstraint(): Constraint {
-    // point p on line l  |  point p on segment ab  |  point p on l  |  point p on ab
+    // point ref on target
     if (check('POINT')) {
       advance()
-      const pointTok = eat('NAME')
+      const point = parseRef()
       eat('ON')
-      if (check('LINE', 'SEGMENT')) advance()  // optional keyword
-      const targetTok = eat('NAME')
-      return { kind: 'OnConstraint', point: pointTok.value, target: targetTok.value } satisfies OnConstraint
+      if (check('LINE', 'SEGMENT')) advance()  // optional keyword hint — consumed, not stored
+      const target = parseRef()
+      return { kind: 'OnConstraint', point, target } satisfies OnConstraint
     }
 
-    // angle abc = 60  |  angle ABC_2 = 60
+    // angle ref = value
     if (check('ANGLE')) {
       advance()
-      const ref = parseAngleRef()
+      const target = parseRef()
       eat('EQUALS')
       const value = parseMeasureValue()
-      return { kind: 'MeasureConstraint', target: ref, value } satisfies MeasureConstraint
+      return { kind: 'AngleConstraint', target, value } satisfies AngleConstraint
     }
 
-    // ab = ...  |  ABC_12 = ...  |  a = b  |  ab parallel cd  |  a on line l
-    const left = parseSegmentOrVertex()
+    // ref = ...  |  ref on ...  |  ref parallel/perpendicular ref
+    const left = parseRef()
 
-    // a on line l  |  a on segment ab  |  a on l  |  a on ab
-    if (check('ON') && left.kind === 'ExplicitVertex') {
+    if (check('ON')) {
       advance()
-      if (check('LINE', 'SEGMENT')) advance()  // optional keyword
-      const targetTok = eat('NAME')
-      return { kind: 'OnConstraint', point: left.name, target: targetTok.value } satisfies OnConstraint
+      if (check('LINE', 'SEGMENT')) advance()  // optional keyword hint
+      const target = parseRef()
+      return { kind: 'OnConstraint', point: left, target } satisfies OnConstraint
     }
 
     if (check('PARALLEL', 'PERPENDICULAR')) {
       const rel = advance().kind === 'PARALLEL' ? 'parallel' : 'perpendicular'
-      const right = parseSegmentRef()
-      return { kind: 'RelationConstraint', relation: rel, left: left as SegmentRef, right } satisfies RelationConstraint
+      const right = parseRef()
+      return { kind: 'RelationConstraint', relation: rel, left, right } satisfies RelationConstraint
     }
 
     if (check('EQUALS')) {
       advance()
-      // a = (x, y)  →  position constraint
-      if (check('LPAREN') && left.kind === 'ExplicitVertex') {
+      // ref = (x, y) → position constraint
+      if (check('LPAREN')) {
         eat('LPAREN')
         const x = parseSignedNumber()
         eat('COMMA')
         const y = parseSignedNumber()
         eat('RPAREN')
-        return { kind: 'PositionConstraint', vertex: left.name, x, y } satisfies PositionConstraint
+        return { kind: 'PositionConstraint', vertex: left, x, y } satisfies PositionConstraint
       }
-      // Right side: number → measure constraint; name → equality or point coincidence
+      // ref = number → length constraint
       if (check('NUMBER')) {
         const value = parseMeasureValue()
-        return { kind: 'MeasureConstraint', target: left as SegmentRef, value } satisfies MeasureConstraint
+        return { kind: 'LengthConstraint', target: left, value } satisfies LengthConstraint
       }
-
-      const right = parseSegmentOrVertex()
-
-      // Both single vertices → point coincidence
-      if (left.kind === 'ExplicitVertex' && right.kind === 'ExplicitVertex') {
-        return { kind: 'PointCoincidence', left, right } satisfies PointCoincidence
-      }
-      if (left.kind === 'SubscriptVertex' && right.kind === 'SubscriptVertex') {
-        return { kind: 'PointCoincidence', left, right } satisfies PointCoincidence
-      }
-
-      // Otherwise → equality constraint (same length)
-      return { kind: 'EqualityConstraint', left: left as SegmentRef, right: right as SegmentRef } satisfies EqualityConstraint
+      // ref = ref → equality (length) or coincidence (vertex) — solver decides
+      const right = parseRef()
+      return { kind: 'EqualityConstraint', left, right } satisfies EqualityConstraint
     }
 
-    throw new ParseError(`Expected =, parallel, or perpendicular after reference`, peek().line, peek().col)
-  }
-
-  // ── References ─────────────────────────────────────────────────────────────
-
-  /** Returns true if the current token is a NAME followed by UNDERSCORE (subscript ref) */
-  function isSubscriptRef(): boolean {
-    return check('NAME') && tokens[pos + 1]?.kind === 'UNDERSCORE'
-  }
-
-  /** Parse a segment or vertex ref — determined by what follows */
-  function parseSegmentOrVertex(): SegmentRef | VertexRef {
-    if (isSubscriptRef()) {
-      const name = advance().value
-      eat('UNDERSCORE')
-      const i = parseInt(eat('NUMBER').value)
-      // shape_12 (two digits) vs shape_1 (one digit) — check if another number follows immediately
-      if (check('NUMBER')) {
-        const j = parseInt(eat('NUMBER').value)
-        return { kind: 'SubscriptSegment', shape: name, i, j }
-      }
-      return { kind: 'SubscriptVertex', shape: name, i }
-    }
-
-    // plain name: single char = vertex, two chars = segment, three chars = angle (handled elsewhere)
-    const name = eat('NAME').value
-    if (name.length === 1) return { kind: 'ExplicitVertex', name }
-    if (name.length === 2) return { kind: 'ExplicitSegment', v1: name[0]!, v2: name[1]! }
-
-    throw new ParseError(`Unexpected name "${name}" — expected a vertex (1 char) or segment (2 chars)`, peek().line, peek().col)
-  }
-
-  function parseSegmentRef(): SegmentRef {
-    const ref = parseSegmentOrVertex()
-    if (ref.kind === 'ExplicitVertex' || ref.kind === 'SubscriptVertex') {
-      throw new ParseError('Expected a segment reference, got a vertex', peek().line, peek().col)
-    }
-    return ref
-  }
-
-  function parseAngleRef(): AngleRef {
-    if (isSubscriptRef()) {
-      const name = advance().value
-      eat('UNDERSCORE')
-      const i = parseInt(eat('NUMBER').value)
-      return { kind: 'SubscriptAngle', shape: name, i }
-    }
-
-    const name = eat('NAME').value
-    if (name.length !== 3) {
-      throw new ParseError(`Angle reference must be exactly 3 lowercase chars, got "${name}"`, peek().line, peek().col)
-    }
-    return { kind: 'ExplicitAngle', v1: name[0]!, v2: name[1]!, v3: name[2]! }
-  }
-
-  function parseVertexRef(): VertexRef {
-    if (isSubscriptRef()) {
-      const name = advance().value
-      eat('UNDERSCORE')
-      const i = parseInt(eat('NUMBER').value)
-      return { kind: 'SubscriptVertex', shape: name, i }
-    }
-    const name = eat('NAME').value
-    if (name.length !== 1) {
-      throw new ParseError(`Vertex reference must be a single char, got "${name}"`, peek().line, peek().col)
-    }
-    return { kind: 'ExplicitVertex', name }
+    throw new ParseError(`Expected =, on, parallel, or perpendicular after reference`, peek().line, peek().col)
   }
 
   // ── Values ─────────────────────────────────────────────────────────────────
 
   function parseMeasureValue(): MeasureValue {
-    const num = eat('NUMBER')
-    const value = parseFloat(num.value)
+    const value = parseFloat(eat('NUMBER').value)
 
     const unitMap: Partial<Record<TokenKind, LengthUnit | AngleUnit>> = {
       UNIT_CM: 'cm', UNIT_MM: 'mm', UNIT_M: 'm',
@@ -320,12 +259,11 @@ export function parse(tokens: Token[]): Program {
 
   function parseLineDecl(): LineDecl {
     eat('LINE')
-    const nameTok = eat('NAME')
+    const name = eat('NAME').value
 
-    // Bare declaration: default to y = x  (m=1, k=0 → a=1, b=-1, c=0)
     if (!check('EQUALS')) {
       eat('NEWLINE', 'EOF')
-      return { kind: 'LineDecl', name: nameTok.value, a: 1, b: -1, c: 0 }
+      return { kind: 'LineDecl', name, a: 1, b: -1, c: 0 }  // default y = x
     }
 
     eat('EQUALS')
@@ -335,26 +273,26 @@ export function parse(tokens: Token[]): Program {
     const second = parseSignedNumber()
 
     if (check('COMMA')) {
-      // 3-tuple: (a, b, c) → ax + by + c = 0
       advance()
       const third = parseSignedNumber()
       eat('RPAREN')
       eat('NEWLINE', 'EOF')
-      return { kind: 'LineDecl', name: nameTok.value, a: first, b: second, c: third }
+      return { kind: 'LineDecl', name, a: first, b: second, c: third }
     }
 
-    // 2-tuple: (m, k) → y = mx + k → mx - y + k = 0
     eat('RPAREN')
     eat('NEWLINE', 'EOF')
-    return { kind: 'LineDecl', name: nameTok.value, a: first, b: -1, c: second }
+    return { kind: 'LineDecl', name, a: first, b: -1, c: second }
   }
+
+  // ── Point declaration ──────────────────────────────────────────────────────
 
   function parsePointDecl(): PointDecl {
     eat('POINT')
-    const nameTok = eat('NAME')
+    const name = eat('NAME').value
     if (!check('EQUALS')) {
       eat('NEWLINE', 'EOF')
-      return { kind: 'PointDecl', name: nameTok.value, x: null, y: null }
+      return { kind: 'PointDecl', name, x: null, y: null }
     }
     eat('EQUALS')
     eat('LPAREN')
@@ -363,7 +301,7 @@ export function parse(tokens: Token[]): Program {
     const y = parseSignedNumber()
     eat('RPAREN')
     eat('NEWLINE', 'EOF')
-    return { kind: 'PointDecl', name: nameTok.value, x, y }
+    return { kind: 'PointDecl', name, x, y }
   }
 
   function parseSignedNumber(): number {
@@ -375,7 +313,7 @@ export function parse(tokens: Token[]): Program {
 
   function parsePickStmt(): PickStmt {
     eat('PICK')
-    const vertex = parseVertexRef()
+    const vertex = parseRef()
     const index = parseInt(eat('NUMBER').value)
     eat('NEWLINE', 'EOF')
     return { kind: 'PickStmt', vertex, index }
@@ -385,17 +323,10 @@ export function parse(tokens: Token[]): Program {
 
   function parsePrintStmt(): PrintStmt {
     eat('PRINT')
-    let target: Printable
-
-    if (check('ANGLE')) {
-      advance()
-      target = parseAngleRef()
-    } else {
-      target = parseSegmentOrVertex()
-    }
-
+    const angle = check('ANGLE') ? (advance(), true) : false
+    const target = parseRef()
     eat('NEWLINE', 'EOF')
-    return { kind: 'PrintStmt', target }
+    return { kind: 'PrintStmt', target, angle }
   }
 
   // ── Settings ───────────────────────────────────────────────────────────────
@@ -446,11 +377,9 @@ export function parse(tokens: Token[]): Program {
       UNIT: 'unit', UNIT_CM: 'cm', UNIT_MM: 'mm', UNIT_M: 'm',
       UNIT_IN: 'in', UNIT_INCHES: 'inches',
     }
-    // 'unit' keyword itself is a valid length unit name
     if (check('UNIT')) { advance(); return 'unit' }
     const unitKind = tok.kind
     if (unitKind in map) { advance(); return map[unitKind]! }
-    // Try reading as a NAME (cm/mm/m/in/inches appear as NAME if not attached to a number)
     if (check('NAME')) {
       const name = advance().value
       const nameMap: Record<string, LengthUnit> = { cm: 'cm', mm: 'mm', m: 'm', in: 'in', inches: 'inches' }
@@ -462,8 +391,7 @@ export function parse(tokens: Token[]): Program {
   function parseAngleUnit(): AngleUnit {
     if (check('DEGREES')) { advance(); return 'degrees' }
     if (check('RADIANS')) { advance(); return 'radians' }
-    const tok = peek()
-    throw new ParseError(`Expected "degrees" or "radians"`, tok.line, tok.col)
+    throw new ParseError(`Expected "degrees" or "radians"`, peek().line, peek().col)
   }
 
   return parseProgram()

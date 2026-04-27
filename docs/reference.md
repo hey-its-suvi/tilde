@@ -207,17 +207,19 @@ Shapes in subscript mode expose their components via subscripts.
 
 ```
 t_1            # vertex 1 of shape t
-t_12           # segment between vertices 1 and 2 of shape t
+t_1_2          # segment between vertices 1 and 2 of shape t
 angle t_2      # angle at vertex 2 of shape t
 ```
 
-Uppercase labels are also valid:
+Works for any label, any case:
 
 ```
 ABC_1          # vertex 1 of shape ABC
-ABC_12         # segment between vertices 1 and 2
+ABC_1_2        # segment between vertices 1 and 2
 angle ABC_2    # angle at vertex 2
 ```
+
+The double-underscore delimiter (`_1_2`) is required for segment refs so the parser can distinguish vertex 12 from edge 1→2.
 
 ---
 

@@ -2,7 +2,7 @@
 // Points always have coordinates — the solver picks a representative position
 // for underconstrained things. `free` drives squiggle vs crisp rendering.
 
-import { LengthUnit } from '../ast.js'
+import { LengthUnit, ShapeKind } from '../ast.js'
 
 export type GeomPoint = {
   x: number
@@ -13,12 +13,15 @@ export type GeomPoint = {
 
 export type GeomLine = { a: number; b: number; c: number }  // ax + by + c = 0
 
+export type RegisteredShape = { kind: ShapeKind; vertexCount: number }
+
 export type GeomModel = {
   points:     Map<string, GeomPoint>
   segments:   Set<string>                          // canonical keys of all declared segments
   lengths:    Map<string, number | null>           // null = unknown
   angles:     Map<string, number | null>           // degrees, null = unknown
   lines:      Map<string, GeomLine>                // named lines
+  shapes:     Map<string, RegisteredShape>         // named shapes (subscript mode)
   onLine:     Map<string, string[]>                // vertex name → line names (supports 2+ for intersection)
   onSegment:    Map<string, { v1: string; v2: string }>  // vertex name → segment endpoints
   solutionPicks: Map<string, number>                     // vertex name → 1-based solution index
@@ -30,7 +33,7 @@ export function makeModel(): GeomModel {
   return {
     points: new Map(), segments: new Set(),
     lengths: new Map(), angles: new Map(),
-    lines: new Map(), onLine: new Map(), onSegment: new Map(),
+    lines: new Map(), shapes: new Map(), onLine: new Map(), onSegment: new Map(),
     solutionPicks: new Map(),
     anchorKey: null,
     activeUnit: null,
