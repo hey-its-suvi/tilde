@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.8 — current
+## 0.3.9 — current
+
+- **Test suite**: Vitest added; `src/tests/solver.test.ts` covers bare segment/triangle, subscript triangle, length constraints, explicit point placement, contradictory-position errors, and line-intersection placement
+
+## 0.3.8
 
 - **Subscript shape support**: shapes in subscript mode (`triangle t`, `segment s`) now register vertices (`t_1`, `t_2`, `t_3`) and edges in the solver
 - **Subscript segment syntax**: `t_1_2` (double underscore) is the canonical edge ref for subscript shapes — unambiguous regardless of vertex count
