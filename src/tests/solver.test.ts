@@ -9,7 +9,7 @@ import {
 } from './helpers.js'
 
 describe('bare declarations', () => {
-  it('point a — anchored at origin, solutions one', () => {
+  it('point a — no explicit placements, anchor at origin, solutions one', () => {
     const scene = run('point a')
     assertPointExists(scene, 'a')
     assertPoint(scene, 'a', 'one')
@@ -107,6 +107,44 @@ describe('point declarations', () => {
     assertPointAt(scene, 'b', 2, 2)
     assertSegment(scene, 'a', 'b')
     assertSegmentLength(scene, 'a', 'b', Math.sqrt(2))
+  })
+})
+
+describe('anchor placement', () => {
+  it('floating segment alongside an explicit point — both endpoints infinite', () => {
+    // segment ab = 3 is floating, but point c fixes the coordinate system.
+    // We can no longer rotate the scene to put ab on the x-axis, so both
+    // endpoints must be 'infinite', not orientation-fixed to 'one'.
+    const scene = run('segment ab = 3\npoint c = (5,0)')
+    assertPoint(scene, 'a', 'infinite')
+    assertPoint(scene, 'b', 'infinite')
+    assertPoint(scene, 'c', 'one')
+    assertSegmentLength(scene, 'a', 'b', 3)
+  })
+
+  it('isolated free point alongside a fixed segment is not anchored at origin', () => {
+    const scene = run([
+      'segment ab with a = (2,2) and b = (3,2)',
+      'point c',
+    ].join('\n'))
+    assertPointAt(scene, 'a', 2, 2)
+    assertPointAt(scene, 'b', 3, 2)
+    assertPoint(scene, 'c', 'infinite')
+  })
+
+  it('free point with a length constraint to a fixed point is not anchored at origin', () => {
+    // c is free but has segment ca = 3 tying it to fixed a=(2,2).
+    // The anchor must not select c — placing it at (0,0) would give distance
+    // sqrt(8) ≈ 2.83, violating the length constraint.
+    const scene = run([
+      'segment ab with a = (2,2) and b = (3,2)',
+      'segment ca = 3',
+    ].join('\n'))
+    assertPointAt(scene, 'a', 2, 2)
+    assertPointAt(scene, 'b', 3, 2)
+    // c is on a circle of radius 3 around a — genuinely underconstrained
+    assertPoint(scene, 'c', 'infinite')
+    assertSegmentLength(scene, 'c', 'a', 3)
   })
 })
 

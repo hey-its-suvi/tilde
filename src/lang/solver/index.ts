@@ -77,9 +77,13 @@ export function solve(program: Program): { scene: SceneGraph; config: RenderConf
   }
 
   // Pass 2: set anchor — first unconstrained free point in insertion order.
-  // Skip points on lines/segments (their position is determined by that constraint,
-  // not by being fixed at origin) and skip explicitly-placed points (free=false).
-  if (model.anchorKey === null) {
+  // The anchor pins the translation degree of freedom for a fully-floating scene
+  // (one where no point has explicit coordinates). If ANY point is explicitly placed
+  // (free=false from a position constraint or coordinate declaration), the coordinate
+  // system is already fixed and no anchor is needed — every remaining free point is
+  // genuinely underconstrained relative to those fixed points.
+  const hasExplicitlyPlaced = [...model.points.values()].some(pt => !pt.free)
+  if (model.anchorKey === null && !hasExplicitlyPlaced) {
     for (const [k, pt] of model.points) {
       if (pt.free && !model.onLine.has(k) && !model.onSegment.has(k)) {
         model.anchorKey = k
@@ -354,7 +358,12 @@ function placeVertices(model: GeomModel): void {
   // Whether we've fixed the orientation (the first non-anchor vertex placed
   // with 1 known-dist neighbor defines the x-axis direction, and is considered
   // "solved" by convention rather than underconstrained).
-  let orientationFixed = false
+  // If there are placed points beyond the single anchor, at least one explicitly-
+  // placed point exists — the scene is already anchored in space, so any 1-locus
+  // circle placement is genuinely underconstrained (infinite positions on that circle)
+  // and must not be treated as fixing orientation.
+  const explicitlyPlaced = placed.size - (model.anchorKey !== null ? 1 : 0)
+  let orientationFixed = explicitlyPlaced > 0
 
   // Heading for 1-locus circle placements. Starts pointing +x, rotates 90° CCW
   // each time to prevent collinear degeneracy (e.g. a rhombus becomes a square

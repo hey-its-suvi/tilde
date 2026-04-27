@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.9 — current
+## 0.3.10 — current
+
+- **Anchor bug fix**: a free point with a length constraint to an already-fixed point is no longer selected as the translation anchor — anchoring it at the origin would violate the distance constraint
+
+## 0.3.9
 
 - **Test suite**: Vitest added; `src/tests/solver.test.ts` covers bare segment/triangle, subscript triangle, length constraints, explicit point placement, contradictory-position errors, and line-intersection placement
 
