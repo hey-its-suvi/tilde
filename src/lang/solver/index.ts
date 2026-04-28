@@ -212,8 +212,8 @@ export function solve(program: Program): { scene: SceneGraph; config: RenderConf
     }
   }
 
-  // Pass 3: place all vertices using constraint propagation
-  placeVertices(model)
+  // Pass 3: resolve all geometry via constraint propagation
+  resolve(model)
 
   return { scene: buildSceneGraph(model), config }
 }
@@ -453,222 +453,227 @@ function applyConstraint(model: GeomModel, c: Constraint) {
   // EqualityConstraint and RelationConstraint parse but are not yet implemented
 }
 
-// ─── Vertex placement ─────────────────────────────────────────────────────────
-// Vertex-centric fixpoint algorithm. Does not care about declaration order or
-// shape type — only the constraint graph matters.
+// ─── Geometry resolution ──────────────────────────────────────────────────────
+// Unified fixpoint algorithm. Element types (vertices, lines, …) participate
+// in the same priority-ordered loop so a line completion can immediately unlock
+// an exact vertex intersection without doing a separate pass first.
 //
-// Each constraint on a vertex defines a locus — the set of positions where it
-// could legally sit (circle, line, segment). Rules are tried in priority order,
-// highest locus count first:
-//
-//   2+ loci  →  intersect them  →  finite solutions (exact)
-//   1 locus  →  place at a default point on the locus  →  free
-//   0 loci   →  no geometric info, structural fallback  →  free
+// Priority order (higher always fires before lower, across all element types):
+//   2  exact   — 2+ loci intersected  → finite solutions
+//   1  locus   — 1 locus              → free (representative point chosen)
+//   0  fallback — 0 loci              → structural guess, always free
 
-function placeVertices(model: GeomModel): void {
+type PlacementState = {
+  placed:           Set<string>
+  orientationFixed: boolean
+  hdX:              number   // heading for 1-locus circle placements
+  hdY:              number
+  isolatedSeedIdx:  number
+}
+
+// ── Priority 2: exact vertex placements ───────────────────────────────────────
+// Each function is greedy — places every eligible vertex in one pass, returns
+// true so the outer loop restarts and re-checks from the top.
+// Line∩Line fires first because it needs no placed neighbours; the circle
+// variants need 2 and 1 placed neighbours respectively.
+
+// Vertex lies on 2+ fully-determined lines → place at their intersection.
+function tryPlaceVertexByLineIntersectLine(model: GeomModel, st: PlacementState): boolean {
+  let any = false
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    const lineNames = model.onLine.get(v)
+    if (!lineNames || lineNames.length < 2) continue
+    const l1 = model.lines.get(lineNames[0]!)!
+    const l2 = model.lines.get(lineNames[1]!)!
+    const pt = lineIntersect(l1, l2)
+    if (!pt) throw new ConstraintError(`no position for vertex ${v}: lines "${lineNames[0]}" and "${lineNames[1]}" are parallel`)
+    for (let i = 2; i < lineNames.length; i++) {
+      const { a, b, c } = model.lines.get(lineNames[i]!)!
+      if (Math.abs(a * pt.x + b * pt.y + c) > 1e-9)
+        throw new ConstraintError(`no position for vertex ${v}: lines "${lineNames[0]}", "${lineNames[1]}", and "${lineNames[i]}" have no common point`)
+    }
+    setPoint(model, v, pt.x, pt.y, false)
+    st.placed.add(v)
+    any = true
+  }
+  return any
+}
+
+// Vertex has 2+ placed neighbours with known distances → place at circle∩circle.
+function tryPlaceVertexByCircleIntersectCircle(model: GeomModel, st: PlacementState): boolean {
+  let any = false
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    const nbrs = placedNeighborsWithDist(model, st.placed, v)
+    if (nbrs.length < 2) continue
+    const sols = circleIntersectBoth(nbrs[0]!, nbrs[1]!)
+    if (sols.length === 0) throw new ConstraintError(`no position for vertex ${v}: distance constraints are inconsistent`)
+    const inheritedFree = nbrs[0]!.free || nbrs[1]!.free
+    const pick = model.solutionPicks.get(v)
+    if (pick !== undefined && pick >= 1 && pick <= sols.length) {
+      setPoint(model, v, sols[pick - 1]!.x, sols[pick - 1]!.y, inheritedFree)
+    } else if (sols.length === 1) {
+      setPoint(model, v, sols[0]!.x, sols[0]!.y, inheritedFree)
+    } else {
+      setPoint(model, v, sols[0]!.x, sols[0]!.y, inheritedFree)
+      model.points.get(v)!.allSolutions = sols
+    }
+    st.placed.add(v)
+    any = true
+  }
+  return any
+}
+
+// Vertex lies on exactly 1 fully-determined line AND has 1+ placed neighbours
+// with known distances → place at circle∩line.
+function tryPlaceVertexByCircleIntersectLine(model: GeomModel, st: PlacementState): boolean {
+  let any = false
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    const lineNames = model.onLine.get(v)
+    if (!lineNames || lineNames.length !== 1) continue  // 2+ lines → LineIntersectLine
+    const lineName = lineNames[0]!
+    const line = model.lines.get(lineName)!
+    const nbrs = placedNeighborsWithDist(model, st.placed, v)
+    if (nbrs.length < 1) continue
+    const n = nbrs[0]!
+    const sols = circleLineIntersectBoth(n.x, n.y, n.dist, line)
+    if (sols.length === 0) throw new ConstraintError(`no position for vertex ${v}: circle does not intersect line "${lineName}"`)
+    const pick = model.solutionPicks.get(v)
+    if (pick !== undefined && pick >= 1 && pick <= sols.length) {
+      setPoint(model, v, sols[pick - 1]!.x, sols[pick - 1]!.y, n.free)
+    } else if (sols.length === 1) {
+      setPoint(model, v, sols[0]!.x, sols[0]!.y, n.free)
+    } else {
+      setPoint(model, v, sols[0]!.x, sols[0]!.y, n.free)
+      model.points.get(v)!.allSolutions = sols
+    }
+    st.placed.add(v)
+    any = true
+  }
+  return any
+}
+
+// ── Priority 1: locus vertex placements ───────────────────────────────────────
+// One at a time — placing one vertex may give another vertex a second locus,
+// promoting it to exact next iteration.
+
+function tryPlaceVertexByLocus(model: GeomModel, st: PlacementState): boolean {
+  // 1a. Circle — exactly 1 placed neighbour with known distance, no other loci.
+  //     Heading rotates 90° CCW after each use to prevent collinear degeneracy.
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    const nbrs = placedNeighborsWithDist(model, st.placed, v)
+    if (nbrs.length !== 1) continue
+    const n = nbrs[0]!
+    setPoint(model, v, n.x + n.dist * st.hdX, n.y + n.dist * st.hdY, st.orientationFixed)
+    ;[st.hdX, st.hdY] = [-st.hdY, st.hdX]  // rotate 90° CCW
+    st.orientationFixed = true
+    st.placed.add(v)
+    return true
+  }
+
+  // 1b. Line — on a named line, no distance neighbours yet.
+  //     Place at foot of perpendicular from origin to the line.
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    const lineNames = model.onLine.get(v)
+    if (!lineNames || lineNames.length === 0) continue
+    const { a, b, c } = model.lines.get(lineNames[0]!)!
+    const denom = a * a + b * b
+    setPoint(model, v, -a * c / denom, -b * c / denom, true)
+    st.placed.add(v)
+    return true
+  }
+
+  // 1c. Segment — on a segment, both endpoints already placed.
+  //     Distribute evenly: t = (i+1)/(n+1) for the n unplaced points on the segment.
+  const groups = new Map<string, string[]>()
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    const seg = model.onSegment.get(v)
+    if (!seg || !st.placed.has(seg.v1) || !st.placed.has(seg.v2)) continue
+    const k = segKey(seg.v1, seg.v2)
+    if (!groups.has(k)) groups.set(k, [])
+    groups.get(k)!.push(v)
+  }
+  for (const [, pts] of groups) {
+    const seg = model.onSegment.get(pts[0]!)!
+    const p1 = getPoint(model, seg.v1)!, p2 = getPoint(model, seg.v2)!
+    pts.forEach((v, i) => {
+      const t = (i + 1) / (pts.length + 1)
+      setPoint(model, v, p1.x + t * (p2.x - p1.x), p1.y + t * (p2.y - p1.y), true)
+      st.placed.add(v)
+    })
+    return true
+  }
+
+  return false
+}
+
+// ── Priority 0: fallback vertex placements ────────────────────────────────────
+// Last resort — only fires when no exact or locus placement is possible for
+// any element type. One at a time.
+
+function tryPlaceVertexByFallback(model: GeomModel, st: PlacementState): boolean {
+  // 0a. Segment neighbour — shares a segment with a placed vertex but no known length.
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    for (const p of st.placed) {
+      if (model.segments.has(segKey(v, p))) {
+        setPoint(model, v, getPoint(model, p)!.x + DEFAULT_LEN, getPoint(model, p)!.y, true)
+        st.placed.add(v)
+        return true
+      }
+    }
+  }
+
+  // 0b. Isolated — no connection to any placed vertex.
+  //     Stack vertically so disconnected components don't overlap.
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    setPoint(model, v, 0, -(st.isolatedSeedIdx + 1) * DEFAULT_LEN * 2, true)
+    st.isolatedSeedIdx++
+    st.placed.add(v)
+    return true
+  }
+
+  return false
+}
+
+// ── Main resolution loop ───────────────────────────────────────────────────────
+
+function resolve(model: GeomModel): void {
   const placed = new Set<string>()
-  // Seed with anchor and any explicitly-placed points (free=false)
   for (const [k, pt] of model.points) {
     if (!pt.free) placed.add(k)
   }
 
-  // Whether we've fixed the orientation (the first non-anchor vertex placed
-  // with 1 known-dist neighbor defines the x-axis direction, and is considered
-  // "solved" by convention rather than underconstrained).
-  // If there are placed points beyond the single anchor, at least one explicitly-
-  // placed point exists — the scene is already anchored in space, so any 1-locus
-  // circle placement is genuinely underconstrained (infinite positions on that circle)
-  // and must not be treated as fixing orientation.
   const explicitlyPlaced = placed.size - (model.anchorKey !== null ? 1 : 0)
-  let orientationFixed = explicitlyPlaced > 0
+  const orientationFixed  = explicitlyPlaced > 0
 
-  // Heading for 1-locus circle placements. Rotates 90° CCW after each use to
-  // prevent collinear degeneracy (e.g. a rhombus becomes a square rather than
-  // a flat line). If pass 2 already fixed orientation by placing a reference
-  // point along +x, start perpendicular to avoid immediately repeating that axis.
-  let hdX = orientationFixed ? 0 : 1
-  let hdY = orientationFixed ? 1 : 0
+  const st: PlacementState = {
+    placed,
+    orientationFixed,
+    hdX: orientationFixed ? 0 : 1,
+    hdY: orientationFixed ? 1 : 0,
+    isolatedSeedIdx: 0,
+  }
 
   let changed = true
-  let isolatedSeedIndex = 0  // counts how many isolated components we've seeded
   while (changed) {
     changed = false
-
-    // ── 2+ loci (exact) ───────────────────────────────────────────────────────
-    // 2c. Line ∩ Line — on 2+ named lines. No placed neighbors needed; fires first.
-    for (const v of model.points.keys()) {
-      if (placed.has(v)) continue
-      const lineNames = model.onLine.get(v)
-      if (!lineNames || lineNames.length < 2) continue
-      const l1 = model.lines.get(lineNames[0]!)!
-      const l2 = model.lines.get(lineNames[1]!)!
-      const pt = lineIntersect(l1, l2)
-      if (!pt) {
-        throw new ConstraintError(`no position for vertex ${v}: lines "${lineNames[0]}" and "${lineNames[1]}" are parallel`)
-      }
-      for (let i = 2; i < lineNames.length; i++) {
-        const { a, b, c } = model.lines.get(lineNames[i]!)!
-        if (Math.abs(a * pt.x + b * pt.y + c) > 1e-9) {
-          throw new ConstraintError(`no position for vertex ${v}: lines "${lineNames[0]}", "${lineNames[1]}", and "${lineNames[i]}" have no common point`)
-        }
-      }
-      setPoint(model, v, pt.x, pt.y, false)
-      placed.add(v)
-      changed = true
-    }
-    if (changed) continue
-
-    // 2a. Circle ∩ Circle — 2+ placed neighbors with known distances.
-    for (const v of model.points.keys()) {
-      if (placed.has(v)) continue
-      const nbrs = placedNeighborsWithDist(model, placed, v)
-      if (nbrs.length >= 2) {
-        const sols = circleIntersectBoth(nbrs[0]!, nbrs[1]!)
-        if (sols.length === 0) {
-          throw new ConstraintError(`no position for vertex ${v}: distance constraints are inconsistent`)
-        }
-        const inheritedFree = nbrs[0]!.free || nbrs[1]!.free
-        const pick = model.solutionPicks.get(v)
-        if (pick !== undefined && pick >= 1 && pick <= sols.length) {
-          const s = sols[pick - 1]!
-          setPoint(model, v, s.x, s.y, inheritedFree)
-        } else if (sols.length === 1) {
-          setPoint(model, v, sols[0]!.x, sols[0]!.y, inheritedFree)
-        } else {
-          // Multiple solutions, none picked — use solution 1 as position, store all
-          setPoint(model, v, sols[0]!.x, sols[0]!.y, inheritedFree)
-          model.points.get(v)!.allSolutions = sols
-        }
-        placed.add(v)
-        changed = true
-      }
-    }
-    if (changed) continue
-
-    // 2b. Circle ∩ Line — on exactly one named line AND has a placed neighbor with known distance.
-    for (const v of model.points.keys()) {
-      if (placed.has(v)) continue
-      const lineNames = model.onLine.get(v)
-      if (!lineNames || lineNames.length !== 1) continue  // 2+ lines handled by 2c
-      const lineName = lineNames[0]!
-      const line = model.lines.get(lineName)!
-      const nbrs = placedNeighborsWithDist(model, placed, v)
-      if (nbrs.length >= 1) {
-        const n = nbrs[0]!
-        const sols = circleLineIntersectBoth(n.x, n.y, n.dist, line)
-        if (sols.length === 0) {
-          throw new ConstraintError(`no position for vertex ${v}: circle does not intersect line "${lineName}"`)
-        }
-        const pick = model.solutionPicks.get(v)
-        if (pick !== undefined && pick >= 1 && pick <= sols.length) {
-          setPoint(model, v, sols[pick - 1]!.x, sols[pick - 1]!.y, n.free)
-        } else if (sols.length === 1) {
-          setPoint(model, v, sols[0]!.x, sols[0]!.y, n.free)
-        } else {
-          setPoint(model, v, sols[0]!.x, sols[0]!.y, n.free)
-          model.points.get(v)!.allSolutions = sols
-        }
-        placed.add(v)
-        changed = true
-      }
-    }
-    if (changed) continue
-
-    // ── 1 locus (free) ────────────────────────────────────────────────────────
-    // 1a. Circle — exactly 1 placed neighbor with known distance, no other loci.
-    //     Heading rotates 90° CCW after each placement to avoid collinear
-    //     degeneracy (e.g. rhombus → square instead of flat line).
-    //     First placement fixes orientation (free=false); subsequent are free.
-    for (const v of model.points.keys()) {
-      if (placed.has(v)) continue
-      const nbrs = placedNeighborsWithDist(model, placed, v)
-      if (nbrs.length === 1) {
-        const n = nbrs[0]!
-        setPoint(model, v, n.x + n.dist * hdX, n.y + n.dist * hdY, orientationFixed);
-        [hdX, hdY] = [-hdY, hdX]  // rotate 90° CCW
-        orientationFixed = true
-        placed.add(v)
-        changed = true
-        break  // one at a time so priority 1 re-runs before next
-      }
-    }
-    if (changed) continue
-
-    // 1b. Line — on a named line, no distance neighbors yet.
-    //     Place at foot of perpendicular from origin to the line.
-    for (const v of model.points.keys()) {
-      if (placed.has(v)) continue
-      const lineNames = model.onLine.get(v)
-      if (!lineNames || lineNames.length === 0) continue
-      const { a, b, c } = model.lines.get(lineNames[0]!)!
-      const denom = a * a + b * b
-      // Foot of perpendicular from (0,0) to ax+by+c=0
-      const fx = -a * c / denom
-      const fy = -b * c / denom
-      setPoint(model, v, fx, fy, true)
-      placed.add(v)
-      changed = true
-      break
-    }
-    if (changed) continue
-
-    // 1c. Segment — on a segment, both endpoints placed.
-    //     Distribute evenly: t = (i+1)/(n+1) for n unplaced points on same seg.
-    {
-      // Group unplaced on-segment points by their segment key
-      const groups = new Map<string, string[]>()
-      for (const v of model.points.keys()) {
-        if (placed.has(v)) continue
-        const seg = model.onSegment.get(v)
-        if (!seg) continue
-        if (!placed.has(seg.v1) || !placed.has(seg.v2)) continue
-        const k = segKey(seg.v1, seg.v2)
-        if (!groups.has(k)) groups.set(k, [])
-        groups.get(k)!.push(v)
-      }
-      for (const [, pts] of groups) {
-        const n = pts.length
-        const seg = model.onSegment.get(pts[0]!)!
-        const p1 = getPoint(model, seg.v1)!
-        const p2 = getPoint(model, seg.v2)!
-        pts.forEach((v, i) => {
-          const t = (i + 1) / (n + 1)
-          setPoint(model, v, p1.x + t * (p2.x - p1.x), p1.y + t * (p2.y - p1.y), true)  // always free (underconstrained along segment)
-          placed.add(v)
-          changed = true
-        })
-      }
-    }
-    if (changed) continue
-
-    // ── 0 loci (fallback) ─────────────────────────────────────────────────────
-    // 0a. Segment neighbor — shares a segment with a placed vertex but no known length.
-    for (const v of model.points.keys()) {
-      if (placed.has(v)) continue
-      for (const p of placed) {
-        if (model.segments.has(segKey(v, p))) {
-          const anchor = getPoint(model, p)!
-          setPoint(model, v, anchor.x + DEFAULT_LEN, anchor.y, true)
-          placed.add(v)
-          changed = true
-          break
-        }
-      }
-      if (changed) break
-    }
-    if (changed) continue
-
-    // 0b. Isolated — no connection to any placed vertex.
-    //     Seed one at a time so constraint propagation can reach its neighbors next round.
-    for (const v of model.points.keys()) {
-      if (placed.has(v)) continue
-      // Stack isolated components vertically so they don't overlap each other or the main figure
-      setPoint(model, v, 0, -(isolatedSeedIndex + 1) * DEFAULT_LEN * 2, true)
-      isolatedSeedIndex++
-      placed.add(v)
-      changed = true
-      break
-    }
+    // Priority 2: exact
+    if (tryPlaceVertexByLineIntersectLine(model, st))     { changed = true; continue }
+    if (tryPlaceVertexByCircleIntersectCircle(model, st)) { changed = true; continue }
+    if (tryPlaceVertexByCircleIntersectLine(model, st))   { changed = true; continue }
+    // future: if (tryCompleteLineByConstraint(model, st)) { changed = true; continue }
+    // Priority 1: locus
+    if (tryPlaceVertexByLocus(model, st))        { changed = true; continue }
+    // future: if (tryCompleteLineByDefault(model, st))    { changed = true; continue }
+    // Priority 0: fallback
+    if (tryPlaceVertexByFallback(model, st))     { changed = true; continue }
   }
 }
 

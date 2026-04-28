@@ -46,7 +46,27 @@ Rules are tried in priority order — highest locus count first — so a vertex 
 
 Two or more loci intersect at a finite number of points (usually 1 or 2). The vertex is placed exactly.
 
-### a. Circle ∩ Circle
+Rules are tried in this order within the exact tier. Line∩Line fires first because it requires no placed neighbours — it can resolve immediately before anything else is placed.
+
+### 1. Line ∩ Line
+
+**Condition:** vertex is constrained to two or more named lines.
+
+Two lines in general position intersect at exactly one point — no placed neighbors are needed. This fires before the circle variants.
+
+Given lines `a₁x + b₁y + c₁ = 0` and `a₂x + b₂y + c₂ = 0`, the intersection is found via Cramer's rule:
+
+```
+x = (b₁c₂ − b₂c₁) / det
+y = (a₂c₁ − a₁c₂) / det
+where det = a₁b₂ − a₂b₁
+```
+
+If `det ≈ 0` the lines are parallel and the solver throws a constraint error.
+
+When three or more lines are specified, the solver intersects the first two to get a candidate point, then verifies that the candidate satisfies every remaining line equation. If any line does not pass through that point, the constraints are inconsistent and the solver throws a constraint error.
+
+### 2. Circle ∩ Circle
 
 **Condition:** two or more placed neighbors each connected by a known distance.
 
@@ -71,25 +91,7 @@ Given placed points `a` and `b` at distance `d`, with radii `r₁` and `r₂`:
 
 Solution 1 is left of `a→b` (counter-clockwise). Solution 2 is right (clockwise).
 
-### b. Line ∩ Line
-
-**Condition:** vertex is constrained to two or more named lines.
-
-Two lines in general position intersect at exactly one point — no placed neighbors are needed. This fires in the very first iteration, before circle intersection.
-
-Given lines `a₁x + b₁y + c₁ = 0` and `a₂x + b₂y + c₂ = 0`, the intersection is found via Cramer's rule:
-
-```
-x = (b₁c₂ − b₂c₁) / det
-y = (a₂c₁ − a₁c₂) / det
-where det = a₁b₂ − a₂b₁
-```
-
-If `det ≈ 0` the lines are parallel and the solver throws a constraint error.
-
-When three or more lines are specified, the solver intersects the first two to get a candidate point, then verifies that the candidate satisfies every remaining line equation. If any line does not pass through that point, the constraints are inconsistent and the solver throws a constraint error.
-
-### c. Circle ∩ Line
+### 3. Circle ∩ Line
 
 **Condition:** vertex is on a named line, and has at least one placed neighbor with a known distance.
 
@@ -112,7 +114,7 @@ Solution 1 has the higher y-coordinate (or larger x if y values are equal).
 
 Only one locus is available. The vertex is free to slide along it — its position is not uniquely determined. The solver picks a default point and marks the vertex **free**.
 
-### a. Circle
+### 1. Circle
 
 **Condition:** exactly one placed neighbor with a known distance, no other loci.
 
@@ -122,13 +124,13 @@ The rotation prevents degenerate layouts where everything collapses onto a line.
 
 **Orientation fixing:** the very first placement of this kind is treated specially — it establishes the global orientation of the figure. That vertex is marked as determined (not free). All subsequent placements on a circle are marked free.
 
-### b. Line
+### 2. Line
 
 **Condition:** vertex is constrained to a named line, no distance neighbors yet.
 
 The vertex lies somewhere on the line. The solver places it at the **foot of the perpendicular from the origin** to the line — the closest point on the line to (0, 0). Marked free.
 
-### c. Segment
+### 3. Segment
 
 **Condition:** vertex is constrained to a segment, and both endpoints of that segment are placed.
 
@@ -147,13 +149,13 @@ For `n` unplaced vertices, vertex `i` is placed at `t = (i+1) / (n+1)`. All are 
 
 No locus is available. The solver cannot reason geometrically about this vertex yet. It places it structurally — just enough to make the figure visible — and marks it **free**.
 
-### a. Segment neighbor
+### 1. Segment neighbor
 
 **Condition:** the vertex shares a segment with a placed neighbor, but the length is unknown (so no circle).
 
 Placed 3 units along +x from that neighbor as a placeholder.
 
-### b. Isolated
+### 2. Isolated
 
 **Condition:** no connection to any placed vertex at all.
 
