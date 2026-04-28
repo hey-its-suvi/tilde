@@ -21,6 +21,15 @@ import { SceneGraph, SceneLine, SceneSegment, ScenePoint, RenderConfig, DEFAULT_
 // Default display length (units) when a segment's length is unknown
 const DEFAULT_LEN = 3
 
+// ─── Canonical form constants ─────────────────────────────────────────────────
+// These define the "standard position" that pass 2 normalises every floating
+// scene into.  Change them here to shift the convention globally.
+export const CANONICAL_X   = 0   // T fixer: anchor lands at this x
+export const CANONICAL_Y   = 0   // T fixer: anchor lands at this y
+export const CANONICAL_DIR_X = 1 // R fixer: reference point is placed in this direction from anchor
+export const CANONICAL_DIR_Y = 0 //          (1,0) = +x axis; must be a unit vector
+export const CANONICAL_SCALE = 1 // S fixer: canonical distance from anchor to reference point
+
 // ─── Main entry ───────────────────────────────────────────────────────────────
 
 export function solve(program: Program): { scene: SceneGraph; config: RenderConfig } {
@@ -76,23 +85,131 @@ export function solve(program: Program): { scene: SceneGraph; config: RenderConf
     }
   }
 
-  // Pass 2: set anchor — first unconstrained free point in insertion order.
-  // The anchor pins the translation degree of freedom for a fully-floating scene
-  // (one where no point has explicit coordinates). If ANY point is explicitly placed
-  // (free=false from a position constraint or coordinate declaration), the coordinate
-  // system is already fixed and no anchor is needed — every remaining free point is
-  // genuinely underconstrained relative to those fixed points.
-  const hasExplicitlyPlaced = [...model.points.values()].some(pt => !pt.free)
-  if (model.anchorKey === null && !hasExplicitlyPlaced) {
-    for (const [k, pt] of model.points) {
-      if (pt.free && !model.onLine.has(k) && !model.onSegment.has(k)) {
-        model.anchorKey = k
-        break
+  // Pass 2: DOF analysis + canonical form fixers
+  // ─────────────────────────────────────────────
+  // After pass 1, determine which global degrees of freedom are still unconstrained,
+  // then apply the minimal canonical fixers to bring the scene into standard form.
+  //
+  // DOF detection rules:
+  //   T (translation) free  — no point has explicit coords AND no line has a known position
+  //   R (rotation) free     — no line AND at most 1 point has explicit coords
+  //                           (2+ placed points define a direction → rotation fixed)
+  //   S (scale) free        — no length constraint exists AND fewer than 2 points have explicit coords
+  //                           (2+ placed points implicitly define a scale via their distance)
+  //
+  // Canonical fixers applied in order T → R+S:
+  //   T      : pin first eligible free point to origin (0, 0)
+  //   R + S  : find first free segment from anchor, set length = 1, pin far end to (1, 0)
+  //   R only : find first free segment from anchor with known length L, pin far end to (L, 0)
+  //   S only : find first segment between two free points with no length, set length = 1
+  //
+  // Winding (W) is always free and is handled in pass 3 (resolved at placement time).
+  {
+    const hasLine  = model.lines.size > 0
+    const fixedPts = [...model.points.entries()].filter(([, pt]) => !pt.free)
+    const tFree    = fixedPts.length === 0 && !hasLine
+    const rFree    = !hasLine && fixedPts.length <= 1
+    const sFree    = [...model.lengths.values()].every(l => l === null) && fixedPts.length < 2
+
+    // ── T fixer ──
+    // Find eligible anchor: free point, not on-line, not on-segment.
+    // If T is already fixed by exactly 1 explicit point, use it as the pivot for R.
+    let anchor: string | null = null
+    if (tFree) {
+      for (const [k, pt] of model.points) {
+        if (pt.free && !model.onLine.has(k) && !model.onSegment.has(k)) {
+          anchor = k
+          break
+        }
+      }
+      if (anchor !== null) {
+        setPoint(model, anchor, CANONICAL_X, CANONICAL_Y, false)
+        model.anchorKey = anchor
+      }
+    } else if (rFree && fixedPts.length === 1) {
+      // T fixed by 1 explicit point — use it as pivot for R fixer below
+      anchor = fixedPts[0]![0]
+    }
+
+    // ── R + S fixers ──
+    // Phase 1: prefer a segment directly connected to the anchor (same component).
+    // Phase 2: if none found, use the first free segment in the model — since
+    //          translation is already fixed and the segment is in a disconnected
+    //          component, we can still use global rotation+scale to pin its first
+    //          endpoint canonically (the anchor being a point doesn't constrain
+    //          the orientation of an unconnected segment).
+    if (anchor !== null && rFree) {
+      const anchorPt = model.points.get(anchor)!
+
+      // The canonical reference target is whichever of {origin, (1,0)} is not the anchor:
+      //   anchor at origin (T was free)     → reference goes to (1, 0)
+      //   anchor not at origin (T was fixed) → reference goes to (0, 0)
+      // This way a free point is always mapped to the origin via rotate+scale around the anchor,
+      // which is geometrically natural: "translate anchor to origin, scale/rotate, translate back."
+      const anchorAtOrigin = Math.abs(anchorPt.x - CANONICAL_X) < 1e-9 &&
+                             Math.abs(anchorPt.y - CANONICAL_Y) < 1e-9
+      const refTargetX = anchorAtOrigin ? CANONICAL_X + CANONICAL_DIR_X * CANONICAL_SCALE : CANONICAL_X
+      const refTargetY = anchorAtOrigin ? CANONICAL_Y + CANONICAL_DIR_Y * CANONICAL_SCALE : CANONICAL_Y
+      const refDirX = refTargetX - anchorPt.x
+      const refDirY = refTargetY - anchorPt.y
+      const refDist = Math.sqrt(refDirX * refDirX + refDirY * refDirY)
+
+      // Helper: attempt to fix R (and S if sFree) using a given point as reference.
+      // Returns true if it successfully applied a fixer.
+      const tryFix = (ref: string): boolean => {
+        if (refDist < 1e-9) return false  // anchor coincides with target — degenerate
+        const refPt = model.points.get(ref)
+        if (!refPt?.free || model.onLine.has(ref) || model.onSegment.has(ref)) return false
+        const knownLen = getLength(model, anchor, ref)
+        if (sFree) {
+          // Fix R + S: place ref at canonical target, set length = distance anchor→target
+          setLength(model, anchor, ref, refDist)
+          setPoint(model, ref, refTargetX, refTargetY, false)
+          return true
+        } else if (knownLen !== null) {
+          // Fix R only: place ref along anchor→target direction at the known distance
+          setPoint(model, ref, anchorPt.x + (refDirX / refDist) * knownLen,
+                               anchorPt.y + (refDirY / refDist) * knownLen, false)
+          return true
+        }
+        return false
+      }
+
+      let fixed = false
+      // Phase 1: anchor-adjacent segment
+      for (const segK of model.segments) {
+        const [v1, v2] = segK.split(':') as [string, string]
+        const nbr = v1 === anchor ? v2 : v2 === anchor ? v1 : null
+        if (nbr === null) continue
+        if (tryFix(nbr)) { fixed = true; break }
+      }
+      // Phase 2: any free segment in the model (disconnected component)
+      if (!fixed) {
+        for (const segK of model.segments) {
+          const [v1, v2] = segK.split(':') as [string, string]
+          if (tryFix(v1)) { fixed = true; break }
+          if (tryFix(v2)) { fixed = true; break }
+        }
+      }
+      // Phase 3: any free eligible point — two free points always define a direction
+      // and scale that can be normalized, even across disconnected components.
+      if (!fixed) {
+        for (const [k] of model.points) {
+          if (k === anchor) continue
+          if (tryFix(k)) { fixed = true; break }
+        }
+      }
+    } else if (!rFree && sFree) {
+      // R fixed, S free: set first unconstrained segment (between two free points) to length 1
+      for (const [k] of model.lengths) {
+        const [v1, v2] = k.split(':') as [string, string]
+        const p1 = model.points.get(v1), p2 = model.points.get(v2)
+        if (p1?.free && p2?.free) {
+          model.lengths.set(k, 1)
+          break
+        }
       }
     }
-  }
-  if (model.anchorKey) {
-    setPoint(model, model.anchorKey, 0, 0, false)
   }
 
   // Pass 3: place all vertices using constraint propagation
@@ -365,10 +482,12 @@ function placeVertices(model: GeomModel): void {
   const explicitlyPlaced = placed.size - (model.anchorKey !== null ? 1 : 0)
   let orientationFixed = explicitlyPlaced > 0
 
-  // Heading for 1-locus circle placements. Starts pointing +x, rotates 90° CCW
-  // each time to prevent collinear degeneracy (e.g. a rhombus becomes a square
-  // rather than a flat line).
-  let hdX = 1, hdY = 0
+  // Heading for 1-locus circle placements. Rotates 90° CCW after each use to
+  // prevent collinear degeneracy (e.g. a rhombus becomes a square rather than
+  // a flat line). If pass 2 already fixed orientation by placing a reference
+  // point along +x, start perpendicular to avoid immediately repeating that axis.
+  let hdX = orientationFixed ? 0 : 1
+  let hdY = orientationFixed ? 1 : 0
 
   let changed = true
   let isolatedSeedIndex = 0  // counts how many isolated components we've seeded
