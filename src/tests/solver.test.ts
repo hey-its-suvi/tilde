@@ -5,6 +5,7 @@ import {
   run,
   assertPoint, assertPointExists, assertPointAt,
   assertSegment, assertSegmentLength,
+  assertLine, assertLineEq,
   assertThrows,
 } from './helpers.js'
 
@@ -122,5 +123,94 @@ describe('line intersection', () => {
     ].join('\n'))
     assertPoint(scene, 'p', 'one')
     assertPointAt(scene, 'p', 1, 1)
+  })
+})
+
+describe('partial line declarations', () => {
+  // ── Default path: no constraining point, solver fills in a canonical value ────
+  // The line's position/direction is arbitrary → solutions='infinite'
+
+  it('slope-only (m,): no constraining point — line is infinite', () => {
+    const scene = run([
+      'line l = (1,)',
+      'point p on l',
+    ].join('\n'))
+    assertLine(scene, 'l', 'infinite')
+    assertPoint(scene, 'p', 'infinite')
+  })
+
+  it('direction-only 3-tuple (a,b,): no constraining point — line is infinite', () => {
+    const scene = run([
+      'line l = (0, 1,)',
+      'point p on l',
+    ].join('\n'))
+    assertLine(scene, 'l', 'infinite')
+    assertPoint(scene, 'p', 'infinite')
+  })
+
+  it('y-intercept-only (,b): no constraining point — line is infinite', () => {
+    const scene = run([
+      'line l = (,3)',
+      'point p on l',
+    ].join('\n'))
+    assertLine(scene, 'l', 'infinite')
+    assertPoint(scene, 'p', 'infinite')
+  })
+
+  // ── Constraint path: placed point fills in the missing parameter exactly ──────
+  // The line becomes fully determined → solutions='one'
+  // Verified by checking the resolved coefficients and placing a second point
+  // at the intersection with a known full line.
+
+  it('slope-only (m,): placed point constrains intercept → line resolved to one', () => {
+    // line l = (1,) → a=1, b=-1, c=null
+    // point a = (1,3) on l → c = -(1·1 + (-1)·3) = 2 → line: x - y + 2 = 0
+    const scene = run([
+      'line l = (1,)',
+      'point a = (1, 3)',
+      'point a on l',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 1, -1, 2)
+  })
+
+  it('slope-only (m,): resolved line intersects a full line at a known point', () => {
+    // line l = (1,) resolved to x - y + 2 = 0 (y = x+2) via point a=(1,3)
+    // line m = (0,1,-5) → y = 5 (full)
+    // intersection: x+2=5 → x=3 → p=(3,5)
+    const scene = run([
+      'line l = (1,)',
+      'point a = (1, 3)',
+      'point a on l',
+      'line m = (0, 1, -5)',
+      'point p on l',
+      'p on m',
+    ].join('\n'))
+    assertPoint(scene, 'p', 'one')
+    assertPointAt(scene, 'p', 3, 5)
+  })
+
+  it('direction-only 3-tuple (a,b,): placed point constrains position → line resolved to one', () => {
+    // line l = (0,1,) → a=0, b=1, c=null (horizontal, unknown height)
+    // point a = (3,5) on l → c = -(0·3 + 1·5) = -5 → line: y - 5 = 0
+    const scene = run([
+      'line l = (0, 1,)',
+      'point a = (3, 5)',
+      'point a on l',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 0, 1, -5)
+  })
+
+  it('y-intercept-only (,b): placed point constrains slope → line resolved to one', () => {
+    // line l = (,0) → a=null, b=-1, c=0 (passes through origin, unknown slope)
+    // point a = (2,4) on l → a·2 + (-1)·4 + 0 = 0 → a = 2 → line: 2x - y = 0
+    const scene = run([
+      'line l = (,0)',
+      'point a = (2, 4)',
+      'point a on l',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 2, -1, 0)
   })
 })

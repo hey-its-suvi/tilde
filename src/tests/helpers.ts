@@ -26,6 +26,7 @@ export function assertPoint(scene: SceneGraph, label: string, solutions: Solutio
   }
 }
 
+/** Assert that a point is fully-determined (solutions='one') and at the given coords. */
 export function assertPointAt(scene: SceneGraph, label: string, x: number, y: number, epsilon = 1e-9): void {
   const pt = scene.points.find(p => p.label === label)
   if (!pt) {
@@ -38,6 +39,19 @@ export function assertPointAt(scene: SceneGraph, label: string, x: number, y: nu
   const dy = Math.abs(pt.y - y)
   if (dx > epsilon || dy > epsilon) {
     throw new Error(`assertPointAt: "${label}" is at (${pt.x}, ${pt.y}), expected (${x}, ${y})`)
+  }
+}
+
+/** Assert that a point (any solution status) is near the given coords. */
+export function assertPointCoords(scene: SceneGraph, label: string, x: number, y: number, epsilon = 1e-9): void {
+  const pt = scene.points.find(p => p.label === label)
+  if (!pt) {
+    throw new Error(`assertPointCoords: point "${label}" not found\n  points: [${scene.points.map(p => p.label).join(', ')}]`)
+  }
+  const dx = Math.abs(pt.x - x)
+  const dy = Math.abs(pt.y - y)
+  if (dx > epsilon || dy > epsilon) {
+    throw new Error(`assertPointCoords: "${label}" is at (${pt.x}, ${pt.y}), expected (${x}, ${y})`)
   }
 }
 
@@ -60,6 +74,26 @@ export function assertSegmentLength(scene: SceneGraph, v1: string, v2: string, e
   const actual = Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2)
   if (Math.abs(actual - expected) > epsilon) {
     throw new Error(`assertSegmentLength: segment "${v1}${v2}" has length ${actual}, expected ${expected}`)
+  }
+}
+
+export function assertLine(scene: SceneGraph, label: string, solutions: Solutions): void {
+  const ln = scene.lines.find(l => l.label === label)
+  if (!ln) {
+    throw new Error(`assertLine: line "${label}" not found\n  lines: [${scene.lines.map(l => l.label).join(', ')}]`)
+  }
+  if (ln.solutions !== solutions) {
+    throw new Error(`assertLine: "${label}" has solutions "${ln.solutions}", expected "${solutions}"`)
+  }
+}
+
+export function assertLineEq(scene: SceneGraph, label: string, a: number, b: number, c: number, epsilon = 1e-9): void {
+  const ln = scene.lines.find(l => l.label === label)
+  if (!ln) {
+    throw new Error(`assertLineEq: line "${label}" not found\n  lines: [${scene.lines.map(l => l.label).join(', ')}]`)
+  }
+  if (Math.abs(ln.a - a) > epsilon || Math.abs(ln.b - b) > epsilon || Math.abs(ln.c - c) > epsilon) {
+    throw new Error(`assertLineEq: "${label}" is (${ln.a}, ${ln.b}, ${ln.c}), expected (${a}, ${b}, ${c})`)
   }
 }
 

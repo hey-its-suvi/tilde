@@ -37,6 +37,7 @@ export type SceneAnnotation = {
 export type SceneLine = {
   a: number; b: number; c: number  // ax + by + c = 0
   label: string
+  solutions: Solutions
 }
 
 export type SceneGraph = {

@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.10 — current
+## 0.3.11 — current
+
+- **Partial line declarations**: a line can now be declared with one parameter unknown — `(m,)` for slope-only, `(, k)` for y-intercept-only, `(a, b,)` for direction-only. If a placed point lies on the line the missing parameter is solved exactly; otherwise a canonical default is used. A line resolved by default is rendered as underconstrained (like a free point), one resolved by constraint is fully crisp.
+
+## 0.3.10
 
 - **Anchor bug fix**: a free point with a length constraint to an already-fixed point is no longer selected as the translation anchor — anchoring it at the origin would violate the distance constraint
 

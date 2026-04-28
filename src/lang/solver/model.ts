@@ -11,7 +11,15 @@ export type GeomPoint = {
   allSolutions?: Array<{ x: number; y: number }>  // set when multiple discrete solutions exist
 }
 
-export type GeomLine = { a: number; b: number; c: number }  // ax + by + c = 0
+// ax + by + c = 0; any field may be null for partial (under-specified) lines.
+// solutions: 'one' = fully determined; 'infinite' = partially specified (some field was null)
+export type GeomLine = { a: number | null; b: number | null; c: number | null; solutions: Solutions }
+
+export type CompleteGeomLine = { a: number; b: number; c: number; solutions: Solutions }
+
+export function isLineComplete(line: GeomLine): line is CompleteGeomLine {
+  return line.a !== null && line.b !== null && line.c !== null
+}
 
 export type RegisteredShape = { kind: ShapeKind; vertexCount: number }
 

@@ -256,6 +256,15 @@ export function parse(tokens: Token[]): Program {
   }
 
   // ── Line declaration ───────────────────────────────────────────────────────
+  //
+  // Full forms:
+  //   line l = (m, b)      2-tuple slope-intercept: y = mx + b  →  a=m, b=-1, c=b
+  //   line l = (a, b, c)   3-tuple direct ax+by+c=0             →  a, b, c
+  //
+  // Partial forms (one field unknown / null):
+  //   line l = (m,)        slope known, intercept unknown        →  a=m,    b=-1,   c=null
+  //   line l = (, b)       y-intercept known, slope unknown      →  a=null, b=-1,   c=b
+  //   line l = (a, b,)     direction known, position unknown     →  a,      b,      c=null
 
   function parseLineDecl(): LineDecl {
     eat('LINE')
@@ -268,18 +277,44 @@ export function parse(tokens: Token[]): Program {
 
     eat('EQUALS')
     eat('LPAREN')
-    const first  = parseSignedNumber()
+
+    // Check for leading comma: (, b) form — first field is null
+    if (check('COMMA')) {
+      advance()
+      const second = parseSignedNumber()
+      eat('RPAREN')
+      eat('NEWLINE', 'EOF')
+      return { kind: 'LineDecl', name, a: null, b: -1, c: second }
+    }
+
+    const first = parseSignedNumber()
     eat('COMMA')
+
+    // Trailing comma after first: (m,) form — second field is null
+    if (check('RPAREN')) {
+      advance()
+      eat('NEWLINE', 'EOF')
+      return { kind: 'LineDecl', name, a: first, b: -1, c: null }
+    }
+
     const second = parseSignedNumber()
 
     if (check('COMMA')) {
       advance()
+      // Trailing comma after second: (a, b,) form — third field is null
+      if (check('RPAREN')) {
+        advance()
+        eat('NEWLINE', 'EOF')
+        return { kind: 'LineDecl', name, a: first, b: second, c: null }
+      }
+      // Full 3-tuple: (a, b, c)
       const third = parseSignedNumber()
       eat('RPAREN')
       eat('NEWLINE', 'EOF')
       return { kind: 'LineDecl', name, a: first, b: second, c: third }
     }
 
+    // Full 2-tuple: (m, b_val) → slope-intercept
     eat('RPAREN')
     eat('NEWLINE', 'EOF')
     return { kind: 'LineDecl', name, a: first, b: -1, c: second }

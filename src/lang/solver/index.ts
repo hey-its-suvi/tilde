@@ -10,11 +10,12 @@ export class ConstraintError extends Error {
 import { Program, ShapeDecl, LineDecl, PointDecl, Constraint, LengthUnit, Ref } from '../ast.js'
 import { resolveLength } from '../units.js'
 import {
-  GeomModel, GeomLine, RegisteredShape, makeModel,
+  GeomModel, CompleteGeomLine, RegisteredShape, makeModel,
   touchPoint, setPoint, getPoint,
   setLength, getLength, segKey,
   setAngle,
   segmentSolutions,
+  isLineComplete,
 } from './model.js'
 import { SceneGraph, SceneLine, SceneSegment, ScenePoint, RenderConfig, DEFAULT_CONFIG } from '../../renderer/interface.js'
 
@@ -105,10 +106,15 @@ export function solve(program: Program): { scene: SceneGraph; config: RenderConf
   //
   // Winding (W) is always free and is handled in pass 3 (resolved at placement time).
   {
-    const hasLine  = model.lines.size > 0
+    let hasFullLine      = false  // all of a,b,c known — fixes T and R
+    let hasDirectionLine = false  // a,b known (c may be null) — fixes R only
+    for (const line of model.lines.values()) {
+      if (isLineComplete(line)) { hasFullLine = true; hasDirectionLine = true; break }
+      if (line.a !== null && line.b !== null) hasDirectionLine = true
+    }
     const fixedPts = [...model.points.entries()].filter(([, pt]) => !pt.free)
-    const tFree    = fixedPts.length === 0 && !hasLine
-    const rFree    = !hasLine && fixedPts.length <= 1
+    const tFree    = fixedPts.length === 0 && !hasFullLine
+    const rFree    = !hasDirectionLine && fixedPts.length <= 1
     const sFree    = [...model.lengths.values()].every(l => l === null) && fixedPts.length < 2
 
     // ── T fixer ──
@@ -227,7 +233,8 @@ function registerLine(model: GeomModel, decl: LineDecl) {
   if (model.points.has(decl.name)) {
     throw new ConstraintError(`"${decl.name}" is already declared as a point`)
   }
-  model.lines.set(decl.name, { a: decl.a, b: decl.b, c: decl.c })
+  const partial = decl.a === null || decl.b === null || decl.c === null
+  model.lines.set(decl.name, { a: decl.a, b: decl.b, c: decl.c, solutions: partial ? 'infinite' : 'one' })
 }
 
 // ─── Point registration ───────────────────────────────────────────────────────
@@ -484,12 +491,14 @@ function tryPlaceVertexByLineIntersectLine(model: GeomModel, st: PlacementState)
     if (st.placed.has(v)) continue
     const lineNames = model.onLine.get(v)
     if (!lineNames || lineNames.length < 2) continue
-    const l1 = model.lines.get(lineNames[0]!)!
-    const l2 = model.lines.get(lineNames[1]!)!
+    // All referenced lines must be fully determined before we can intersect them
+    if (lineNames.some(n => !isLineComplete(model.lines.get(n)!))) continue
+    const l1 = model.lines.get(lineNames[0]!)! as CompleteGeomLine
+    const l2 = model.lines.get(lineNames[1]!)! as CompleteGeomLine
     const pt = lineIntersect(l1, l2)
     if (!pt) throw new ConstraintError(`no position for vertex ${v}: lines "${lineNames[0]}" and "${lineNames[1]}" are parallel`)
     for (let i = 2; i < lineNames.length; i++) {
-      const { a, b, c } = model.lines.get(lineNames[i]!)!
+      const { a, b, c } = model.lines.get(lineNames[i]!)! as CompleteGeomLine
       if (Math.abs(a * pt.x + b * pt.y + c) > 1e-9)
         throw new ConstraintError(`no position for vertex ${v}: lines "${lineNames[0]}", "${lineNames[1]}", and "${lineNames[i]}" have no common point`)
     }
@@ -535,6 +544,7 @@ function tryPlaceVertexByCircleIntersectLine(model: GeomModel, st: PlacementStat
     if (!lineNames || lineNames.length !== 1) continue  // 2+ lines → LineIntersectLine
     const lineName = lineNames[0]!
     const line = model.lines.get(lineName)!
+    if (!isLineComplete(line)) continue  // partial line — defer until resolved
     const nbrs = placedNeighborsWithDist(model, st.placed, v)
     if (nbrs.length < 1) continue
     const n = nbrs[0]!
@@ -580,7 +590,9 @@ function tryPlaceVertexByLocus(model: GeomModel, st: PlacementState): boolean {
     if (st.placed.has(v)) continue
     const lineNames = model.onLine.get(v)
     if (!lineNames || lineNames.length === 0) continue
-    const { a, b, c } = model.lines.get(lineNames[0]!)!
+    const line = model.lines.get(lineNames[0]!)!
+    if (!isLineComplete(line)) continue  // partial line — defer until resolved
+    const { a, b, c } = line
     const denom = a * a + b * b
     setPoint(model, v, -a * c / denom, -b * c / denom, true)
     st.placed.add(v)
@@ -642,6 +654,59 @@ function tryPlaceVertexByFallback(model: GeomModel, st: PlacementState): boolean
   return false
 }
 
+// ── Priority 2: exact line completions ────────────────────────────────────────
+// If a partial line has exactly 1 unknown field and a placed point lies on it,
+// solve for the missing parameter from  a·x + b·y + c = 0.
+
+function tryCompleteLineByConstraint(model: GeomModel, st: PlacementState): boolean {
+  for (const [lineName, line] of model.lines) {
+    const nullCount = (line.a === null ? 1 : 0) + (line.b === null ? 1 : 0) + (line.c === null ? 1 : 0)
+    if (nullCount !== 1) continue
+
+    for (const [v, lineNames] of model.onLine) {
+      if (!st.placed.has(v)) continue
+      if (!lineNames.includes(lineName)) continue
+      const pt = model.points.get(v)!
+
+      if (line.c === null) {
+        line.c = -(line.a! * pt.x + line.b! * pt.y)
+        line.solutions = 'one'
+        return true
+      }
+      if (line.a === null) {
+        if (Math.abs(pt.x) < 1e-9) continue  // x≈0 — can't solve for a; try next vertex
+        line.a = -(line.b! * pt.y + line.c) / pt.x
+        line.solutions = 'one'
+        return true
+      }
+      if (line.b === null) {
+        if (Math.abs(pt.y) < 1e-9) continue  // y≈0 — can't solve for b; try next vertex
+        line.b = -(line.a * pt.x + line.c!) / pt.y
+        line.solutions = 'one'
+        return true
+      }
+    }
+  }
+  return false
+}
+
+// ── Priority 1: default line completions ──────────────────────────────────────
+// Partial line with no placed vertex available to constrain it — assign
+// canonical defaults so the line is usable for vertex placement.
+//   c unknown  →  c = 0  (line passes through origin)
+//   a unknown  →  a = 0  (horizontal — least opinionated slope)
+//   b unknown  →  b = 1  (avoid b=0 which would be degenerate for perpendicular foot)
+
+function tryCompleteLineByDefault(model: GeomModel, _st: PlacementState): boolean {
+  for (const [, line] of model.lines) {
+    if (isLineComplete(line)) continue
+    if (line.c === null) { line.c = 0; return true }
+    if (line.a === null) { line.a = 0; return true }
+    if (line.b === null) { line.b = 1; return true }
+  }
+  return false
+}
+
 // ── Main resolution loop ───────────────────────────────────────────────────────
 
 function resolve(model: GeomModel): void {
@@ -668,10 +733,10 @@ function resolve(model: GeomModel): void {
     if (tryPlaceVertexByLineIntersectLine(model, st))     { changed = true; continue }
     if (tryPlaceVertexByCircleIntersectCircle(model, st)) { changed = true; continue }
     if (tryPlaceVertexByCircleIntersectLine(model, st))   { changed = true; continue }
-    // future: if (tryCompleteLineByConstraint(model, st)) { changed = true; continue }
+    if (tryCompleteLineByConstraint(model, st))           { changed = true; continue }
     // Priority 1: locus
-    if (tryPlaceVertexByLocus(model, st))        { changed = true; continue }
-    // future: if (tryCompleteLineByDefault(model, st))    { changed = true; continue }
+    if (tryPlaceVertexByLocus(model, st))                 { changed = true; continue }
+    if (tryCompleteLineByDefault(model, st))              { changed = true; continue }
     // Priority 0: fallback
     if (tryPlaceVertexByFallback(model, st))     { changed = true; continue }
   }
@@ -695,7 +760,7 @@ function placedNeighborsWithDist(
 
 // Line-line intersection. Returns null if lines are parallel or identical.
 // Solves a₁x + b₁y + c₁ = 0, a₂x + b₂y + c₂ = 0 via Cramer's rule.
-function lineIntersect(l1: GeomLine, l2: GeomLine): { x: number; y: number } | null {
+function lineIntersect(l1: CompleteGeomLine, l2: CompleteGeomLine): { x: number; y: number } | null {
   const det = l1.a * l2.b - l2.a * l1.b
   if (Math.abs(det) < 1e-10) return null
   return {
@@ -733,7 +798,7 @@ function circleIntersectBoth(
 // (solution 1), or [] if circle doesn't reach the line.
 function circleLineIntersectBoth(
   cx: number, cy: number, r: number,
-  line: GeomLine,
+  line: CompleteGeomLine,
 ): Array<{ x: number; y: number }> {
   const { a, b, c } = line
   const denom = a * a + b * b
@@ -766,7 +831,7 @@ function buildSceneGraph(model: GeomModel): SceneGraph {
   const lines: SceneLine[] = []
 
   for (const [name, ln] of model.lines) {
-    lines.push({ a: ln.a, b: ln.b, c: ln.c, label: name })
+    if (isLineComplete(ln)) lines.push({ a: ln.a, b: ln.b, c: ln.c, label: name, solutions: ln.solutions })
   }
 
   // Collect all declared segments

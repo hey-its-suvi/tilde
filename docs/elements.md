@@ -45,6 +45,16 @@ line l = (1, 2, -3)    # x + 2y - 3 = 0
 line l = (2, 1)         # y = 2x + 1  →  2x - y + 1 = 0
 ```
 
+A line can also be declared **partially** — with one parameter left open. The missing value is filled in by the first placed point that lies on the line. If no such point exists, a canonical default is used.
+
+```
+line l = (2,)           # slope 2, intercept unknown
+line l = (, 1)          # y-intercept 1, slope unknown
+line l = (1, -1,)       # direction (1, −1) known, position unknown
+```
+
+A partially declared line with no constraining point is drawn the same way as an underconstrained point — its position is a representative choice, not uniquely determined.
+
 Rendered as an infinite dashed line clipped to the viewport.
 
 <TildeSketch source="

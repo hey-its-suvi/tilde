@@ -20,9 +20,9 @@ export type Statement =
 export type LineDecl = {
   kind: 'LineDecl'
   name: string
-  a: number      // ax + by + c = 0
-  b: number
-  c: number
+  a: number | null      // ax + by + c = 0; null = unknown (partial line)
+  b: number | null
+  c: number | null
 }
 
 export type PointDecl = {
