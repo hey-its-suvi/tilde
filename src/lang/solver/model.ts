@@ -1,40 +1,25 @@
 // ─── Tilde GeomModel ──────────────────────────────────────────────────────────
-// Points always have coordinates — the solver picks a representative position
-// for underconstrained things. `free` drives squiggle vs crisp rendering.
 
 import { LengthUnit, ShapeKind } from '../ast.js'
-
-export type GeomPoint = {
-  x: number
-  y: number
-  free: boolean          // true = underconstrained (infinite solutions)
-  allSolutions?: Array<{ x: number; y: number }>  // set when multiple discrete solutions exist
-}
-
-// ax + by + c = 0; any field may be null for partial (under-specified) lines.
-// solutions: 'one' = fully determined; 'infinite' = partially specified (some field was null)
-export type GeomLine = { a: number | null; b: number | null; c: number | null; solutions: Solutions }
-
-export type CompleteGeomLine = { a: number; b: number; c: number; solutions: Solutions }
-
-export function isLineComplete(line: GeomLine): line is CompleteGeomLine {
-  return line.a !== null && line.b !== null && line.c !== null
-}
+import {
+  WorkingPoint, WorkingLine,
+  makeWorkingPoint,
+} from './geom.js'
 
 export type RegisteredShape = { kind: ShapeKind; vertexCount: number }
 
 export type GeomModel = {
-  points:     Map<string, GeomPoint>
-  segments:   Set<string>                          // canonical keys of all declared segments
-  lengths:    Map<string, number | null>           // null = unknown
-  angles:     Map<string, number | null>           // degrees, null = unknown
-  lines:      Map<string, GeomLine>                // named lines
-  shapes:     Map<string, RegisteredShape>         // named shapes (subscript mode)
-  onLine:     Map<string, string[]>                // vertex name → line names (supports 2+ for intersection)
+  points:       Map<string, WorkingPoint>
+  segments:     Set<string>                              // canonical keys of all declared segments
+  lengths:      Map<string, number | null>               // null = unknown
+  angles:       Map<string, number | null>               // degrees, null = unknown
+  lines:        Map<string, WorkingLine>                 // named lines
+  shapes:       Map<string, RegisteredShape>             // named shapes (subscript mode)
+  onLine:       Map<string, string[]>                    // vertex name → line names (supports 2+ for intersection)
   onSegment:    Map<string, { v1: string; v2: string }>  // vertex name → segment endpoints
   solutionPicks: Map<string, number>                     // vertex name → 1-based solution index
-  anchorKey: string | null
-  activeUnit: LengthUnit | null                          // null = pure abstract (no units used)
+  anchorKey:    string | null
+  activeUnit:   LengthUnit | null                        // null = pure abstract (no units used)
 }
 
 export function makeModel(): GeomModel {
@@ -50,19 +35,22 @@ export function makeModel(): GeomModel {
 
 // ─── Point helpers ────────────────────────────────────────────────────────────
 
-export function touchPoint(model: GeomModel, key: string): GeomPoint {
+export function touchPoint(model: GeomModel, key: string): WorkingPoint {
   if (!model.points.has(key)) {
-    model.points.set(key, { x: 0, y: 0, free: true })
+    model.points.set(key, makeWorkingPoint())
   }
   return model.points.get(key)!
 }
 
-export function setPoint(model: GeomModel, key: string, x: number, y: number, free: boolean) {
-  const pt = touchPoint(model, key)
-  pt.x = x; pt.y = y; pt.free = free
+/** Place a point at (x, y).  dof=0 means uniquely determined; dof>0 means
+ *  the position was chosen canonically and the element remains underconstrained. */
+export function setPoint(model: GeomModel, key: string, x: number, y: number, dof: number) {
+  const wp = touchPoint(model, key)
+  wp.resolved[0] = { x, y }
+  wp.dof = dof
 }
 
-export function getPoint(model: GeomModel, key: string): GeomPoint | null {
+export function getPoint(model: GeomModel, key: string): WorkingPoint | null {
   return model.points.get(key) ?? null
 }
 
@@ -96,13 +84,3 @@ export function getAngle(model: GeomModel, v1: string, vertex: string, v3: strin
   return model.angles.get(angleKey(v1, vertex, v3)) ?? null
 }
 
-// ─── Solutions (for renderer) ─────────────────────────────────────────────────
-
-export type Solutions = 'one' | 'multiple' | 'infinite'
-
-export function segmentSolutions(model: GeomModel, v1: string, v2: string): Solutions {
-  const p1 = model.points.get(v1)
-  const p2 = model.points.get(v2)
-  if (p1 && !p1.free && p2 && !p2.free) return 'one'
-  return getLength(model, v1, v2) !== null ? 'one' : 'infinite'
-}
