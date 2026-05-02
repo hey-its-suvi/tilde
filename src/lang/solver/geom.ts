@@ -1,47 +1,7 @@
-// ─── Tilde Geometry Types ──────────────────────────────────────────────────────
-// Base param types, nullable mapped type, working (solver-internal) and output
-// (renderer-facing) element wrappers.
+// ─── Tilde Geometry Primitives ────────────────────────────────────────────────
 
-// ── Base geometry param types ──────────────────────────────────────────────────
-// These describe the pure geometric state of each element.
 
-export type Point = { x: number; y: number }
-export type Line  = { a: number; b: number; c: number }  // ax + by + c = 0
-
-// All fields of T made optional-null — used for incremental solver state.
-export type Nullable<T> = { [K in keyof T]: T[K] | null }
-
-// ── Internal working types (mutable, solver scratchpad) ───────────────────────
-// `resolved` accumulates solutions as the solver runs:
-//   • Always has at least one entry (the current working state at resolved[0]).
-//   • resolved[0] fields are filled in incrementally — null ↔ number.
-//   • Multiple entries = multiple discrete solutions (all non-null fields).
-// `dof` tracks geometric degrees of freedom:
-//   • 0 = fully determined (one or multiple discrete solutions).
-//   • >0 = underconstrained (infinite solutions).  The value represents how many
-//          parameters remain free due to canonical/default choices, not constraints.
-
-export type WorkingElement<T> = {
-  resolved: Nullable<T>[]
-  dof: number
-}
-
-export type WorkingPoint = WorkingElement<Point>
-export type WorkingLine  = WorkingElement<Line>
-
-// ── Public output types (consumed by renderer) ────────────────────────────────
-// `allSolutions` contains only complete (all non-null) solutions.
-// `dof` is passed through from the working element unchanged.
-
-export type GeomElement<T> = {
-  allSolutions?: T[]
-  dof: number
-}
-
-export type GeomPoint = GeomElement<Point>
-export type GeomLine  = GeomElement<Line>
-
-// ── Numeric helpers ────────────────────────────────────────────────────────────
+import { Line } from './types.js'
 
 const EPS = 1e-10
 
@@ -53,29 +13,66 @@ export function isEqual(a: number, b: number, eps = EPS): boolean {
   return Math.abs(a - b) < eps
 }
 
-// ── Working element helpers ───────────────────────────────────────────────────
-
-/** The current working state — first entry in resolved. */
-export function workingVal<T>(w: WorkingElement<T>): Nullable<T> {
-  return w.resolved[0]!
+// Line-line intersection. Returns null if lines are parallel or identical.
+// Solves a₁x + b₁y + c₁ = 0, a₂x + b₂y + c₂ = 0 via Cramer's rule.
+export function lineIntersect(l1: Line, l2: Line): { x: number; y: number } | null {
+  const det = l1.a * l2.b - l2.a * l1.b
+  if (isZero(det)) return null
+  return {
+    x: (l1.b * l2.c - l2.b * l1.c) / det,
+    y: (l2.a * l1.c - l1.a * l2.c) / det,
+  }
 }
 
-/** True if all fields in resolved[0] are non-null (structurally complete). */
-export function isWorkingComplete<T>(w: WorkingElement<T>): boolean {
-  return Object.values(w.resolved[0]!).every(v => v !== null)
+// Two-circle intersection. Returns both solutions ordered CCW-first (solution 1
+// is left-of-AB), then CW (solution 2). Returns [] if circles don't intersect.
+export function circleIntersectBoth(
+  a: { x: number; y: number; dist: number },
+  b: { x: number; y: number; dist: number },
+): Array<{ x: number; y: number }> {
+  const dx = b.x - a.x, dy = b.y - a.y
+  const d = Math.sqrt(dx * dx + dy * dy)
+  if (isZero(d)) return []
+  if (d > a.dist + b.dist + EPS) return []
+  if (d < Math.abs(a.dist - b.dist) - EPS) return []
+
+  const A  = (a.dist * a.dist - b.dist * b.dist + d * d) / (2 * d)
+  const h  = Math.sqrt(Math.max(0, a.dist * a.dist - A * A))
+  const mx = a.x + A * dx / d
+  const my = a.y + A * dy / d
+
+  const s1 = { x: mx - h * (dy / d), y: my + h * (dx / d) }  // CCW / left-of-AB
+  const s2 = { x: mx + h * (dy / d), y: my - h * (dx / d) }  // CW  / right-of-AB
+
+  if (isZero(h)) return [s1]  // tangent — one unique solution
+  return [s1, s2]
 }
 
-/** Create a working point from nullable coordinates.
- *  dof = number of null fields (0 = fully placed, 1-2 = partially/fully unknown). */
-export function makeWorkingPoint(x: number | null = null, y: number | null = null): WorkingPoint {
-  const dof = (x === null ? 1 : 0) + (y === null ? 1 : 0)
-  return { resolved: [{ x, y }], dof }
-}
+// Circle-line intersection. Returns both solutions ordered higher-y-first
+// (solution 1), or [] if circle doesn't reach the line.
+export function circleLineIntersectBoth(
+  cx: number, cy: number, r: number,
+  line: Line,
+): Array<{ x: number; y: number }> {
+  const { a, b, c } = line
+  const denom = a * a + b * b
 
-/** Create a working line from nullable coefficients.
- *  dof = number of null fields (0 = fully specified, 1 = one unknown). */
-export function makeWorkingLine(a: number | null, b: number | null, c: number | null): WorkingLine {
-  const nulls = (a === null ? 1 : 0) + (b === null ? 1 : 0) + (c === null ? 1 : 0)
-  const dof = Math.min(nulls, 2)  // a line in 2D has at most 2 geometric DOF
-  return { resolved: [{ a, b, c }], dof }
+  const fx = cx - a * (a * cx + b * cy + c) / denom
+  const fy = cy - b * (a * cx + b * cy + c) / denom
+
+  const dist = Math.sqrt((fx - cx) ** 2 + (fy - cy) ** 2)
+  if (dist > r + EPS) return []  // circle doesn't reach line
+
+  const h = Math.sqrt(Math.max(0, r * r - dist * dist))
+  const len = Math.sqrt(denom)
+  const tx = -b / len, ty = a / len
+
+  const p1 = { x: fx + h * tx, y: fy + h * ty }
+  const p2 = { x: fx - h * tx, y: fy - h * ty }
+
+  if (isZero(h)) return [p1]  // tangent — one solution
+
+  // Order: higher y first (solution 1); if equal, larger x first
+  if (!isEqual(p1.y, p2.y)) return p1.y > p2.y ? [p1, p2] : [p2, p1]
+  return p1.x > p2.x ? [p1, p2] : [p2, p1]
 }

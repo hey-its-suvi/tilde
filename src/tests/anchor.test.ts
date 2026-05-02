@@ -7,7 +7,7 @@ import {
   CANONICAL_X, CANONICAL_Y,
   CANONICAL_DIR_X, CANONICAL_DIR_Y,
   CANONICAL_SCALE,
-} from '@lang/solver/index.js'
+} from '@lang/solver/anchor.js'
 
 // Expected positions of the anchor and reference points in canonical form.
 // Derived from the solver constants so assertions stay correct if conventions change.

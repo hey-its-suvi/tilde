@@ -3,7 +3,8 @@
 import { createEditor } from './editor.js'
 import { lex, LexError } from '../lang/lexer.js'
 import { parse, ParseError } from '../lang/parser.js'
-import { solve, ConstraintError } from '../lang/solver/index.js'
+import { solve } from '../lang/solver/index.js'
+import { ConstraintError } from '../lang/solver/types.js'
 import { Canvas2DRenderer } from '../renderer/canvas2d.js'
 
 const canvas     = document.getElementById('canvas')    as HTMLCanvasElement

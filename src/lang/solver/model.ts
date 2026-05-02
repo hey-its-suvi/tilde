@@ -4,7 +4,7 @@ import { LengthUnit, ShapeKind } from '../ast.js'
 import {
   WorkingPoint, WorkingLine,
   makeWorkingPoint,
-} from './geom.js'
+} from './types.js'
 
 export type RegisteredShape = { kind: ShapeKind; vertexCount: number }
 
