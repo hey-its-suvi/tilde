@@ -272,7 +272,7 @@ export function parse(tokens: Token[]): Program {
 
     if (!check('EQUALS')) {
       eat('NEWLINE', 'EOF')
-      return { kind: 'LineDecl', name, a: 1, b: -1, c: 0 }  // default y = x
+      return { kind: 'LineDecl', name, a: null, b: null, c: null }
     }
 
     eat('EQUALS')
