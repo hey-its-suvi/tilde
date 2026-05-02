@@ -16,7 +16,7 @@ import {
   setAngle,
 } from './model.js'
 import {
-  makeWorkingLine, workingVal, isWorkingComplete,
+  makeWorkingLine, workingVal, isWorkingComplete, isZero, isEqual,
 } from './geom.js'
 import { SceneGraph, SceneLine, SceneSegment, ScenePoint, RenderConfig, DEFAULT_CONFIG, Solutions } from '../../renderer/interface.js'
 
@@ -155,8 +155,8 @@ export function solve(program: Program): { scene: SceneGraph; config: RenderConf
       //   anchor not at origin (T was fixed) → reference goes to (0, 0)
       // This way a free point is always mapped to the origin via rotate+scale around the anchor,
       // which is geometrically natural: "translate anchor to origin, scale/rotate, translate back."
-      const anchorAtOrigin = Math.abs(anchorVal.x! - CANONICAL_X) < 1e-9 &&
-                             Math.abs(anchorVal.y! - CANONICAL_Y) < 1e-9
+      const anchorAtOrigin = isEqual(anchorVal.x!, CANONICAL_X) &&
+                             isEqual(anchorVal.y!, CANONICAL_Y)
       const refTargetX = anchorAtOrigin ? CANONICAL_X + CANONICAL_DIR_X * CANONICAL_SCALE : CANONICAL_X
       const refTargetY = anchorAtOrigin ? CANONICAL_Y + CANONICAL_DIR_Y * CANONICAL_SCALE : CANONICAL_Y
       const refDirX = refTargetX - anchorVal.x!
@@ -166,7 +166,7 @@ export function solve(program: Program): { scene: SceneGraph; config: RenderConf
       // Helper: attempt to fix R (and S if sFree) using a given point as reference.
       // Returns true if it successfully applied a fixer.
       const tryFix = (ref: string): boolean => {
-        if (refDist < 1e-9) return false  // anchor coincides with target — degenerate
+        if (isZero(refDist)) return false  // anchor coincides with target — degenerate
         const refWp = model.points.get(ref)
         if (!refWp || refWp.dof === 0 || model.onLine.has(ref) || model.onSegment.has(ref)) return false
         const knownLen = getLength(model, anchor!, ref)
@@ -251,7 +251,7 @@ function registerPoint(model: GeomModel, decl: PointDecl) {
       // Explicitly placed — only allowed if same position
       if (decl.x !== null && decl.y !== null) {
         const ev = workingVal(existing)
-        if (Math.abs(ev.x! - decl.x) > 1e-9 || Math.abs(ev.y! - decl.y) > 1e-9) {
+        if (!isEqual(ev.x!, decl.x) || !isEqual(ev.y!, decl.y)) {
           throw new ConstraintError(`"${decl.name}" is already placed at (${ev.x}, ${ev.y}), cannot redefine as (${decl.x}, ${decl.y})`)
         }
       }
@@ -445,7 +445,7 @@ function applyConstraint(model: GeomModel, c: Constraint) {
     const existing = model.points.get(name)
     if (existing && isWorkingComplete(existing)) {
       const ev = workingVal(existing)
-      if (Math.abs(ev.x! - c.x) > 1e-9 || Math.abs(ev.y! - c.y) > 1e-9) {
+      if (!isEqual(ev.x!, c.x) || !isEqual(ev.y!, c.y)) {
         throw new ConstraintError(`vertex "${name}" is already placed at (${ev.x}, ${ev.y}), cannot redefine as (${c.x}, ${c.y})`)
       }
     } else {
@@ -508,7 +508,7 @@ function tryPlaceVertexByLineIntersectLine(model: GeomModel, st: PlacementState)
     for (let i = 2; i < lineNames.length; i++) {
       const wli = model.lines.get(lineNames[i]!)!
       const lvi = workingVal(wli)
-      if (Math.abs(lvi.a! * pt.x + lvi.b! * pt.y + lvi.c!) > 1e-9)
+      if (!isZero(lvi.a! * pt.x + lvi.b! * pt.y + lvi.c!))
         throw new ConstraintError(`no position for vertex ${v}: lines "${lineNames[0]}", "${lineNames[1]}", and "${lineNames[i]}" have no common point`)
     }
     setPoint(model, v, pt.x, pt.y, 0)
@@ -586,7 +586,7 @@ function tryPlaceVertexByCircleIntersectLine(model: GeomModel, st: PlacementStat
 
 function tryPlaceVertexByLocus(model: GeomModel, st: PlacementState): boolean {
   // 1a. Circle — exactly 1 placed neighbour with known distance, no other loci.
-  //     Heading rotates 90° CCW after each use to prevent collinear degeneracy.
+  //     Heading rotates 90° CCW after each use to prevent colliisEqual degeneracy.
   for (const v of model.points.keys()) {
     if (st.placed.has(v)) continue
     const nbrs = placedNeighborsWithDist(model, st.placed, v)
@@ -696,13 +696,13 @@ function tryCompleteLineByConstraint(model: GeomModel, st: PlacementState): bool
         return true
       }
       if (lv.a === null) {
-        if (Math.abs(pt.x) < 1e-9) continue
+        if (isZero(pt.x)) continue
         lv.a = -(lv.b! * pt.y + lv.c!) / pt.x
         wl.dof = 0
         return true
       }
       if (lv.b === null) {
-        if (Math.abs(pt.y) < 1e-9) continue
+        if (isZero(pt.y)) continue
         lv.b = -(lv.a! * pt.x + lv.c!) / pt.y
         wl.dof = 0
         return true
@@ -791,7 +791,7 @@ function lineIntersect(
   l2: { a: number; b: number; c: number },
 ): { x: number; y: number } | null {
   const det = l1.a * l2.b - l2.a * l1.b
-  if (Math.abs(det) < 1e-10) return null
+  if (isZero(det)) return null
   return {
     x: (l1.b * l2.c - l2.b * l1.c) / det,
     y: (l2.a * l1.c - l1.a * l2.c) / det,
@@ -806,7 +806,7 @@ function circleIntersectBoth(
 ): Array<{ x: number; y: number }> {
   const dx = b.x - a.x, dy = b.y - a.y
   const d = Math.sqrt(dx * dx + dy * dy)
-  if (d < 1e-10) return []
+  if (isZero(d)) return []
   if (d > a.dist + b.dist + 1e-9) return []
   if (d < Math.abs(a.dist - b.dist) - 1e-9) return []
 
@@ -819,7 +819,7 @@ function circleIntersectBoth(
   const s2 = { x: mx + h * (dy / d), y: my - h * (dx / d) }  // CW  / right-of-AB
 
   // If tangent (h ≈ 0), only one unique solution
-  if (h < 1e-9) return [s1]
+  if (isZero(h)) return [s1]
   return [s1, s2]
 }
 
@@ -836,7 +836,7 @@ function circleLineIntersectBoth(
   const fy = cy - b * (a * cx + b * cy + c) / denom
 
   const dist = Math.sqrt((fx - cx) ** 2 + (fy - cy) ** 2)
-  if (dist > r + 1e-9) return []
+  if (dist > r + 1e-9) return []  // circle doesn't reach line
 
   const h = Math.sqrt(Math.max(0, r * r - dist * dist))
   const len = Math.sqrt(denom)
@@ -845,10 +845,10 @@ function circleLineIntersectBoth(
   const p1 = { x: fx + h * tx, y: fy + h * ty }
   const p2 = { x: fx - h * tx, y: fy - h * ty }
 
-  if (h < 1e-9) return [p1]  // tangent — one solution
+  if (isZero(h)) return [p1]  // tangent — one solution
 
   // Order: higher y first (solution 1); if equal, larger x first
-  if (Math.abs(p1.y - p2.y) > 1e-9) return p1.y > p2.y ? [p1, p2] : [p2, p1]
+  if (!isEqual(p1.y, p2.y)) return p1.y > p2.y ? [p1, p2] : [p2, p1]
   return p1.x > p2.x ? [p1, p2] : [p2, p1]
 }
 

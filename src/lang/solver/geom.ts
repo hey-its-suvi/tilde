@@ -41,6 +41,18 @@ export type GeomElement<T> = {
 export type GeomPoint = GeomElement<Point>
 export type GeomLine  = GeomElement<Line>
 
+// ── Numeric helpers ────────────────────────────────────────────────────────────
+
+const EPS = 1e-10
+
+export function isZero(x: number, eps = EPS): boolean {
+  return Math.abs(x) < eps
+}
+
+export function isEqual(a: number, b: number, eps = EPS): boolean {
+  return Math.abs(a - b) < eps
+}
+
 // ── Working element helpers ───────────────────────────────────────────────────
 
 /** The current working state — first entry in resolved. */
