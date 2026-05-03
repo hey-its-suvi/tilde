@@ -129,11 +129,11 @@ export type PositionConstraint = {
   y: number
 }
 
-/** point p on line l  |  p on ab  |  p on t_1_2 */
+/** point p on line l  |  p on ab  |  p on t_1_2  |  p on l and m */
 export type OnConstraint = {
   kind: 'OnConstraint'
   point: Ref
-  target: Ref
+  targets: Ref[]
 }
 
 // ─── Values ──────────────────────────────────────────────────────────────────

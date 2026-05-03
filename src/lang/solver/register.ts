@@ -246,7 +246,7 @@ export function applyConstraint(model: GeomModel, c: Constraint) {
   if (c.kind === 'OnConstraint') {
     const pointName = resolveVertexName(c.point)
     touchPointChecked(model, pointName)
-    applyOnTarget(model, c.target, pointName)
+    for (const target of c.targets) applyOnTarget(model, target, pointName)
     return
   }
 

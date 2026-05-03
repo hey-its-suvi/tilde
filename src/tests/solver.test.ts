@@ -110,6 +110,38 @@ describe('error cases', () => {
   })
 })
 
+describe('multi-target on', () => {
+  it('p on l and m — point on two lines with and', () => {
+    const scene = run([
+      'line a = (1,0)',
+      'line b = (0,1,-1)',
+      'point p on a and b',
+    ].join('\n'))
+    assertPoint(scene, 'p', 'one')
+    assertPointAt(scene, 'p', 1, 1)
+  })
+
+  it('p on l, m — point on two lines with comma', () => {
+    const scene = run([
+      'line a = (1,0)',
+      'line b = (0,1,-1)',
+      'point p on a, b',
+    ].join('\n'))
+    assertPoint(scene, 'p', 'one')
+    assertPointAt(scene, 'p', 1, 1)
+  })
+
+  it('backtracking: in a with list, p on l and ab = 3 does not eat ab as a second on-target', () => {
+    // `p on l and ab = 3` must parse as two constraints: [on(p,l), length(ab,3)]
+    // The backtracking detects that `ab` is followed by `=` and stops target collection.
+    const scene = run([
+      'line l = (0,1,-1)',
+      'segment ab with a = (0,0) and p on l and ab = 3',
+    ].join('\n'))
+    assertSegmentLength(scene, 'a', 'b', 3)
+  })
+})
+
 describe('line intersection', () => {
   it('point on two lines is placed at their intersection', () => {
     // line a = (1,0)    → 2-tuple: a=1, b=-1, c=0  → x - y = 0 → y = x

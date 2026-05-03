@@ -158,7 +158,7 @@ export function parse(tokens: Token[]): Program {
 
   function parseConstraintList(): Constraint[] {
     const constraints = [parseConstraint()]
-    while (check('AND')) {
+    while (check('AND') || check('COMMA')) {
       advance()
       constraints.push(parseConstraint())
     }
@@ -175,15 +175,35 @@ export function parse(tokens: Token[]): Program {
 
   // ── Constraint ─────────────────────────────────────────────────────────────
 
+  // Collect refs separated by `and` or `,`, skipping optional contextual hint keywords
+  // (line, segment, point) before each ref.  Uses lookahead backtracking: if after
+  // consuming a separator + ref we see an operator (=, on, through, etc.), restore
+  // position — that ref was the start of a new constraint, not another target.
+  function parseRefList(first: Ref): Ref[] {
+    const refs: Ref[] = [first]
+    while (check('AND') || check('COMMA')) {
+      const savedPos = pos
+      advance()
+      if (check('LINE', 'SEGMENT', 'POINT')) advance()
+      const next = parseRef()
+      if (check('EQUALS', 'ON', 'THROUGH', 'PARALLEL', 'PERPENDICULAR')) {
+        pos = savedPos
+        break
+      }
+      refs.push(next)
+    }
+    return refs
+  }
+
   function parseConstraint(): Constraint {
-    // point ref on target
+    // point ref on target(s)
     if (check('POINT')) {
       advance()
       const point = parseRef()
       eat('ON')
       if (check('LINE', 'SEGMENT')) advance()  // optional keyword hint — consumed, not stored
-      const target = parseRef()
-      return { kind: 'OnConstraint', point, target } satisfies OnConstraint
+      const targets = parseRefList(parseRef())
+      return { kind: 'OnConstraint', point, targets } satisfies OnConstraint
     }
 
     // angle ref = value
@@ -201,15 +221,15 @@ export function parse(tokens: Token[]): Program {
     if (check('ON')) {
       advance()
       if (check('LINE', 'SEGMENT')) advance()  // optional keyword hint
-      const target = parseRef()
-      return { kind: 'OnConstraint', point: left, target } satisfies OnConstraint
+      const targets = parseRefList(parseRef())
+      return { kind: 'OnConstraint', point: left, targets } satisfies OnConstraint
     }
 
     if (check('THROUGH')) {
       advance()
       if (check('POINT')) advance()  // optional keyword hint
       const point = parseRef()
-      return { kind: 'OnConstraint', point, target: left } satisfies OnConstraint
+      return { kind: 'OnConstraint', point, targets: [left] } satisfies OnConstraint
     }
 
     if (check('PARALLEL', 'PERPENDICULAR')) {
@@ -323,16 +343,15 @@ export function parse(tokens: Token[]): Program {
       }
     }
 
-    // `through p, q` or `through p and q` — each point becomes an OnConstraint
+    // `through p, q` or `through p and q` — one OnConstraint per point
     const constraints: Constraint[] = []
     if (check('THROUGH')) {
       advance()
-      do {
-        if (check('POINT')) advance()  // optional keyword hint
-        const point = parseRef()
-        const target: NameRef = { kind: 'NameRef', name }
-        constraints.push({ kind: 'OnConstraint', point, target } satisfies OnConstraint)
-      } while ((check('AND') || check('COMMA')) && !!advance())
+      if (check('POINT')) advance()  // optional keyword hint
+      const lineRef: NameRef = { kind: 'NameRef', name }
+      for (const point of parseRefList(parseRef())) {
+        constraints.push({ kind: 'OnConstraint', point, targets: [lineRef] } satisfies OnConstraint)
+      }
     }
 
     eat('NEWLINE', 'EOF')
