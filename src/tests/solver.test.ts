@@ -165,6 +165,17 @@ describe('through syntax', () => {
     assertLine(scene, 'l', 'one')
     assertLineEq(scene, 'l', 2, 2, -10)
   })
+
+  it('standalone: l through p is equivalent to point p on l', () => {
+    const scene = run([
+      'line a = (1,0)',
+      'line b = (0,1,-1)',
+      'a through p',
+      'b through p',
+    ].join('\n'))
+    assertPoint(scene, 'p', 'one')
+    assertPointAt(scene, 'p', 1, 1)
+  })
 })
 
 describe('bare line declarations', () => {

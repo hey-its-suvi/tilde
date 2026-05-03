@@ -50,14 +50,15 @@ point p on l
 point p on line l
 ```
 
-The same constraint can be expressed from the line's side using `through` on the line declaration:
+The same constraint can be expressed from the line's side using `through`:
 
 ```
-line l through p
-line l through p, q
+line l through p          # inline on the line declaration
+line l through p, q       # multiple points inline
+l through p               # standalone statement
 ```
 
-Both forms are equivalent — `through` is desugared to `on` at parse time.
+All forms are equivalent — `through` is desugared to `on` at parse time.
 
 <TildeSketch source="
 line l = (1, -1, 0)

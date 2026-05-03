@@ -205,6 +205,13 @@ export function parse(tokens: Token[]): Program {
       return { kind: 'OnConstraint', point: left, target } satisfies OnConstraint
     }
 
+    if (check('THROUGH')) {
+      advance()
+      if (check('POINT')) advance()  // optional keyword hint
+      const point = parseRef()
+      return { kind: 'OnConstraint', point, target: left } satisfies OnConstraint
+    }
+
     if (check('PARALLEL', 'PERPENDICULAR')) {
       const rel = advance().kind === 'PARALLEL' ? 'parallel' : 'perpendicular'
       const right = parseRef()
