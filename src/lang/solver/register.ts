@@ -30,6 +30,7 @@ export function registerLine(model: GeomModel, decl: LineDecl) {
     throw new ConstraintError(`"${decl.name}" is already declared as a point`)
   }
   model.lines.set(decl.name, makeWorkingLine(decl.a, decl.b, decl.c))
+  for (const c of decl.constraints) applyConstraint(model, c)
 }
 
 // ── Point registration ────────────────────────────────────────────────────────

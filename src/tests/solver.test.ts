@@ -126,6 +126,47 @@ describe('line intersection', () => {
   })
 })
 
+describe('through syntax', () => {
+  it('line through p is equivalent to point p on line', () => {
+    // same geometry as the line intersection test above, written with through
+    const scene = run([
+      'line a = (1,0) through p',
+      'line b = (0,1,-1) through p',
+    ].join('\n'))
+    assertPoint(scene, 'p', 'one')
+    assertPointAt(scene, 'p', 1, 1)
+  })
+
+  it('line through point p — optional point keyword', () => {
+    const scene = run([
+      'line a = (1,0) through point p',
+      'line b = (0,1,-1) through point p',
+    ].join('\n'))
+    assertPointAt(scene, 'p', 1, 1)
+  })
+
+  it('bare line through two explicit points — fully determines the line', () => {
+    // line through (3,2) and (1,4): a=4-2=2, b=3-1=2, c=-(2·3+2·2)=-10 → 2x+2y-10=0
+    const scene = run([
+      'line l through a and b',
+      'point a = (3, 2)',
+      'point b = (1, 4)',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 2, 2, -10)
+  })
+
+  it('comma separator works: line l through p, q', () => {
+    const scene = run([
+      'line l through a, b',
+      'point a = (3, 2)',
+      'point b = (1, 4)',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 2, 2, -10)
+  })
+})
+
 describe('bare line declarations', () => {
   it('bare line with no points — canonicalises to y = x (infinite)', () => {
     const scene = run('line l')

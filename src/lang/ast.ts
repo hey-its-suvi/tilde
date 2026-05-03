@@ -23,6 +23,7 @@ export type LineDecl = {
   a: number | null      // ax + by + c = 0; null = unknown (partial line)
   b: number | null
   c: number | null
+  constraints: Constraint[]  // from `through p and q` — stored as OnConstraints
 }
 
 export type PointDecl = {

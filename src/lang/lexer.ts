@@ -17,7 +17,7 @@ export type TokenKind =
   // Pick (solution selection)
   | 'PICK'
   // Connectors
-  | 'WITH' | 'AND'
+  | 'WITH' | 'AND' | 'THROUGH'
   // Names
   | 'NAME'         // any alphanumeric identifier: abc, ABC, MyShape, t1
   // Literals
@@ -67,6 +67,7 @@ const KEYWORDS: Record<string, TokenKind> = {
   off:              'OFF',
   with:             'WITH',
   and:              'AND',
+  through:          'THROUGH',
   line:             'LINE',
   pick:             'PICK',
 }

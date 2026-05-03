@@ -270,54 +270,66 @@ export function parse(tokens: Token[]): Program {
     eat('LINE')
     const name = eat('NAME').value
 
-    if (!check('EQUALS')) {
-      eat('NEWLINE', 'EOF')
-      return { kind: 'LineDecl', name, a: null, b: null, c: null }
-    }
+    let a: number | null = null
+    let b: number | null = null
+    let c: number | null = null
 
-    eat('EQUALS')
-    eat('LPAREN')
+    if (check('EQUALS')) {
+      eat('EQUALS')
+      eat('LPAREN')
 
-    // Check for leading comma: (, b) form — first field is null
-    if (check('COMMA')) {
-      advance()
-      const second = parseSignedNumber()
-      eat('RPAREN')
-      eat('NEWLINE', 'EOF')
-      return { kind: 'LineDecl', name, a: null, b: -1, c: second }
-    }
-
-    const first = parseSignedNumber()
-    eat('COMMA')
-
-    // Trailing comma after first: (m,) form — second field is null
-    if (check('RPAREN')) {
-      advance()
-      eat('NEWLINE', 'EOF')
-      return { kind: 'LineDecl', name, a: first, b: -1, c: null }
-    }
-
-    const second = parseSignedNumber()
-
-    if (check('COMMA')) {
-      advance()
-      // Trailing comma after second: (a, b,) form — third field is null
-      if (check('RPAREN')) {
+      // Check for leading comma: (, b) form — first field is null
+      if (check('COMMA')) {
         advance()
-        eat('NEWLINE', 'EOF')
-        return { kind: 'LineDecl', name, a: first, b: second, c: null }
+        const second = parseSignedNumber()
+        eat('RPAREN')
+        b = -1; c = second
+      } else {
+        const first = parseSignedNumber()
+        eat('COMMA')
+
+        // Trailing comma after first: (m,) form — second field is null
+        if (check('RPAREN')) {
+          advance()
+          a = first; b = -1
+        } else {
+          const second = parseSignedNumber()
+
+          if (check('COMMA')) {
+            advance()
+            // Trailing comma after second: (a, b,) form — third field is null
+            if (check('RPAREN')) {
+              advance()
+              a = first; b = second
+            } else {
+              // Full 3-tuple: (a, b, c)
+              const third = parseSignedNumber()
+              eat('RPAREN')
+              a = first; b = second; c = third
+            }
+          } else {
+            // Full 2-tuple: (m, b_val) → slope-intercept
+            eat('RPAREN')
+            a = first; b = -1; c = second
+          }
+        }
       }
-      // Full 3-tuple: (a, b, c)
-      const third = parseSignedNumber()
-      eat('RPAREN')
-      eat('NEWLINE', 'EOF')
-      return { kind: 'LineDecl', name, a: first, b: second, c: third }
     }
 
-    // Full 2-tuple: (m, b_val) → slope-intercept
-    eat('RPAREN')
+    // `through p, q` or `through p and q` — each point becomes an OnConstraint
+    const constraints: Constraint[] = []
+    if (check('THROUGH')) {
+      advance()
+      do {
+        if (check('POINT')) advance()  // optional keyword hint
+        const point = parseRef()
+        const target: NameRef = { kind: 'NameRef', name }
+        constraints.push({ kind: 'OnConstraint', point, target } satisfies OnConstraint)
+      } while ((check('AND') || check('COMMA')) && !!advance())
+    }
+
     eat('NEWLINE', 'EOF')
-    return { kind: 'LineDecl', name, a: first, b: -1, c: second }
+    return { kind: 'LineDecl', name, a, b, c, constraints }
   }
 
   // ── Point declaration ──────────────────────────────────────────────────────

@@ -55,6 +55,15 @@ line l = (1, -1,)       # direction (1, −1) known, position unknown
 
 A partially declared line with no constraining point is drawn the same way as an underconstrained point — its position is a representative choice, not uniquely determined.
 
+Use `through` to declare that a line passes through one or more points. This is the mirror of `point p on line l`.
+
+```
+line l through p
+line l through p, q       # comma-separated
+line l through p and q    # or with 'and'
+line l = (2,) through p   # combined with partial coefficients
+```
+
 Rendered as an infinite dashed line clipped to the viewport.
 
 <TildeSketch source="
