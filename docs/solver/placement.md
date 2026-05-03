@@ -1,22 +1,22 @@
 # Pass 3 — Fixpoint Placement
 
-Pass 3 is the core of the solver. It takes the constraint model from Pass 1 and the anchor from Pass 2, and places every remaining vertex by repeatedly applying geometric rules until nothing is left to do.
+Pass 3 is the core of the solver. It takes the constraint model from Pass 1 and the anchor from Pass 2, and places every remaining vertex and completes every remaining line by repeatedly applying rules until nothing is left to do.
 
 ## The fixpoint loop
 
-Scan all unplaced vertices, find one that can be placed, place it, then scan again. Repeat until every vertex has a position.
+Try every rule in priority order. If one fires, restart from the top. Repeat until no rule fires.
 
 ```mermaid
 flowchart TD
-    START(["Start: placed = {anchor} + explicit points"]) --> SCAN
-    SCAN{Any unplaced vertices?} -->|No| DONE([Done — build scene graph])
-    SCAN -->|Yes| TRY["Try rules in priority order\nuntil one fires"]
-    TRY --> FIRED{A rule fired?}
-    FIRED -->|Yes| SCAN
-    FIRED -->|No| STUCK([Error — stuck])
+    START(["Start: placed = {anchor} + explicit points"]) --> TRY
+    TRY["Try all rules in priority order"] --> FIRED{Any rule fired?}
+    FIRED -->|Yes| TRY
+    FIRED -->|No| DONE([Done — build scene graph])
 ```
 
-The loop is guaranteed to terminate: every iteration either places at least one vertex or exits. Stuck states cannot occur in practice because the 0-loci fallbacks handle everything, including completely isolated vertices.
+Rules cover both **vertex placement** and **line completion** — a newly completed line can immediately unlock an exact vertex placement that was previously blocked, so both live in the same loop.
+
+The loop is guaranteed to terminate: every iteration either places a vertex, completes a line, or exits. Stuck states cannot occur in practice because the priority-0 fallbacks handle everything, including completely isolated vertices.
 
 ## How placement works
 
@@ -38,15 +38,15 @@ flowchart TD
     L -->|0| C["No geometric information\n→ structural fallback\n→ free"]
 ```
 
-Rules are tried in priority order — highest locus count first — so a vertex is always placed as precisely as the available constraints allow.
+Rules are tried in priority order — highest locus count first — so a vertex is always placed as precisely as the available constraints allow. Line completion rules follow the same priority structure and are interleaved with vertex placement in the same loop.
 
 ---
 
-## 2+ loci — Fully determined
+## Priority 2 — Exact placement
 
-Two or more loci intersect at a finite number of points (usually 1 or 2). The vertex is placed exactly.
+Two or more loci intersect at a finite number of points (usually 1 or 2). The vertex is placed exactly (`dof = 0`).
 
-Rules are tried in this order within the exact tier. Line∩Line fires first because it requires no placed neighbours — it can resolve immediately before anything else is placed.
+Rules are tried in this order. Line∩Line fires first because it requires no placed neighbours — it can resolve immediately before anything else is placed. **Line completion** (priority 2) also fires here: if a named line has all but one coefficient known and a placed point lies on it, the missing coefficient is solved exactly.
 
 ### 1. Line ∩ Line
 
@@ -110,9 +110,11 @@ Solution 1 has the higher y-coordinate (or larger x if y values are equal).
 
 ---
 
-## 1 locus — Underconstrained
+## Priority 1 — Locus placement
 
-Only one locus is available. The vertex is free to slide along it — its position is not uniquely determined. The solver picks a default point and marks the vertex **free**.
+Only one locus is available. The vertex is free to slide along it — its position is not uniquely determined. The solver picks a default point and marks the vertex as underconstrained (`dof = 1`).
+
+**Line completion** also fires here: a bare or partial line with no usable placed point is completed using a canonical default (e.g. a bare `line l` with no points becomes `y = x`). Canonicalization is deferred to this priority so that a point placed at priority 2 can always resolve a line exactly before any guessing occurs.
 
 ### 1. Circle
 
@@ -145,9 +147,9 @@ For `n` unplaced vertices, vertex `i` is placed at `t = (i+1) / (n+1)`. All are 
 
 ---
 
-## 0 loci — No geometric information
+## Priority 0 — Fallback placement
 
-No locus is available. The solver cannot reason geometrically about this vertex yet. It places it structurally — just enough to make the figure visible — and marks it **free**.
+No locus is available. The solver cannot reason geometrically about this vertex. It places it structurally — just enough to make the figure visible — and marks it as underconstrained.
 
 ### 1. Segment neighbor
 
@@ -163,13 +165,13 @@ Isolated vertices belong to a disconnected component of the constraint graph. Th
 
 ---
 
-## Free propagation
+## DOF propagation
 
-The `free` flag controls rendering: a free vertex gets a wavy circle and squiggly edges; a determined vertex gets a crisp dot and solid lines.
+The `dof` value controls rendering: `dof = 0` gives a crisp dot and solid lines; `dof > 0` gives a wavy circle and squiggly edges.
 
-`free` propagates through the constraint graph: when a vertex is placed by intersecting loci, it inherits `free` from the loci that determined it. If a placed neighbor was free, the new vertex is free too — its position is only determined relative to something that was already moving.
+`dof` propagates through the constraint graph: when a vertex is placed by intersecting loci, it inherits `dof` from those loci. If a placed neighbor was underconstrained, the new vertex is underconstrained too — its position is only determined relative to something that was already moving.
 
-Vertices placed by 1-locus or 0-loci rules are always free.
+Vertices placed by priority-1 or priority-0 rules are always underconstrained (`dof = 1`).
 
 ---
 

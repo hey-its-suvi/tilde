@@ -1,40 +1,67 @@
 # Pass 2 — Anchor Selection
 
-Tilde describes geometry in relative terms: "a triangle with sides 3, 4, 5". That description says nothing about *where* the triangle sits in the plane. Before placement can begin, the solver needs one fixed point to act as the coordinate origin — the **anchor**.
+Tilde describes geometry in relative terms: "a triangle with sides 3, 4, 5". That description says nothing about *where* the triangle sits in the plane, which direction it faces, or what scale to use. Before placement can begin, the solver detects which of these global degrees of freedom are unconstrained and pins them to a canonical form.
 
-## How the anchor is chosen
+## Degrees of freedom
+
+A floating figure in the plane has three global degrees of freedom:
+
+| DOF | What it means | Fixed by |
+|---|---|---|
+| **T** — translation | the figure can slide anywhere in the plane | an explicitly placed point, or a fully specified named line |
+| **R** — rotation | the figure can rotate around any fixed point | a named line with a known direction, or two explicitly placed points |
+| **S** — scale | the figure can be scaled up or down uniformly | a known length, or two explicitly placed points |
+
+Pass 2 detects which of T, R, S are still free after Pass 1, then applies fixers in order to pin them down.
+
+## The three fixers
+
+### T fixer — translation
+
+**Condition:** no point has explicit coordinates AND no named line has a fully known position.
 
 The solver scans vertices in declaration order and picks the first one that is:
+- not already explicitly placed
+- not constrained to a named line
+- not constrained to lie on a segment
 
-- **not already placed** — explicitly-positioned points (e.g. `let point a at 1 2`) are already fixed and skipped
-- **not on a named line** — a vertex on a line will be placed *by* the line constraint, not by being pinned at the origin
-- **not on a segment** — similarly, a vertex on a segment gets its position from that segment
+That vertex is pinned to **(0, 0)** and becomes the **anchor**. All other vertices will be placed relative to it.
 
-The first vertex that passes all three checks becomes the anchor. It is fixed at **(0, 0)** and marked as determined (not free).
+### R + S fixers — rotation and scale
 
-```mermaid
-flowchart TD
-    A([Scan vertices in declaration order]) --> B{Already placed?}
-    B -->|Yes| SKIP[Skip]
-    B -->|No| C{Constrained\nto a line?}
-    C -->|Yes| SKIP
-    C -->|No| D{Constrained\nto a segment?}
-    D -->|Yes| SKIP
-    D -->|No| E["Set as anchor\nplace at (0, 0), free = false"]
-    E --> DONE([Pass 2 done])
-    SKIP --> A
+After the T fixer runs (or if T was already fixed), the solver looks for a **reference vertex** to fix the remaining rotational and scale DOF. The reference must be free (not explicitly placed, not on a line, not on a segment), and is found by:
+
+1. Preferring a vertex directly connected to the anchor by a segment (same component)
+2. Falling back to any other free vertex in the model
+
+Once found:
+
+**R + S both free:** the reference vertex is placed at the canonical direction from the anchor (along +x), and the segment length is set to 1. Both position and scale are canonicalized in one step.
+
+**R free, S fixed:** the reference vertex is placed along the canonical direction from the anchor at the existing known distance. Direction is canonicalized; scale was already determined.
+
+**R fixed, S free:** no reference is needed for rotation. Instead, the first unconstrained segment between two free vertices is given a default length of 1.
+
+## What "canonical" means
+
+The canonical position is defined by constants in `anchor.ts`:
+
+```
+CANONICAL_X, CANONICAL_Y = (0, 0)   — anchor lands here
+CANONICAL_DIR_X, CANONICAL_DIR_Y = (1, 0)   — reference placed in this direction
+CANONICAL_SCALE = 1   — default length when scale is free
 ```
 
-## Why (0, 0)?
+These are conventions, not constraints. A figure that is described purely in relative terms (no absolute coordinates, no explicit lengths) will always be placed at origin, facing right, with unit scale — a stable, predictable canonical form.
 
-The anchor's absolute position is arbitrary — the geometry only cares about relative distances and angles. Placing it at the origin is a simple, consistent convention. Every other vertex will be placed relative to this point by Pass 3.
+## What happens when DOF is already fixed
 
-## Why not just pick the first declared vertex?
+If explicit points or lengths already remove some DOF, the corresponding fixer is skipped:
 
-If the first vertex were constrained to lie on a specific line, pinning it at the origin would force the origin to be on that line, which may conflict with other constraints. Skipping constrained vertices lets the anchor be a genuinely free vertex that can live wherever the solver needs it.
+- Two explicitly placed points → T, R, and S are all fixed; Pass 2 does nothing.
+- One explicitly placed point → T is fixed; the solver still tries to fix R using the nearest free segment.
+- A named line with known direction → R is fixed; T and S may still need fixers.
 
-## Orientation
+## Why not just always pin at (0, 0)?
 
-Fixing the anchor removes the *translation* degree of freedom — the figure can no longer slide around the plane. But rotation is still free at this point. The first time Pass 3 places a vertex using only a single known distance (no second anchor to triangulate from), it fixes the orientation by placing that vertex along the +x axis. From then on, the figure's rotation in the plane is also fixed.
-
-See [Pass 3 — Placement](./placement) for the full details.
+Pinning an arbitrary vertex at (0, 0) would conflict with explicit position constraints — if `point a = (3, 4)` is declared, the anchor must not override it. Pass 2 only touches vertices that are genuinely free and not covered by any other constraint.

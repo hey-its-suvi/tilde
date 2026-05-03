@@ -8,11 +8,11 @@ By the end of Pass 1, the model holds:
 
 | Structure | What it stores |
 |---|---|
-| `points` | Every declared vertex, initially unplaced (`free = true`) |
+| `points` | Every declared vertex, initially unplaced (`dof = 2`, coordinates null) |
 | `segments` | The set of all declared edges, as canonical pairs |
-| `lengths` | A length value for each segment that has one, or nothing |
-| `lines` | Named lines, each stored as `ax + by + c = 0` |
-| `onLine` | Which vertex is constrained to which named line |
+| `lengths` | A length value for each segment that has one, or `null` |
+| `lines` | Named lines, stored as `(a, b, c)` where any coefficient may be `null` for partial/bare declarations |
+| `onLine` | Which vertex is constrained to which named line(s) |
 | `onSegment` | Which vertex is constrained to lie on which segment |
 | `solutionPicks` | Which solution index was chosen for each ambiguous vertex |
 
@@ -32,10 +32,10 @@ let segment ab
 
 Registers vertices `a`, `b` and one edge: `a–b`.
 
-Inline length constraints attach a length value to the edge at the same time:
+Inline length constraints attach length values to the edges at the same time:
 
 ```
-let triangle abc = 3, 4, 5
+triangle abc with ab = 3 and bc = 4 and ca = 5
 ```
 
 Registers the triangle and sets `|ab| = 3`, `|bc| = 4`, `|ca| = 5`.
@@ -65,6 +65,6 @@ flowchart LR
 
 `pick v 2` tells the solver that when vertex `v` has two possible positions, it should use position 2. These are recorded during Pass 1 and consulted during placement in Pass 3.
 
-## What Pass 1 does not do
+## What Pass 1 does and does not do
 
-Pass 1 does **not** assign coordinates to any vertex. Every vertex enters Pass 3 as an unplaced point — `(0, 0, free = true)` by default. The constraint model is purely relational: it says *what exists* and *what constraints apply*, not *where anything is*.
+Pass 1 **does** assign coordinates to explicitly placed vertices — `point a = (3, 4)` or `a = (3, 4)` inside a `with` block resolves immediately to `dof = 0`. Every other vertex enters Pass 3 as an unplaced working point: both coordinates null, `dof = 2`. The constraint model is purely relational for those: it says *what exists* and *what constraints apply*, not *where anything is*.
