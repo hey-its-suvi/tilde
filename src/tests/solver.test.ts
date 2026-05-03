@@ -398,3 +398,141 @@ describe('with slope/intercept syntax', () => {
     assertLineEq(scene, 'l', 1, -1, 2)
   })
 })
+
+describe('parallel and perpendicular', () => {
+  it('a parallel m — a gets same direction as m', () => {
+    // m: y = x → x - y = 0 → (1, -1, 0); a should have same direction
+    const scene = run([
+      'line m = (1, -1, 0)',
+      'line a',
+      'a parallel m',
+    ].join('\n'))
+    const lm = scene.lines.find(l => l.label === 'm')!
+    const la = scene.lines.find(l => l.label === 'a')!
+    expect(la).toBeTruthy()
+    // Same direction: a.a/m.a == a.b/m.b  →  a.a * m.b == a.b * m.a
+    expect(la.a * lm.b).toBeCloseTo(la.b * lm.a)
+  })
+
+  it('line a parallel line m — with optional line hints', () => {
+    const scene = run([
+      'line m = (1, -1, 0)',
+      'line a parallel line m',
+    ].join('\n'))
+    const lm = scene.lines.find(l => l.label === 'm')!
+    const la = scene.lines.find(l => l.label === 'a')!
+    expect(la.a * lm.b).toBeCloseTo(la.b * lm.a)
+  })
+
+  it('parallel through point — direction from m, position from through-point', () => {
+    // m: y = 0; n parallel m through p=(0,3) → n: y = 3 → (0, 1, -3) normalized → (0, -1, 3)
+    // Actually: m=(0,1,0), parallel copies a=0,b=1; p=(0,3) on n → c = -(0*0 + 1*3) = -3
+    const scene = run([
+      'line m = (0, 1, 0)',
+      'line n through p',
+      'n parallel m',
+      'point p = (0, 3)',
+    ].join('\n'))
+    assertLine(scene, 'n', 'one')
+    const ln = scene.lines.find(l => l.label === 'n')!
+    // n is parallel to m (y-direction), through p=(0,3): 0*x + 1*y - 3 = 0
+    expect(ln.a).toBeCloseTo(0)
+    expect(ln.b).toBeCloseTo(1)
+    expect(ln.c).toBeCloseTo(-3)
+  })
+
+  it('l perpendicular m — direction rotated 90°', () => {
+    // m: x = 0 (vertical) → (1, 0, 0); l ⊥ m should be horizontal → (0, 1, *)
+    const scene = run([
+      'line m = (1, 0, 0)',
+      'line l',
+      'l perpendicular m',
+    ].join('\n'))
+    const ll = scene.lines.find(l => l.label === 'l')!
+    const lm = scene.lines.find(l => l.label === 'm')!
+    // Perpendicular: direction vectors orthogonal → a_l * a_m + b_l * b_m = 0
+    // (this follows from: direction of line ax+by+c=0 is (-b, a))
+    expect(ll.a * lm.a + ll.b * lm.b).toBeCloseTo(0)
+  })
+
+  it('l perpendicular m — oblique case', () => {
+    // m: y = 2x → 2x - y = 0 → (2, -1, 0); l ⊥ m: direction = (m.b, -m.a) = (-1, -2)
+    const scene = run([
+      'line m = (2, -1, 0)',
+      'line l',
+      'l perpendicular m',
+    ].join('\n'))
+    const ll = scene.lines.find(l => l.label === 'l')!
+    const lm = scene.lines.find(l => l.label === 'm')!
+    expect(ll.a * lm.a + ll.b * lm.b).toBeCloseTo(0)
+  })
+
+  it('l perpendicular m at p — p placed at intersection', () => {
+    // m: x = 2 (vertical); l ⊥ m → l horizontal; p on both
+    // l gets canonical c=0 (y=0), then p = intersection(l, m) = (2, 0)
+    const scene = run([
+      'line m = (1, 0, -2)',
+      'line l perpendicular m at p',
+    ].join('\n'))
+    const pt = scene.points.find(p => p.label === 'p')!
+    const ll = scene.lines.find(l => l.label === 'l')!
+    const lm = scene.lines.find(l => l.label === 'm')!
+    expect(pt).toBeTruthy()
+    // p lies on m: a_m * p.x + b_m * p.y + c_m ≈ 0
+    expect(lm.a * pt.x + lm.b * pt.y + lm.c).toBeCloseTo(0)
+    // p lies on l
+    expect(ll.a * pt.x + ll.b * pt.y + ll.c).toBeCloseTo(0)
+    // l ⊥ m
+    expect(ll.a * lm.a + ll.b * lm.b).toBeCloseTo(0)
+  })
+
+  it('l perpendicular m at p with p placed — l fully resolved', () => {
+    // p placed at (2, 5) → l perpendicular to m=(1,0,-2) through p
+    // l direction: (m.b, -m.a) = (0, -1); c = -(0*2 + (-1)*5) = 5
+    const scene = run([
+      'line m = (1, 0, -2)',
+      'point p = (2, 5)',
+      'line l perpendicular m at p',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    const ll = scene.lines.find(l => l.label === 'l')!
+    // l: 0*x - 1*y + 5 = 0 → y = 5
+    expect(ll.a).toBeCloseTo(0)
+    expect(ll.b).toBeCloseTo(-1)
+    expect(ll.c).toBeCloseTo(5)
+  })
+
+  it('l parallel m at 3 — two solutions at distance 3', () => {
+    // m: y = 0 → (0, 1, 0); l parallel m at distance 3
+    // l gets a=0, b=1; two c values: c = 0 ± 3*sqrt(0+1) = ±3
+    // y = -3 (c=3) and y = 3 (c=-3)
+    const scene = run([
+      'line m = (0, 1, 0)',
+      'line l',
+      'l parallel m at 3',
+    ].join('\n'))
+    const ls = scene.lines.filter(l => l.label === 'l')
+    expect(ls).toHaveLength(2)
+    expect(ls[0]!.solutions).toBe('multiple')
+    expect(ls[1]!.solutions).toBe('multiple')
+    const cs = ls.map(l => l.c).sort((a, b) => a - b)
+    expect(cs[0]).toBeCloseTo(-3)
+    expect(cs[1]).toBeCloseTo(3)
+  })
+
+  it('l parallel m at 3 — oblique m, distances are correct', () => {
+    // m: x - y = 0 → (1, -1, 0); norm = sqrt(2)
+    // delta = 3 * sqrt(2); c values: 0 ± 3*sqrt(2)
+    const scene = run([
+      'line m = (1, -1, 0)',
+      'line l',
+      'l parallel m at 3',
+    ].join('\n'))
+    const ls = scene.lines.filter(l => l.label === 'l')
+    expect(ls).toHaveLength(2)
+    const delta = 3 * Math.sqrt(2)
+    const cs = ls.map(l => l.c).sort((a, b) => a - b)
+    expect(cs[0]).toBeCloseTo(-delta)
+    expect(cs[1]).toBeCloseTo(delta)
+  })
+})

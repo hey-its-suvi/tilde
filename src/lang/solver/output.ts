@@ -18,7 +18,12 @@ export function buildSceneGraph(model: GeomModel): SceneGraph {
   const lines: SceneLine[] = []
 
   for (const [name, wl] of model.lines) {
-    if (isWorkingComplete(wl)) {
+    if (!isWorkingComplete(wl)) continue
+    if (wl.resolved.length > 1) {
+      wl.resolved.forEach((s, i) => {
+        lines.push({ a: s.a!, b: s.b!, c: s.c!, label: name, solutions: 'multiple', solutionIndex: i + 1 })
+      })
+    } else {
       const lv = workingVal(wl)
       lines.push({ a: lv.a!, b: lv.b!, c: lv.c!, label: name, solutions: wl.dof === 0 ? 'one' : 'infinite' })
     }

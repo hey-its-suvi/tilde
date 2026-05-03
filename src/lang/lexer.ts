@@ -17,7 +17,7 @@ export type TokenKind =
   // Pick (solution selection)
   | 'PICK'
   // Connectors
-  | 'WITH' | 'AND' | 'THROUGH'
+  | 'WITH' | 'AND' | 'THROUGH' | 'AT'
   // Line property keywords
   | 'SLOPE' | 'INTERCEPT'
   // Names
@@ -70,6 +70,7 @@ const KEYWORDS: Record<string, TokenKind> = {
   with:             'WITH',
   and:              'AND',
   through:          'THROUGH',
+  at:               'AT',
   slope:            'SLOPE',
   intercept:        'INTERCEPT',
   line:             'LINE',

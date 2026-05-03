@@ -186,7 +186,7 @@ export function parse(tokens: Token[]): Program {
       advance()
       if (check('LINE', 'SEGMENT', 'POINT')) advance()
       const next = parseRef()
-      if (check('EQUALS', 'ON', 'THROUGH', 'PARALLEL', 'PERPENDICULAR')) {
+      if (check('EQUALS', 'ON', 'THROUGH', 'PARALLEL', 'PERPENDICULAR', 'AT')) {
         pos = savedPos
         break
       }
@@ -215,6 +215,9 @@ export function parse(tokens: Token[]): Program {
       return { kind: 'AngleConstraint', target, value } satisfies AngleConstraint
     }
 
+    // Optional 'line' hint — consumed for `line l parallel m` / `line l perpendicular m` forms
+    if (check('LINE')) advance()
+
     // ref = ...  |  ref on ...  |  ref parallel/perpendicular ref
     const left = parseRef()
 
@@ -233,9 +236,21 @@ export function parse(tokens: Token[]): Program {
     }
 
     if (check('PARALLEL', 'PERPENDICULAR')) {
-      const rel = advance().kind === 'PARALLEL' ? 'parallel' : 'perpendicular'
+      const relKind = advance().kind
+      const rel = relKind === 'PARALLEL' ? 'parallel' : 'perpendicular'
+      if (check('LINE')) advance()  // optional hint: `l parallel line m`
       const right = parseRef()
-      return { kind: 'RelationConstraint', relation: rel, left, right } satisfies RelationConstraint
+      let at: Ref | undefined
+      let distance: number | undefined
+      if (check('AT')) {
+        advance()
+        if (check('NUMBER') || check('MINUS')) {
+          distance = parseSignedNumber()  // `l parallel m at 3` — distance
+        } else {
+          at = parseRef()                 // `l perpendicular m at p` — intersection point
+        }
+      }
+      return { kind: 'RelationConstraint', relation: rel, left, right, at, distance } satisfies RelationConstraint
     }
 
     if (check('EQUALS')) {
@@ -369,6 +384,26 @@ export function parse(tokens: Token[]): Program {
       for (const point of parseRefList(parseRef())) {
         constraints.push({ kind: 'OnConstraint', point, targets: [lineRef] } satisfies OnConstraint)
       }
+    }
+
+    // `parallel m` / `parallel line m` / `perpendicular m at p` / `parallel m at 3`
+    if (check('PARALLEL', 'PERPENDICULAR')) {
+      const relKind = advance().kind
+      const rel = relKind === 'PARALLEL' ? 'parallel' : 'perpendicular'
+      if (check('LINE')) advance()  // optional hint
+      const right = parseRef()
+      let at: Ref | undefined
+      let distance: number | undefined
+      if (check('AT')) {
+        advance()
+        if (check('NUMBER') || check('MINUS')) {
+          distance = parseSignedNumber()
+        } else {
+          at = parseRef()
+        }
+      }
+      const left: NameRef = { kind: 'NameRef', name }
+      constraints.push({ kind: 'RelationConstraint', relation: rel, left, right, at, distance } satisfies RelationConstraint)
     }
 
     eat('NEWLINE', 'EOF')

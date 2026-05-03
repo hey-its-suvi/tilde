@@ -118,18 +118,33 @@ Available units: `deg`, `rad`. Required for squares, rectangles, and right-angle
 
 ## Parallel
 
-::: info Coming soon
+Constrains two lines to have the same direction.
+
 ```
-ab parallel cd
+l parallel m
+line l parallel m         # inline on the line declaration
+line l parallel line m    # optional 'line' hints
 ```
-:::
+
+Add `at` to specify the distance between the lines. This produces two symmetric solutions — one on each side.
+
+```
+line l parallel m at 3    # l is 3 units from m (two solutions)
+```
 
 ---
 
 ## Perpendicular
 
-::: info Coming soon
+Constrains two lines to meet at a right angle.
+
 ```
-ab perpendicular cd
+l perpendicular m
+line l perpendicular m    # inline on the line declaration
 ```
-:::
+
+Add `at` to name the intersection point — it is placed exactly at the crossing of the two lines.
+
+```
+line l perpendicular m at p   # l ⊥ m, p is their intersection
+```

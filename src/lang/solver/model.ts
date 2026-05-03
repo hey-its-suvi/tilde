@@ -17,6 +17,8 @@ export type GeomModel = {
   shapes:       Map<string, RegisteredShape>             // named shapes (subscript mode)
   onLine:       Map<string, string[]>                    // vertex name → line names (supports 2+ for intersection)
   onSegment:    Map<string, { v1: string; v2: string }>  // vertex name → segment endpoints
+  lineParallel:       Map<string, Array<{ other: string; distance?: number }>>  // line → parallel partners
+  linePerpendicular:  Map<string, string[]>              // line → perpendicular partners
   solutionPicks: Map<string, number>                     // vertex name → 1-based solution index
   anchorKey:    string | null
   activeUnit:   LengthUnit | null                        // null = pure abstract (no units used)
@@ -27,6 +29,7 @@ export function makeModel(): GeomModel {
     points: new Map(), segments: new Set(),
     lengths: new Map(), angles: new Map(),
     lines: new Map(), shapes: new Map(), onLine: new Map(), onSegment: new Map(),
+    lineParallel: new Map(), linePerpendicular: new Map(),
     solutionPicks: new Map(),
     anchorKey: null,
     activeUnit: null,

@@ -127,6 +127,14 @@ function touchPointChecked(model: GeomModel, name: string) {
   touchPoint(model, name)
 }
 
+// ── Line name resolution ──────────────────────────────────────────────────────
+
+function resolveLineName(model: GeomModel, ref: Ref): string {
+  if (ref.kind !== 'NameRef') throw new ConstraintError(`expected a line name, got subscript ref`)
+  if (!model.lines.has(ref.name)) throw new ConstraintError(`"${ref.name}" is not a declared line`)
+  return ref.name
+}
+
 // ── Ref resolution ────────────────────────────────────────────────────────────
 // The parser produces NameRef | SubscriptRef. These helpers resolve refs to
 // the string keys the model uses internally, with semantic validation.
@@ -250,5 +258,42 @@ export function applyConstraint(model: GeomModel, c: Constraint) {
     return
   }
 
-  // EqualityConstraint and RelationConstraint parse but are not yet implemented
+  if (c.kind === 'RelationConstraint') {
+    const leftName = resolveLineName(model, c.left)
+    const rightName = resolveLineName(model, c.right)
+
+    if (c.relation === 'parallel') {
+      // Store bidirectionally so direction propagates whichever line resolves first
+      const lp = model.lineParallel.get(leftName) ?? []
+      lp.push({ other: rightName, distance: c.distance })
+      model.lineParallel.set(leftName, lp)
+
+      const rp = model.lineParallel.get(rightName) ?? []
+      rp.push({ other: leftName, distance: c.distance })
+      model.lineParallel.set(rightName, rp)
+    } else {
+      const lpp = model.linePerpendicular.get(leftName) ?? []
+      lpp.push(rightName)
+      model.linePerpendicular.set(leftName, lpp)
+
+      const rpp = model.linePerpendicular.get(rightName) ?? []
+      rpp.push(leftName)
+      model.linePerpendicular.set(rightName, rpp)
+    }
+
+    // `at p` — sugar: p lies on both lines (intersection point)
+    if (c.at !== undefined) {
+      const ptName = resolveVertexName(c.at)
+      touchPointChecked(model, ptName)
+      const existing = model.onLine.get(ptName) ?? []
+      const updated = [...existing]
+      if (!updated.includes(leftName)) updated.push(leftName)
+      if (!updated.includes(rightName)) updated.push(rightName)
+      model.onLine.set(ptName, updated)
+    }
+
+    return
+  }
+
+  // EqualityConstraint parses but is not yet implemented
 }

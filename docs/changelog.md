@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.3.11 — current
+## 0.3.12 — current
+
+- **Parallel lines**: `line l parallel m` constrains `l` to have the same direction as `m`. Can appear inline on the `line` declaration or as a standalone statement. Optional `line` hints accepted on both sides (`line l parallel line m`).
+- **Perpendicular lines**: `line l perpendicular m` sets `l`'s direction perpendicular to `m`.
+- **Intersection point shorthand**: `line l perpendicular m at p` declares `l`, marks it perpendicular to `m`, and places point `p` at their intersection — sugar for adding `p` to both lines' `through` lists.
+- **Parallel distance**: `line l parallel m at 3` constrains `l` to be exactly 3 units from `m`, producing two symmetric solutions (one on each side).
+
+## 0.3.11
 
 - **Partial line declarations**: a line can now be declared with one parameter unknown — `(m,)` for slope-only, `(, k)` for y-intercept-only, `(a, b,)` for direction-only. If a placed point lies on the line the missing parameter is solved exactly; otherwise a canonical default is used. A line resolved by default is rendered as underconstrained (like a free point), one resolved by constraint is fully crisp.
 

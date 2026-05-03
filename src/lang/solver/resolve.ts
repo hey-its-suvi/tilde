@@ -17,7 +17,7 @@ import {
   tryPlaceVertexByLocus,
   tryPlaceVertexByFallback,
 } from './points.js'
-import { tryCompleteLineByConstraint, tryCompleteLineByDefault } from './lines.js'
+import { tryCompleteLineByConstraint, tryCompleteLineByDefault, tryApplyLineRelation } from './lines.js'
 
 export function resolve(model: GeomModel): void {
   const placed = new Set<string>()
@@ -40,6 +40,7 @@ export function resolve(model: GeomModel): void {
   while (changed) {
     changed = false
     // Priority 2: exact
+    if (tryApplyLineRelation(model))                      { changed = true; continue }
     if (tryPlaceVertexByLineIntersectLine(model, st))     { changed = true; continue }
     if (tryPlaceVertexByCircleIntersectCircle(model, st)) { changed = true; continue }
     if (tryPlaceVertexByCircleIntersectLine(model, st))   { changed = true; continue }

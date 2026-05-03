@@ -1,4 +1,4 @@
-// ─── Tilde Solver — Line Completion ──────────────────────────────────────────
+// ─── Tilde Solver — Line Completion & Relations ───────────────────────────────
 // Line completion functions for the resolution loop (pass 3).
 
 import { GeomModel } from './model.js'
@@ -77,6 +77,57 @@ export function tryCompleteLineByConstraint(model: GeomModel, st: PlacementState
         const b = -(lv.a! * pt.x + lv.c!) / pt.y
         verify(lv.a!, b, lv.c!)
         lv.b = b; wl.dof = 0; return true
+      }
+    }
+  }
+  return false
+}
+
+// ── Priority 2: direction propagation from parallel/perpendicular ─────────────
+// Copies direction coefficients (a, b) from a resolved partner line.
+// After direction is known, existing completion functions handle c.
+// For `parallel at d`: once partner is fully resolved, computes two c values (dof=0).
+
+export function tryApplyLineRelation(model: GeomModel): boolean {
+  for (const [lineName, wl] of model.lines) {
+    if (isWorkingComplete(wl)) continue
+    const lv = workingVal(wl)
+    const directionKnown = lv.a !== null && lv.b !== null
+
+    // ── Parallel ──────────────────────────────────────────────────────────────
+    for (const { other, distance } of (model.lineParallel.get(lineName) ?? [])) {
+      const wl2 = model.lines.get(other)
+      if (!wl2) continue
+      const lv2 = workingVal(wl2)
+      if (lv2.a === null || lv2.b === null) continue  // partner direction not known yet
+
+      if (!directionKnown) {
+        lv.a = lv2.a; lv.b = lv2.b
+        return true
+      }
+
+      // Direction already set — apply distance if c is still unknown and partner is complete
+      if (distance !== undefined && lv.c === null && lv2.c !== null) {
+        const norm = Math.sqrt(lv.a! * lv.a! + lv.b! * lv.b!)
+        const delta = distance * norm
+        lv.c = lv2.c + delta
+        wl.dof = 0
+        wl.resolved.push({ a: lv.a!, b: lv.b!, c: lv2.c - delta })
+        return true
+      }
+    }
+
+    // ── Perpendicular ─────────────────────────────────────────────────────────
+    if (!directionKnown) {
+      for (const other of (model.linePerpendicular.get(lineName) ?? [])) {
+        const wl2 = model.lines.get(other)
+        if (!wl2) continue
+        const lv2 = workingVal(wl2)
+        if (lv2.a === null || lv2.b === null) continue
+
+        // Perpendicular direction: rotate partner's normal 90° → (b2, -a2)
+        lv.a = lv2.b; lv.b = -lv2.a
+        return true
       }
     }
   }

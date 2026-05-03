@@ -80,6 +80,24 @@ line l = (2,) through p   # combined with partial coefficients
 l through p               # standalone
 ```
 
+Use `parallel` or `perpendicular` to constrain a line's direction relative to another line. These can appear inline on the declaration or as a standalone statement.
+
+```
+line l parallel m            # l has the same direction as m
+line l perpendicular m       # l is perpendicular to m
+l parallel m                 # standalone form
+l perpendicular m
+line l parallel line m       # optional 'line' hint
+```
+
+Add `at` to name the intersection point of two perpendicular lines, or to set the distance between two parallel lines:
+
+```
+line l perpendicular m at p  # l ⊥ m, p is placed at their intersection
+line l parallel m at 3       # l ∥ m, distance between them is 3
+                             # (produces two symmetric solutions)
+```
+
 Rendered as an infinite dashed line clipped to the viewport.
 
 <TildeSketch source="

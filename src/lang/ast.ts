@@ -106,12 +106,14 @@ export type AngleConstraint = {
   value: MeasureValue
 }
 
-/** ab parallel cd  |  ab perpendicular cd */
+/** ab parallel cd  |  ab perpendicular cd  |  l perpendicular m at p  |  l parallel m at 3 */
 export type RelationConstraint = {
   kind: 'RelationConstraint'
   relation: 'parallel' | 'perpendicular'
   left: Ref
   right: Ref
+  at?: Ref        // perpendicular: intersection point (sugar for point on both lines)
+  distance?: number  // parallel: distance between the lines (produces two solutions)
 }
 
 /** ab = cd  (equal length)  |  a = b  (coincidence)  — solver resolves which */

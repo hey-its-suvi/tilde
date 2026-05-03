@@ -38,6 +38,7 @@ export type SceneLine = {
   a: number; b: number; c: number  // ax + by + c = 0
   label: string
   solutions: Solutions
+  solutionIndex?: number  // set when solutions === 'multiple', 1-based
 }
 
 export type SceneGraph = {
