@@ -126,6 +126,57 @@ describe('line intersection', () => {
   })
 })
 
+describe('bare line declarations', () => {
+  it('bare line with no points — canonicalises to y = x (infinite)', () => {
+    const scene = run('line l')
+    assertLine(scene, 'l', 'infinite')
+    assertLineEq(scene, 'l', 1, -1, 0)
+  })
+
+  it('bare line with 1 placed point — direction canonical (slope 1), position constrained (infinite)', () => {
+    // point a = (3,2) on l → a=1, b=-1, c = -(3-2) = -1 → x - y - 1 = 0
+    // direction was chosen canonically so dof=1 → solutions='infinite'
+    const scene = run([
+      'line l',
+      'point a = (3, 2)',
+      'point a on l',
+    ].join('\n'))
+    assertLine(scene, 'l', 'infinite')
+    assertLineEq(scene, 'l', 1, -1, -1)
+  })
+
+  it('bare line with 2 placed points — fully determined (one)', () => {
+    // point a=(3,2), b=(1,4): a=4-2=2, b=3-1=2, c=-(2·3+2·2)=-10 → 2x+2y-10=0 → x+y=5
+    const scene = run([
+      'line l',
+      'point a = (3, 2)',
+      'point b = (1, 4)',
+      'point a on l',
+      'point b on l',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 2, 2, -10)
+  })
+
+  it('bare line with 2 points — intersection with a known line resolves correctly', () => {
+    // line l through (3,2) and (1,4): x+y=5
+    // line m = (0,1,-3): y=3
+    // intersection: x=5-3=2, y=3 → p=(2,3)
+    const scene = run([
+      'line l',
+      'point a = (3, 2)',
+      'point b = (1, 4)',
+      'point a on l',
+      'point b on l',
+      'line m = (0, 1, -3)',
+      'point p on l',
+      'p on m',
+    ].join('\n'))
+    assertPoint(scene, 'p', 'one')
+    assertPointAt(scene, 'p', 2, 3)
+  })
+})
+
 describe('partial line declarations', () => {
   // ── Default path: no constraining point, solver fills in a canonical value ────
   // The line's position/direction is arbitrary → solutions='infinite'
