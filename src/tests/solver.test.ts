@@ -349,3 +349,52 @@ describe('partial line declarations', () => {
     assertLineEq(scene, 'l', 2, -1, 0)
   })
 })
+
+describe('with slope/intercept syntax', () => {
+  it('slope only — same as (m,) form', () => {
+    // line l with slope=1 → a=1, b=-1, c=null
+    // point a=(1,3) on l → c = -(1·1 + (-1)·3) = 2 → line: x - y + 2 = 0
+    const scene = run([
+      'line l with slope=1',
+      'point a = (1, 3)',
+      'point a on l',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 1, -1, 2)
+  })
+
+  it('intercept only — same as (,k) form', () => {
+    // line l with intercept=0 → a=null, b=-1, c=0 (passes through origin)
+    // point a=(2,4) on l → a = 2 → line: 2x - y = 0
+    const scene = run([
+      'line l with intercept=0',
+      'point a = (2, 4)',
+      'point a on l',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 2, -1, 0)
+  })
+
+  it('slope and intercept — fully determines the line', () => {
+    // line l with slope=2 and intercept=1 → y = 2x + 1 → 2x - y + 1 = 0
+    const scene = run('line l with slope=2 and intercept=1')
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 2, -1, 1)
+  })
+
+  it('slope and intercept with comma separator', () => {
+    const scene = run('line l with slope=2, intercept=1')
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 2, -1, 1)
+  })
+
+  it('with slope and through point — line fully resolved', () => {
+    // slope=1 fixes direction, through a=(1,3) solves c: c = -(1-3) = 2
+    const scene = run([
+      'line l with slope=1 through a',
+      'point a = (1, 3)',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 1, -1, 2)
+  })
+})

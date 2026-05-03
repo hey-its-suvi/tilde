@@ -18,6 +18,8 @@ export type TokenKind =
   | 'PICK'
   // Connectors
   | 'WITH' | 'AND' | 'THROUGH'
+  // Line property keywords
+  | 'SLOPE' | 'INTERCEPT'
   // Names
   | 'NAME'         // any alphanumeric identifier: abc, ABC, MyShape, t1
   // Literals
@@ -68,6 +70,8 @@ const KEYWORDS: Record<string, TokenKind> = {
   with:             'WITH',
   and:              'AND',
   through:          'THROUGH',
+  slope:            'SLOPE',
+  intercept:        'INTERCEPT',
   line:             'LINE',
   pick:             'PICK',
 }

@@ -53,6 +53,21 @@ line l = (, 1)          # y-intercept 1, slope unknown
 line l = (1, -1,)       # direction (1, −1) known, position unknown
 ```
 
+For slope-intercept form, `with slope=` and `with intercept=` are clearer alternatives:
+
+```
+line l with slope=2
+line l with intercept=1
+line l with slope=2 and intercept=1
+line l with slope=2, intercept=1     # comma works too
+```
+
+These can be combined with `through`:
+
+```
+line l with slope=2 through p        # slope fixed, position determined by p
+```
+
 A partially declared line with no constraining point is drawn the same way as an underconstrained point — its position is a representative choice, not uniquely determined.
 
 Use `through` to declare that a line passes through one or more points. This is the mirror of `point p on line l` and can appear inline on the declaration or as a standalone statement.

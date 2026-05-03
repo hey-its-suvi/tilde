@@ -343,6 +343,23 @@ export function parse(tokens: Token[]): Program {
       }
     }
 
+    // `with slope=m` / `with intercept=k` / `with slope=m and intercept=k`
+    // Sugar for partial slope-intercept form. Sets a=m, b=-1, c=k as available.
+    if (check('WITH')) {
+      advance()
+      do {
+        if (check('SLOPE')) {
+          advance(); eat('EQUALS')
+          a = parseSignedNumber(); b = -1
+        } else if (check('INTERCEPT')) {
+          advance(); eat('EQUALS')
+          c = parseSignedNumber(); b = -1
+        } else {
+          throw new ParseError(`Expected 'slope' or 'intercept' after 'with'`, peek().line, peek().col)
+        }
+      } while ((check('AND') || check('COMMA')) && !!advance())
+    }
+
     // `through p, q` or `through p and q` — one OnConstraint per point
     const constraints: Constraint[] = []
     if (check('THROUGH')) {
