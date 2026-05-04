@@ -173,6 +173,9 @@ canvas.addEventListener('mousemove', (e) => {
       tooltip.textContent = `${info.solutions === 'infinite' ? '~' : ''}  [${info.label}]`
     } else if (info.kind === 'point') {
       tooltip.textContent = `${info.label}  (${info.x.toFixed(2)}, ${info.y.toFixed(2)})`
+    } else if (info.kind === 'line') {
+      const prefix = info.solutions === 'infinite' ? '~' : info.solutions === 'multiple' ? '?' : ''
+      tooltip.textContent = `${prefix}  ${info.label}  ${formatLineEq(info.a, info.b, info.c, info.freeCoefs)}`
     }
   } else {
     tooltip.style.display = 'none'
@@ -180,3 +183,38 @@ canvas.addEventListener('mousemove', (e) => {
 })
 
 canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none' })
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmt(n: number): string {
+  return parseFloat(n.toFixed(2)).toString()
+}
+
+function formatLineEq(a: number, b: number, c: number, free: { a: boolean; b: boolean; c: boolean }): string {
+  const eps = 1e-9
+  const terms: string[] = []
+
+  const addKnown = (coef: number, variable: string) => {
+    if (Math.abs(coef) < eps) return
+    if (coef ===  1) terms.push(terms.length === 0 ? variable           : `+ ${variable}`)
+    else if (coef === -1) terms.push(`- ${variable}`)
+    else if (coef > 0)   terms.push(terms.length === 0 ? `${fmt(coef)}${variable}` : `+ ${fmt(coef)}${variable}`)
+    else                 terms.push(`- ${fmt(Math.abs(coef))}${variable}`)
+  }
+
+  const addFree = (varName: string, variable: string) => {
+    terms.push(terms.length === 0 ? `${varName}${variable}` : `+ ${varName}${variable}`)
+  }
+
+  if (free.a) addFree('m', 'x'); else addKnown(a, 'x')
+  if (free.b) addFree('n', 'y'); else addKnown(b, 'y')
+
+  if (free.c) {
+    terms.push(terms.length === 0 ? 'c' : '+ c')
+  } else if (Math.abs(c) >= eps) {
+    if (c > 0) terms.push(terms.length === 0 ? fmt(c)  : `+ ${fmt(c)}`)
+    else       terms.push(`- ${fmt(Math.abs(c))}`)
+  }
+
+  return `(${terms.join(' ') || '0'} = 0)`
+}

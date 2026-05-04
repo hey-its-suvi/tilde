@@ -169,17 +169,18 @@ export function tryCompleteLineByDefault(model: GeomModel, st: PlacementState): 
         lv.a = 1; lv.b = -1
         lv.c = -(p1.x - p1.y)
         wl.dof = 1
+        wl.freeCoefs.a = true; wl.freeCoefs.b = true
       } else {
-        // No constraining points — canonical y = x
-        lv.a = 1; lv.b = -1; lv.c = 0
+        // No constraining points — canonical y = x; dof=0 matches bare point behaviour
+        lv.a = 1; lv.b = -1; lv.c = 0; wl.dof = 0
       }
       return true
     }
 
     if (nullCount === 1) {
-      if (lv.c === null) { lv.c = 0; return true }
-      if (lv.a === null) { lv.a = 0; return true }
-      if (lv.b === null) { lv.b = 1; return true }
+      if (lv.c === null) { lv.c = 0; wl.freeCoefs.c = true; return true }
+      if (lv.a === null) { lv.a = 0; wl.freeCoefs.a = true; return true }
+      if (lv.b === null) { lv.b = 1; wl.freeCoefs.b = true; return true }
     }
   }
   return false

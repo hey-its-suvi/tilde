@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.3.12 — current
+## 0.3.13 — current
+
+- **Line rendering by certainty**: underconstrained lines now render with a squiggly stroke; two-solution lines (e.g. `l parallel m at 3`) render with a jagged stroke. Both use the same colour coding as points and segments.
+- **Line labels coloured by certainty**: label colour now matches the line's constraint state.
+- **`pick` works for lines**: `pick l 1` / `pick l 2` selects one solution from a two-solution line, rendering it as fully resolved.
+- **Line labels**: always visible, placed inset from the viewport edge with a small perpendicular offset so they stay inside the canvas at all orientations.
+- **Line hover**: hovering over a line now shows a tooltip with its name and constraint state.
+
+## 0.3.12
 
 - **Parallel lines**: `line l parallel m` constrains `l` to have the same direction as `m`. Can appear inline on the `line` declaration or as a standalone statement. Optional `line` hints accepted on both sides (`line l parallel line m`).
 - **Perpendicular lines**: `line l perpendicular m` sets `l`'s direction perpendicular to `m`.

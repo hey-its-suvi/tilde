@@ -98,6 +98,14 @@ export class Canvas2DRenderer implements Renderer {
         return { kind: 'segment' as const, label: seg.label ?? '', length: null, solutions: seg.solutions }
       }
     }
+    for (const ln of this.scene.lines) {
+      const norm = Math.sqrt(ln.a * ln.a + ln.b * ln.b)
+      if (norm < 1e-10) continue
+      const dist = Math.abs(ln.a * wx + ln.b * wy + ln.c) / norm
+      if (dist <= hitWorld) {
+        return { kind: 'line' as const, label: ln.label, a: ln.a, b: ln.b, c: ln.c, freeCoefs: ln.freeCoefs, solutions: ln.solutions }
+      }
+    }
     return null
   }
 
@@ -168,11 +176,9 @@ export class Canvas2DRenderer implements Renderer {
     const yMax =  (canvas.height / 2 + panY) / scale
 
     // Clip the infinite line ax+by+c=0 to the visible rect
-    // Collect candidate intersection points with the four viewport edges
     const pts: Array<{ x: number; y: number }> = []
 
     if (Math.abs(ln.b) > 1e-10) {
-      // y = (-ax - c) / b  — intersect with left and right edges
       const yAtXMin = (-ln.a * xMin - ln.c) / ln.b
       const yAtXMax = (-ln.a * xMax - ln.c) / ln.b
       if (yAtXMin >= yMin && yAtXMin <= yMax) pts.push({ x: xMin, y: yAtXMin })
@@ -180,7 +186,6 @@ export class Canvas2DRenderer implements Renderer {
     }
 
     if (Math.abs(ln.a) > 1e-10) {
-      // x = (-by - c) / a  — intersect with top and bottom edges
       const xAtYMin = (-ln.b * yMin - ln.c) / ln.a
       const xAtYMax = (-ln.b * yMax - ln.c) / ln.a
       if (xAtYMin >= xMin && xAtYMin <= xMax) pts.push({ x: xAtYMin, y: yMin })
@@ -189,23 +194,39 @@ export class Canvas2DRenderer implements Renderer {
 
     if (pts.length < 2) return
 
+    const color = COLOR[ln.solutions]
+
     ctx.save()
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1.5 * px
+
     ctx.beginPath()
-    ctx.moveTo(pts[0]!.x, pts[0]!.y)
-    ctx.lineTo(pts[1]!.x, pts[1]!.y)
-    ctx.strokeStyle = '#a0a0c0'
-    ctx.lineWidth = px
-    ctx.setLineDash([4 * px, 4 * px])
+    if (ln.solutions === 'one') {
+      ctx.setLineDash([4 * px, 4 * px])
+      ctx.moveTo(pts[0]!.x, pts[0]!.y)
+      ctx.lineTo(pts[1]!.x, pts[1]!.y)
+    } else if (ln.solutions === 'infinite') {
+      drawSquiggly(ctx, pts[0]!.x, pts[0]!.y, pts[1]!.x, pts[1]!.y)
+    } else {
+      drawJaggyLine(ctx, pts[0]!.x, pts[0]!.y, pts[1]!.x, pts[1]!.y)
+    }
     ctx.stroke()
     ctx.setLineDash([])
 
-    // Label at the right edge
-    const lx = pts[1]!.x * scale
-    const ly = -pts[1]!.y * scale
+    // Label: midpoint of the visible segment, offset 8px perpendicular to the line
+    const mx = (pts[0]!.x + pts[1]!.x) / 2 * scale
+    const my = -(pts[0]!.y + pts[1]!.y) / 2 * scale
+    const ddx = (pts[1]!.x - pts[0]!.x) * scale
+    const ddy = -(pts[1]!.y - pts[0]!.y) * scale
+    const dlen = Math.sqrt(ddx * ddx + ddy * ddy)
+    const labelX = mx + (dlen > 0 ? -ddy / dlen : 0) * 10
+    const labelY = my + (dlen > 0 ?  ddx / dlen : 0) * 10
+
     ctx.scale(1 / scale, -1 / scale)
     ctx.font = '11px monospace'
-    ctx.fillStyle = '#a0a0c0'
-    ctx.fillText(ln.label, lx + 4, ly - 4)
+    ctx.fillStyle = color
+    const label = ln.solutionIndex !== undefined ? `${ln.label} ${ln.solutionIndex}` : ln.label
+    ctx.fillText(label, labelX, labelY)
     ctx.restore()
   }
 

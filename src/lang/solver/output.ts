@@ -20,12 +20,18 @@ export function buildSceneGraph(model: GeomModel): SceneGraph {
   for (const [name, wl] of model.lines) {
     if (!isWorkingComplete(wl)) continue
     if (wl.resolved.length > 1) {
-      wl.resolved.forEach((s, i) => {
-        lines.push({ a: s.a!, b: s.b!, c: s.c!, label: name, solutions: 'multiple', solutionIndex: i + 1 })
-      })
+      const pick = model.solutionPicks.get(name)
+      if (pick !== undefined && pick >= 1 && pick <= wl.resolved.length) {
+        const s = wl.resolved[pick - 1]!
+        lines.push({ a: s.a!, b: s.b!, c: s.c!, label: name, solutions: 'one', freeCoefs: wl.freeCoefs })
+      } else {
+        wl.resolved.forEach((s, i) => {
+          lines.push({ a: s.a!, b: s.b!, c: s.c!, label: name, solutions: 'multiple', solutionIndex: i + 1, freeCoefs: wl.freeCoefs })
+        })
+      }
     } else {
       const lv = workingVal(wl)
-      lines.push({ a: lv.a!, b: lv.b!, c: lv.c!, label: name, solutions: wl.dof === 0 ? 'one' : 'infinite' })
+      lines.push({ a: lv.a!, b: lv.b!, c: lv.c!, label: name, solutions: wl.dof === 0 ? 'one' : 'infinite', freeCoefs: wl.freeCoefs })
     }
   }
 

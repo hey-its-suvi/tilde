@@ -211,9 +211,9 @@ describe('through syntax', () => {
 })
 
 describe('bare line declarations', () => {
-  it('bare line with no points — canonicalises to y = x (infinite)', () => {
+  it('bare line with no points — canonicalises to y = x, renders as one (like bare point)', () => {
     const scene = run('line l')
-    assertLine(scene, 'l', 'infinite')
+    assertLine(scene, 'l', 'one')
     assertLineEq(scene, 'l', 1, -1, 0)
   })
 
@@ -534,5 +534,29 @@ describe('parallel and perpendicular', () => {
     const cs = ls.map(l => l.c).sort((a, b) => a - b)
     expect(cs[0]).toBeCloseTo(-delta)
     expect(cs[1]).toBeCloseTo(delta)
+  })
+
+  it('pick l 1 — selects first parallel solution, emits one line', () => {
+    const scene = run([
+      'line m = (0, 1, 0)',
+      'line l parallel m at 3',
+      'pick l 1',
+    ].join('\n'))
+    const ls = scene.lines.filter(l => l.label === 'l')
+    expect(ls).toHaveLength(1)
+    expect(ls[0]!.solutions).toBe('one')
+  })
+
+  it('pick l 2 — selects second parallel solution', () => {
+    const scene = run([
+      'line m = (0, 1, 0)',
+      'line l parallel m at 3',
+      'pick l 2',
+    ].join('\n'))
+    const ls = scene.lines.filter(l => l.label === 'l')
+    expect(ls).toHaveLength(1)
+    expect(ls[0]!.solutions).toBe('one')
+    // solution 2 is c = m.c - delta = 0 - 3 = -3
+    expect(ls[0]!.c).toBeCloseTo(-3)
   })
 })
