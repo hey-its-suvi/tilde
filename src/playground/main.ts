@@ -175,7 +175,7 @@ canvas.addEventListener('mousemove', (e) => {
       tooltip.textContent = `${info.label}  (${info.x.toFixed(2)}, ${info.y.toFixed(2)})`
     } else if (info.kind === 'line') {
       const prefix = info.solutions === 'infinite' ? '~' : info.solutions === 'multiple' ? '?' : ''
-      tooltip.textContent = `${prefix}  ${info.label}  ${formatLineEq(info.a, info.b, info.c, info.freeCoefs)}`
+      tooltip.textContent = `${prefix}  ${info.label}  ${formatLineEq(info.a, info.b, info.c)}`
     }
   } else {
     tooltip.style.display = 'none'
@@ -190,11 +190,11 @@ function fmt(n: number): string {
   return parseFloat(n.toFixed(2)).toString()
 }
 
-function formatLineEq(a: number, b: number, c: number, free: { a: boolean; b: boolean; c: boolean }): string {
+function formatLineEq(a: number, b: number, c: number): string {
   const eps = 1e-9
   const terms: string[] = []
 
-  const addKnown = (coef: number, variable: string) => {
+  const addTerm = (coef: number, variable: string) => {
     if (Math.abs(coef) < eps) return
     if (coef ===  1) terms.push(terms.length === 0 ? variable           : `+ ${variable}`)
     else if (coef === -1) terms.push(`- ${variable}`)
@@ -202,16 +202,10 @@ function formatLineEq(a: number, b: number, c: number, free: { a: boolean; b: bo
     else                 terms.push(`- ${fmt(Math.abs(coef))}${variable}`)
   }
 
-  const addFree = (varName: string, variable: string) => {
-    terms.push(terms.length === 0 ? `${varName}${variable}` : `+ ${varName}${variable}`)
-  }
+  addTerm(a, 'x')
+  addTerm(b, 'y')
 
-  if (free.a) addFree('m', 'x'); else addKnown(a, 'x')
-  if (free.b) addFree('n', 'y'); else addKnown(b, 'y')
-
-  if (free.c) {
-    terms.push(terms.length === 0 ? 'c' : '+ c')
-  } else if (Math.abs(c) >= eps) {
+  if (Math.abs(c) >= eps) {
     if (c > 0) terms.push(terms.length === 0 ? fmt(c)  : `+ ${fmt(c)}`)
     else       terms.push(`- ${fmt(Math.abs(c))}`)
   }

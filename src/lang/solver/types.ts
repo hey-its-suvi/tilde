@@ -30,9 +30,7 @@ export type WorkingElement<T> = {
 }
 
 export type WorkingPoint = WorkingElement<Point>
-export type WorkingLine  = WorkingElement<Line> & {
-  freeCoefs: { a: boolean; b: boolean; c: boolean }  // true = filled by canonical default, not constraint
-}
+export type WorkingLine  = WorkingElement<Line>
 
 // ── Public output types (consumed by renderer) ────────────────────────────────
 // `allSolutions` contains only complete (all non-null) solutions.
@@ -70,7 +68,7 @@ export function makeWorkingPoint(x: number | null = null, y: number | null = nul
 export function makeWorkingLine(a: number | null, b: number | null, c: number | null): WorkingLine {
   const nulls = (a === null ? 1 : 0) + (b === null ? 1 : 0) + (c === null ? 1 : 0)
   const dof = Math.min(nulls, 2)  // a line in 2D has at most 2 geometric DOF
-  return { resolved: [{ a, b, c }], dof, freeCoefs: { a: false, b: false, c: false } }
+  return { resolved: [{ a, b, c }], dof }
 }
 
 // ── Resolution state ──────────────────────────────────────────────────────────

@@ -39,7 +39,6 @@ export type SceneLine = {
   label: string
   solutions: Solutions
   solutionIndex?: number  // set when solutions === 'multiple', 1-based
-  freeCoefs: { a: boolean; b: boolean; c: boolean }  // true = canonically chosen, not constrained
 }
 
 export type SceneGraph = {
@@ -55,7 +54,7 @@ export type SceneGraph = {
 export type HoverInfo =
   | { kind: 'segment'; label: string; length: number | null; solutions: Solutions }
   | { kind: 'point';   label: string; x: number; y: number; solutions: Solutions }
-  | { kind: 'line';    label: string; a: number; b: number; c: number; freeCoefs: { a: boolean; b: boolean; c: boolean }; solutions: Solutions }
+  | { kind: 'line';    label: string; a: number; b: number; c: number; solutions: Solutions }
   | { kind: 'angle';   label: string; degrees: number | null; solutions: Solutions }
   | null
 

@@ -103,7 +103,7 @@ export class Canvas2DRenderer implements Renderer {
       if (norm < 1e-10) continue
       const dist = Math.abs(ln.a * wx + ln.b * wy + ln.c) / norm
       if (dist <= hitWorld) {
-        return { kind: 'line' as const, label: ln.label, a: ln.a, b: ln.b, c: ln.c, freeCoefs: ln.freeCoefs, solutions: ln.solutions }
+        return { kind: 'line' as const, label: ln.label, a: ln.a, b: ln.b, c: ln.c, solutions: ln.solutions }
       }
     }
     return null
