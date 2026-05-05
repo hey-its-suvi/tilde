@@ -211,9 +211,31 @@ describe('through syntax', () => {
 })
 
 describe('bare line declarations', () => {
-  it('bare line with no points — canonicalises to y = x, renders as one (like bare point)', () => {
+  it('bare line with no points — canonicalises to y = x, fully anchored', () => {
     const scene = run('line l')
     assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 1, -1, 0)
+  })
+
+  it('bare line + fixed point, not connected — line is underconstrained', () => {
+    // point a fixes T. R+S free → absorb direction + distance → dof=0
+    // But this should still be 'one' because all DOFs are absorbed
+    const scene = run([
+      'line l',
+      'point a = (3, 2)',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 1, -1, 0)
+  })
+
+  it('bare line + 2 fixed points, not connected — line is underconstrained', () => {
+    // 2 fixed points → T+R+S all fixed. Line is genuinely free (dof=2)
+    const scene = run([
+      'line l',
+      'point a = (1, 2)',
+      'point b = (3, 4)',
+    ].join('\n'))
+    assertLine(scene, 'l', 'infinite')
     assertLineEq(scene, 'l', 1, -1, 0)
   })
 

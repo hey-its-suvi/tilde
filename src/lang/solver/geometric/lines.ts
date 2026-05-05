@@ -164,19 +164,22 @@ export function tryCompleteLineByDefault(model: GeomModel, st: PlacementState): 
     if (nullCount === 3) {
       if (pts.length > 0) {
         // One distinct point on a bare line — canonical direction (slope 1), solve c from point
-        // dof=1: direction chosen canonically but position is fully constrained by the point
         const p1 = pts[0]!
         lv.a = 1; lv.b = -1
         lv.c = -(p1.x - p1.y)
-        wl.dof = 1
+        // Anchor may have already computed dof for this line; if not, direction is free (dof=1)
+        if (wl.dof === 2) wl.dof = 1  // position was just constrained by point
       } else {
-        // No constraining points — canonical y = x; dof=0 matches bare point behaviour
-        lv.a = 1; lv.b = -1; lv.c = 0; wl.dof = 0
+        // No constraining points — canonical y = x
+        // dof was set by anchor based on available global freedoms
+        lv.a = 1; lv.b = -1; lv.c = 0
       }
       return true
     }
 
     if (nullCount === 1) {
+      // Fill the single missing coefficient with a canonical default
+      // dof was set by anchor; if anchor didn't touch it, keep existing dof
       if (lv.c === null) { lv.c = 0; return true }
       if (lv.a === null) { lv.a = 0; return true }
       if (lv.b === null) { lv.b = 1; return true }

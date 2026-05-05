@@ -2,7 +2,7 @@
 // Detects which global DOFs (T, R, S) are unconstrained and pins them
 // to a canonical position.  This is deterministic constraint solving —
 // not guesswork — it's the minimal set of fixers that lift a floating scene
-// into standard form.
+// into standard form (gauge fixing).
 //
 // DOF detection rules:
 //   T (translation) free  — no point has explicit coords AND no line has a known position
@@ -11,11 +11,13 @@
 //   S (scale) free        — no length constraint exists AND fewer than 2 points have explicit coords
 //                           (2+ placed points implicitly define a scale via their distance)
 //
-// Canonical fixers applied in order T → R+S:
+// Canonical fixers applied in order T → R+S → lines:
 //   T      : pin first eligible free point to origin (0, 0)
 //   R + S  : find first free segment from anchor, set length = 1, pin far end to (1, 0)
 //   R only : find first free segment from anchor with known length L, pin far end to (L, 0)
 //   S only : find first segment between two free points with no length, set length = 1
+//   Lines  : for each disconnected line, determine how many DOFs are absorbed
+//            by remaining global freedoms after point anchoring
 
 import { GeomModel, setPoint, setLength, getLength } from './model.js'
 import { workingVal, isWorkingComplete } from './types.js'
@@ -139,4 +141,75 @@ export function applyAnchor(model: GeomModel): void {
       }
     }
   }
+
+  // ── Line anchoring ──
+  // After point-based anchoring, determine the effective DOF for each line
+  // based on remaining global freedoms. Only affects disconnected lines —
+  // lines connected to the anchored frame (via on-line points, parallel,
+  // perpendicular) get their DOF resolved naturally in pass 3.
+  //
+  // A disconnected bare line has 2 intrinsic DOFs (direction + position).
+  // Each remaining global freedom can absorb one:
+  //   R free → absorbs direction
+  //   T free → absorbs position
+  //   S free → absorbs position (distance from anchor, via uniform scaling)
+  //
+  // A disconnected direction-only line has 1 intrinsic DOF (position).
+  //   T free → absorbs position
+  //   S free → absorbs position
+  //
+  // A disconnected intercept-only line has 1 intrinsic DOF (direction).
+  //   R free → absorbs direction
+
+  // Recompute what's free after point anchoring (point anchoring may have consumed T/R/S)
+  const postFixedPts = [...model.points.entries()].filter(([, wp]) => isWorkingComplete(wp))
+  let postHasDirectionLine = false
+  let postHasFullLine = false
+  for (const wl of model.lines.values()) {
+    if (isWorkingComplete(wl)) { postHasFullLine = true; postHasDirectionLine = true; break }
+    const v = workingVal(wl)
+    if (v.a !== null && v.b !== null) postHasDirectionLine = true
+  }
+  const postTFree = postFixedPts.length === 0 && !postHasFullLine
+  const postRFree = !postHasDirectionLine && postFixedPts.length <= 1
+  const postSFree = [...model.lengths.values()].every(l => l === null) && postFixedPts.length < 2
+
+  for (const [lineName, wl] of model.lines) {
+    // Skip lines that already have coefficients (not bare/partial from declaration)
+    const lv = workingVal(wl)
+    const nullCount = (lv.a === null ? 1 : 0) + (lv.b === null ? 1 : 0) + (lv.c === null ? 1 : 0)
+    if (nullCount === 0) continue  // fully specified, nothing to anchor
+
+    // Skip connected lines — resolve pass handles them
+    if (isLineConnected(model, lineName)) continue
+
+    // Determine how many intrinsic DOFs are absorbed by global freedoms
+    const directionKnown = lv.a !== null && lv.b !== null
+    const positionKnown = lv.c !== null  // simplified: c known means position is constrained
+
+    let absorbed = 0
+    if (!directionKnown && postRFree) absorbed++   // R absorbs direction
+    if (!positionKnown && (postTFree || postSFree)) absorbed++  // T or S absorbs position
+
+    const intrinsicDof = (directionKnown ? 0 : 1) + (positionKnown ? 0 : 1)
+    wl.dof = intrinsicDof - absorbed
+  }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** A line is "connected" if it has on-line points, or parallel/perpendicular
+ *  relationships to other lines. Connected lines get resolved by pass 3. */
+function isLineConnected(model: GeomModel, lineName: string): boolean {
+  // Check for on-line points
+  for (const lineNames of model.onLine.values()) {
+    if (lineNames.includes(lineName)) return true
+  }
+  // Check for parallel/perpendicular relationships
+  const par = model.lineParallel.get(lineName)
+  if (par && par.length > 0) return true
+  const perp = model.linePerpendicular.get(lineName)
+  if (perp && perp.length > 0) return true
+
+  return false
 }

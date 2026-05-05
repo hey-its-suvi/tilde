@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.14 — current
+## 0.3.15 — current
+
+- **Line anchoring**: disconnected bare lines now correctly render as underconstrained when other elements (e.g. fixed points) consume the global symmetries that would otherwise absorb the line's degrees of freedom. Previously, a bare line always rendered as fully determined regardless of surrounding constraints.
+
+## 0.3.14
 
 - **Solver interface**: introduced a shared `Solver` interface (`ConstraintSet` → `SolveResult`) enabling swappable solver backends.
 - **Elaboration layer**: new `elaborate.ts` transforms the AST into a solver-agnostic `ConstraintSet`, separating semantic analysis (ref resolution, unit conversion, shape expansion) from solving.
