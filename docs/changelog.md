@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.3.13 — current
+## 0.3.14 — current
+
+- **Solver interface**: introduced a shared `Solver` interface (`ConstraintSet` → `SolveResult`) enabling swappable solver backends.
+- **Elaboration layer**: new `elaborate.ts` transforms the AST into a solver-agnostic `ConstraintSet`, separating semantic analysis (ref resolution, unit conversion, shape expansion) from solving.
+- **Geometric solver encapsulated**: existing solver code moved into `solver/geometric/` with a single public entry point (`GeometricSolver`).
+- **Shared geometry types**: `Point` and `Line` defined once in the solver interface, used everywhere.
+- **Removed `freeCoefs`**: line tooltips now always show concrete coefficients.
+
+## 0.3.13
 
 - **Line rendering by certainty**: underconstrained lines now render with a squiggly stroke; two-solution lines (e.g. `l parallel m at 3`) render with a jagged stroke. Both use the same colour coding as points and segments.
 - **Line labels coloured by certainty**: label colour now matches the line's constraint state.
