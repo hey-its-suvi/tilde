@@ -3,7 +3,7 @@
 
 import { Program } from '../ast.js'
 import { elaborate } from '../elaborate.js'
-import { GeometricSolver } from './geometric.js'
+import { GeometricSolver } from './geometric/index.js'
 import { buildSceneGraph } from './output.js'
 import { SceneGraph, RenderConfig } from '../../renderer/interface.js'
 

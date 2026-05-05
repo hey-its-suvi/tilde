@@ -4,7 +4,7 @@
 import { GeomModel } from './model.js'
 import { workingVal, isWorkingComplete, PlacementState } from './types.js'
 import { isZero, isEqual } from './geom.js'
-import { ConstraintError } from './types.js'
+import { ConstraintError } from '../interface.js'
 
 // ── Priority 2: exact line completions ────────────────────────────────────────
 // Only fires when a placed point fully determines the line (dof=0 result).

@@ -4,6 +4,14 @@
 // SolveResult (where everything ended up). The solver knows nothing about
 // the AST, renderer, or language syntax.
 
+// ─── Errors ──────────────────────────────────────────────────────────────────
+
+export class ConstraintError extends Error {
+  constructor(message: string) {
+    super(`[Constraint] ${message}`)
+  }
+}
+
 // ─── Solver Input ────────────────────────────────────────────────────────────
 
 /** A fully resolved, concrete constraint between named elements.
@@ -90,6 +98,11 @@ export type ConstraintSet = {
   picks: Map<string, number>
 }
 
+// ─── Geometry Primitives ─────────────────────────────────────────────────────
+
+export type Point = { x: number; y: number }
+export type Line  = { a: number; b: number; c: number }  // ax + by + c = 0
+
 // ─── Solver Output ───────────────────────────────────────────────────────────
 
 /** Result for a single element. If picked or unique, solutions has length 1.
@@ -100,12 +113,9 @@ export type ElementResult<T> = {
   dof: number
 }
 
-export type PointSolution = { x: number; y: number }
-export type LineSolution = { a: number; b: number; c: number }
-
 export type SolveResult = {
-  points: Map<string, ElementResult<PointSolution>>
-  lines: Map<string, ElementResult<LineSolution>>
+  points: Map<string, ElementResult<Point>>
+  lines: Map<string, ElementResult<Line>>
   /** Passed through from input for the scene graph builder */
   segments: Set<string>
 }

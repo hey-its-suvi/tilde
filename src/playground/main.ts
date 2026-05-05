@@ -4,7 +4,8 @@ import { createEditor } from './editor.js'
 import { lex, LexError } from '../lang/lexer.js'
 import { parse, ParseError } from '../lang/parser.js'
 import { solve } from '../lang/solver/index.js'
-import { ConstraintError } from '../lang/solver/types.js'
+import { ConstraintError } from '../lang/solver/interface.js'
+import { ElaborationError } from '../lang/elaborate.js'
 import { Canvas2DRenderer } from '../renderer/canvas2d.js'
 
 const canvas     = document.getElementById('canvas')    as HTMLCanvasElement
@@ -49,7 +50,7 @@ function compile(source: string) {
     renderer.render(scene, config)
     log(`OK — ${ast.statements.length} statement(s)`)
   } catch (e) {
-    if (e instanceof LexError || e instanceof ParseError || e instanceof ConstraintError) {
+    if (e instanceof LexError || e instanceof ParseError || e instanceof ConstraintError || e instanceof ElaborationError) {
       log(e.message, 'error')
     } else {
       log(String(e), 'error')

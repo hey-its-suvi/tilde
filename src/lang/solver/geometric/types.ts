@@ -1,15 +1,7 @@
-// ─── Tilde Solver Types ───────────────────────────────────────────────────────
+// ─── Geometric Solver — Internal Types ────────────────────────────────────────
 
-export class ConstraintError extends Error {
-  constructor(message: string) {
-    super(`[Constraint] ${message}`)
-  }
-}
-
-// ── Base geometry param types ──────────────────────────────────────────────────
-
-export type Point = { x: number; y: number }
-export type Line  = { a: number; b: number; c: number }  // ax + by + c = 0
+import type { Point, Line } from '../interface.js'
+export type { Point, Line }
 
 // All fields of T made optional-null — used for incremental solver state.
 export type Nullable<T> = { [K in keyof T]: T[K] | null }

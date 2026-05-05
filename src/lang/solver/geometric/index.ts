@@ -5,10 +5,11 @@
 
 import {
   Solver, ConstraintSet, SolveResult,
-  ResolvedConstraint, ElementResult, PointSolution, LineSolution,
-} from './interface.js'
+  ResolvedConstraint, ElementResult, Point, Line,
+} from '../interface.js'
 import { GeomModel, makeModel, touchPoint, setPoint, setLength, setAngle, segKey } from './model.js'
-import { makeWorkingLine, workingVal, isWorkingComplete, ConstraintError } from './types.js'
+import { makeWorkingLine, workingVal, isWorkingComplete } from './types.js'
+import { ConstraintError } from '../interface.js'
 import { isEqual } from './geom.js'
 import { applyAnchor } from './anchor.js'
 import { resolve } from './resolve.js'
@@ -121,8 +122,8 @@ export class GeometricSolver implements Solver {
   // ── Extract SolveResult from solved GeomModel ────────────────────────────
 
   private extractResult(model: GeomModel, input: ConstraintSet): SolveResult {
-    const points = new Map<string, ElementResult<PointSolution>>()
-    const lines = new Map<string, ElementResult<LineSolution>>()
+    const points = new Map<string, ElementResult<Point>>()
+    const lines = new Map<string, ElementResult<Line>>()
 
     for (const [key, wp] of model.points) {
       if (wp.resolved.length > 1) {

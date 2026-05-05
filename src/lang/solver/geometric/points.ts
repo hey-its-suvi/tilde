@@ -5,7 +5,7 @@
 import { GeomModel, getPoint, setPoint, getLength, segKey } from './model.js'
 import { workingVal, isWorkingComplete, PlacementState } from './types.js'
 import { isZero, lineIntersect, circleIntersectBoth, circleLineIntersectBoth } from './geom.js'
-import { ConstraintError } from './types.js'
+import { ConstraintError } from '../interface.js'
 
 // Default display length (units) when a segment's length is unknown
 const DEFAULT_LEN = 3
