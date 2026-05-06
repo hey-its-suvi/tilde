@@ -4,10 +4,10 @@
 // into their constituent points/segments/constraints. The output is pure data
 // with no AST nodes — ready to hand to any solver.
 
-import { Program, Ref, TupleRef, Constraint, ShapeDecl, ShapeKind, LengthUnit } from './ast.js'
+import { Program, Ref, TupleRef, Constraint, ShapeDecl, ShapeKind, ScalarExpr, LengthUnit } from './ast.js'
 import { resolveLength } from './units.js'
 import {
-  ConstraintSet, ResolvedConstraint,
+  Scalar, ConstraintSet, ResolvedConstraint,
 } from './solver/interface.js'
 import { RenderConfig, DEFAULT_CONFIG } from '../renderer/interface.js'
 
@@ -25,12 +25,18 @@ export type ElaborationResult = {
 export function elaborate(program: Program): ElaborationResult {
   const ctx = new ElaborationContext()
 
-  // Pass 0: determine active unit
+  // Pass 0: collect all scalar declarations (allows forward references)
+  for (const stmt of program.statements) {
+    if (stmt.kind === 'ScalarDecl') ctx.declareScalar(stmt)
+  }
+
+  // Pass 1: determine active unit
   ctx.resolveActiveUnit(program)
 
-  // Pass 1: walk all statements
+  // Pass 2: walk all statements
   for (const stmt of program.statements) {
-    if (stmt.kind === 'ShapeDecl')           ctx.elaborateShape(stmt)
+    if (stmt.kind === 'ScalarDecl')          continue  // already collected
+    else if (stmt.kind === 'ShapeDecl')      ctx.elaborateShape(stmt)
     else if (stmt.kind === 'LineDecl')       ctx.elaborateLine(stmt)
     else if (stmt.kind === 'PointDecl')      ctx.elaboratePoint(stmt)
     else if (stmt.kind === 'ConstraintStmt') ctx.elaborateConstraint(stmt.constraint)
@@ -43,6 +49,7 @@ export function elaborate(program: Program): ElaborationResult {
       points: ctx.points,
       segments: ctx.segments,
       lines: ctx.lines,
+      scalars: ctx.solverScalars,
       constraints: ctx.constraints,
       picks: ctx.picks,
     },
@@ -67,6 +74,73 @@ class ElaborationContext {
 
   // Counter for anonymous elements created from TupleRefs
   private anonCounter = 0
+
+  // Named scalars — value is null for unresolved (solver-derived) scalars
+  private scalars = new Map<string, Scalar | null>()
+  /** Scalar names that need to be passed to the solver as first-class elements. */
+  solverScalars = new Set<string>()
+
+  // ── Scalar resolution ───────────────────────────────────────────────────
+
+  declareScalar(decl: import('./ast.js').ScalarDecl) {
+    if (this.scalars.has(decl.name)) {
+      throw new ElaborationError(`scalar "${decl.name}" is already declared`)
+    }
+    if (decl.params === null) {
+      // Unresolved scalar — will be derived by the solver
+      this.scalars.set(decl.name, null)
+      this.solverScalars.add(decl.name)
+      return
+    }
+    const resolved = this.tryResolveScalar(decl.params)
+    if (resolved !== null) {
+      this.scalars.set(decl.name, resolved)
+      // Also register with solver and emit equality so `print` can find it
+      this.solverScalars.add(decl.name)
+      this.constraints.push({ kind: 'scalar-equality', scalar: decl.name, target: resolved })
+    } else {
+      // Value references another unresolved scalar — both become solver elements
+      this.scalars.set(decl.name, null)
+      this.solverScalars.add(decl.name)
+      if (typeof decl.params !== 'number' && decl.params.kind === 'NameRef') {
+        this.constraints.push({
+          kind: 'scalar-equality', scalar: decl.name,
+          target: { element: decl.params.name, field: 'value' },
+        })
+      }
+    }
+  }
+
+  /** Resolve a ScalarExpr to a concrete number, or null if unresolvable. */
+  private tryResolveScalar(expr: ScalarExpr): Scalar | null {
+    if (typeof expr === 'number') return expr
+    const val = this.scalars.get(expr.name)
+    if (val === undefined) throw new ElaborationError(`unknown scalar "${expr.name}"`)
+    return val  // null if unresolved
+  }
+
+  /** Resolve a ScalarExpr to a concrete number. Throws if unresolved. */
+  resolveScalar(expr: ScalarExpr): Scalar {
+    const val = this.tryResolveScalar(expr)
+    if (val === null) {
+      const name = typeof expr === 'number' ? String(expr) : expr.name
+      throw new ElaborationError(`scalar "${name}" is not yet resolved — cannot use in this context`)
+    }
+    return val
+  }
+
+  /** Resolve a ScalarExpr | null to number | null. */
+  private resolveScalarOrNull(expr: ScalarExpr | null): number | null {
+    if (expr === null) return null
+    return this.tryResolveScalar(expr)
+  }
+
+  /** Check if a ScalarExpr is an unresolved scalar name ref. */
+  private isUnresolvedScalarRef(expr: ScalarExpr): expr is import('./ast.js').NameRef {
+    if (typeof expr === 'number') return false
+    const val = this.scalars.get(expr.name)
+    return val === null
+  }
 
   // ── Unit resolution ──────────────────────────────────────────────────────
 
@@ -154,7 +228,22 @@ class ElaborationContext {
     // Emit line-equation constraint if any coefficients are provided
     const { a, b, c } = decl.params
     if (a !== null || b !== null || c !== null) {
-      this.constraints.push({ kind: 'line-equation', line: decl.name, a, b, c })
+      // For each coefficient, emit a scalar-equality binding if it references an unresolved scalar
+      const fieldMap: Array<[ScalarExpr | null, string]> = [[a, 'a'], [b, 'b'], [c, 'c']]
+      for (const [expr, field] of fieldMap) {
+        if (expr !== null && this.isUnresolvedScalarRef(expr)) {
+          this.constraints.push({
+            kind: 'scalar-equality', scalar: expr.name,
+            target: { element: decl.name, field },
+          })
+        }
+      }
+      this.constraints.push({
+        kind: 'line-equation', line: decl.name,
+        a: this.resolveScalarOrNull(a),
+        b: this.resolveScalarOrNull(b),
+        c: this.resolveScalarOrNull(c),
+      })
     }
   }
 
@@ -168,7 +257,10 @@ class ElaborationContext {
 
     const { x, y } = decl.params
     if (x !== null && y !== null) {
-      this.constraints.push({ kind: 'position', point: decl.name, x, y })
+      this.constraints.push({
+        kind: 'position', point: decl.name,
+        x: this.resolveScalar(x), y: this.resolveScalar(y),
+      })
     }
   }
 
@@ -182,7 +274,7 @@ class ElaborationContext {
       this.segments.add(segKey(v1, v2))
       this.constraints.push({
         kind: 'distance', p1: v1, p2: v2,
-        value: resolveLength(c.value, this.activeUnit),
+        value: resolveLength(this.resolveScalar(c.value.value), c.value.unit, this.activeUnit),
       })
       return
     }
@@ -194,7 +286,7 @@ class ElaborationContext {
       this.touchPoint(v3)
       this.constraints.push({
         kind: 'angle', from: v1, vertex: at, to: v3,
-        degrees: c.value.value,
+        degrees: this.resolveScalar(c.value.value),
       })
       return
     }
@@ -202,7 +294,10 @@ class ElaborationContext {
     if (c.kind === 'PositionConstraint') {
       const name = this.resolveVertexName(c.vertex)
       this.touchPoint(name)
-      this.constraints.push({ kind: 'position', point: name, x: c.x, y: c.y })
+      this.constraints.push({
+        kind: 'position', point: name,
+        x: this.resolveScalar(c.x), y: this.resolveScalar(c.y),
+      })
       return
     }
 
@@ -218,7 +313,8 @@ class ElaborationContext {
       const l2 = this.resolveLineName(c.right)
 
       if (c.relation === 'parallel') {
-        this.constraints.push({ kind: 'parallel', l1, l2, distance: c.distance })
+        const distance = c.distance !== undefined ? this.resolveScalar(c.distance) : undefined
+        this.constraints.push({ kind: 'parallel', l1, l2, distance })
       } else {
         this.constraints.push({ kind: 'perpendicular', l1, l2 })
       }
@@ -336,7 +432,10 @@ class ElaborationContext {
       throw new ElaborationError(`expected 2 values for a point, got ${ref.values.length}`)
     const name = `_pt${++this.anonCounter}`
     this.points.add(name)
-    this.constraints.push({ kind: 'position', point: name, x: ref.values[0]!, y: ref.values[1]! })
+    this.constraints.push({
+      kind: 'position', point: name,
+      x: this.resolveScalar(ref.values[0]!), y: this.resolveScalar(ref.values[1]!),
+    })
     return name
   }
 
@@ -346,10 +445,16 @@ class ElaborationContext {
     this.lines.add(name)
     if (ref.values.length === 2) {
       // slope-intercept (m, b) → a=m, b=-1, c=b
-      this.constraints.push({ kind: 'line-equation', line: name, a: ref.values[0]!, b: -1, c: ref.values[1]! })
+      this.constraints.push({
+        kind: 'line-equation', line: name,
+        a: this.resolveScalar(ref.values[0]!), b: -1, c: this.resolveScalar(ref.values[1]!),
+      })
     } else if (ref.values.length === 3) {
       // general form (a, b, c)
-      this.constraints.push({ kind: 'line-equation', line: name, a: ref.values[0]!, b: ref.values[1]!, c: ref.values[2]! })
+      this.constraints.push({
+        kind: 'line-equation', line: name,
+        a: this.resolveScalar(ref.values[0]!), b: this.resolveScalar(ref.values[1]!), c: this.resolveScalar(ref.values[2]!),
+      })
     } else {
       throw new ElaborationError(`expected 2 or 3 values for a line, got ${ref.values.length}`)
     }

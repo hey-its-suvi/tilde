@@ -1,4 +1,4 @@
-import { MeasureValue, LengthUnit } from './ast.js'
+import { LengthUnit, AngleUnit } from './ast.js'
 
 // Conversion factors to centimetres (the internal base for physical units).
 // 'unit' is the abstract tilde unit — no physical meaning, treated as 1:1 with cm
@@ -21,12 +21,12 @@ export const TO_CM: Record<LengthUnit, number> = {
  *  - No unit on value, active unit set → treat as being in the active unit (1:1)
  *  - Both present                      → convert: value_unit → cm → active_unit
  */
-export function resolveLength(mv: MeasureValue, activeUnit: LengthUnit | null): number {
-  const src = (mv.unit as LengthUnit | null) ?? activeUnit
-  const dst = activeUnit ?? (mv.unit as LengthUnit | null)
+export function resolveLength(value: number, unit: LengthUnit | AngleUnit | null, activeUnit: LengthUnit | null): number {
+  const src = (unit as LengthUnit | null) ?? activeUnit
+  const dst = activeUnit ?? (unit as LengthUnit | null)
 
   // No physical units anywhere — pure abstract
-  if (src === null || dst === null) return mv.value
+  if (src === null || dst === null) return value
 
-  return mv.value * (TO_CM[src] / TO_CM[dst])
+  return value * (TO_CM[src] / TO_CM[dst])
 }

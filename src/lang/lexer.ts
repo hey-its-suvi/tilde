@@ -6,7 +6,7 @@ export type TokenKind =
   // Shape keywords
   | 'TRIANGLE' | 'SQUARE' | 'RECTANGLE' | 'SEGMENT' | 'POLYGON' | 'LINE'
   // Constraint keywords
-  | 'PARALLEL' | 'PERPENDICULAR' | 'ANGLE' | 'POINT'
+  | 'PARALLEL' | 'PERPENDICULAR' | 'ANGLE' | 'POINT' | 'SCALAR'
   // Output
   | 'PRINT'
   // Settings
@@ -74,6 +74,7 @@ const KEYWORDS: Record<string, TokenKind> = {
   slope:            'SLOPE',
   intercept:        'INTERCEPT',
   line:             'LINE',
+  scalar:           'SCALAR',
   pick:             'PICK',
 }
 

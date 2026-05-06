@@ -41,14 +41,18 @@ export function tryCompleteLineByConstraint(model: GeomModel, st: PlacementState
       }
     }
 
-    // ── nullCount=3: bare line ────────────────────────────────────────────────
-    if (nullCount === 3) {
+    // ── nullCount≥2: 2+ unknowns — two distinct points fully determine the line
+    if (nullCount >= 2) {
       const p2 = pts.find(p => !isEqual(p.x, p1.x) || !isEqual(p.y, p1.y))
       if (!p2) continue  // only one distinct point — priority 1 handles direction canonicalization
-      // Two distinct points → fully determines the line
-      const a = p2.y - p1.y
-      const b = p1.x - p2.x
-      const c = -(a * p1.x + b * p1.y)
+      // Two distinct points → fully determines the line (up to scale)
+      let a = p2.y - p1.y
+      let b = p1.x - p2.x
+      let c = -(a * p1.x + b * p1.y)
+      // If one coefficient was already set, rescale to match it
+      if (lv.a !== null && !isZero(a)) { const s = lv.a / a; a = lv.a; b *= s; c *= s }
+      else if (lv.b !== null && !isZero(b)) { const s = lv.b / b; a *= s; b = lv.b; c *= s }
+      else if (lv.c !== null && !isZero(c)) { const s = lv.c / c; a *= s; b *= s; c = lv.c }
       verify(a, b, c)
       lv.a = a; lv.b = b; lv.c = c
       wl.dof = 0

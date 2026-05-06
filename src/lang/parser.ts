@@ -10,11 +10,11 @@
 
 import { Token, TokenKind } from './lexer.js'
 import {
-  Program, Statement, ShapeDecl, ShapeKind, LineDecl, PointDecl,
+  Program, Statement, ShapeDecl, ShapeKind, LineDecl, PointDecl, ScalarDecl,
   ConstraintStmt, PrintStmt, SettingStmt, PickStmt,
   Constraint, LengthConstraint, AngleConstraint, RelationConstraint,
   EqualityConstraint, OnConstraint, PositionConstraint,
-  Ref, NameRef, SubscriptRef, TupleRef,
+  Ref, NameRef, SubscriptRef, TupleRef, ScalarExpr,
   MeasureValue, LengthUnit, AngleUnit,
 } from './ast.js'
 
@@ -83,6 +83,7 @@ export function parse(tokens: Token[]): Program {
       if (op === 'NEWLINE' || op === 'EOF' || op === undefined) return [parsePointDecl()]
       return [parseConstraintStmt()]  // point a on ...
     }
+    if (check('SCALAR')) return [parseScalarDecl()]
     if (check('PRINT')) return [parsePrintStmt()]
     if (check('SET')) return [parseSettingStmt()]
     if (check('PICK')) return [parsePickStmt()]
@@ -101,10 +102,10 @@ export function parse(tokens: Token[]): Program {
     return check('NAME') && tokens[pos + 1]?.kind === 'UNDERSCORE'
   }
 
-  function parseTuple(): number[] {
+  function parseTuple(): ScalarExpr[] {
     eat('LPAREN')
-    const vals = [parseSignedNumber()]
-    while (check('COMMA')) { advance(); vals.push(parseSignedNumber()) }
+    const vals: ScalarExpr[] = [parseScalarExpr()]
+    while (check('COMMA')) { advance(); vals.push(parseScalarExpr()) }
     eat('RPAREN')
     return vals
   }
@@ -266,11 +267,11 @@ export function parse(tokens: Token[]): Program {
       if (check('LINE')) advance()  // optional hint: `l parallel line m`
       const right = parseRef()
       let at: Ref | undefined
-      let distance: number | undefined
+      let distance: ScalarExpr | undefined
       if (check('AT')) {
         advance()
         if (check('NUMBER') || check('MINUS')) {
-          distance = parseSignedNumber()  // `l parallel m at 3` — distance
+          distance = parseScalarExpr()  // `l parallel m at 3` — distance
         } else {
           at = parseRef()                 // `l perpendicular m at p` — intersection point
         }
@@ -283,14 +284,14 @@ export function parse(tokens: Token[]): Program {
       // ref = (x, y) → position constraint
       if (check('LPAREN')) {
         eat('LPAREN')
-        const x = parseSignedNumber()
+        const x = parseScalarExpr()
         eat('COMMA')
-        const y = parseSignedNumber()
+        const y = parseScalarExpr()
         eat('RPAREN')
         return { kind: 'PositionConstraint', vertex: left, x, y } satisfies PositionConstraint
       }
-      // ref = number → length constraint
-      if (check('NUMBER')) {
+      // ref = number or scalar ref → length constraint
+      if (check('NUMBER') || check('NAME')) {
         const value = parseMeasureValue()
         return { kind: 'LengthConstraint', target: left, value } satisfies LengthConstraint
       }
@@ -305,7 +306,7 @@ export function parse(tokens: Token[]): Program {
   // ── Values ─────────────────────────────────────────────────────────────────
 
   function parseMeasureValue(): MeasureValue {
-    const value = parseFloat(eat('NUMBER').value)
+    const value = parseScalarExpr()
 
     const unitMap: Partial<Record<TokenKind, LengthUnit | AngleUnit>> = {
       UNIT_CM: 'cm', UNIT_MM: 'mm', UNIT_M: 'm',
@@ -313,10 +314,13 @@ export function parse(tokens: Token[]): Program {
       UNIT_DEG: 'deg', UNIT_RAD: 'rad',
     }
 
-    const unitKind = peek().kind
-    if (unitKind in unitMap) {
-      advance()
-      return { value, unit: unitMap[unitKind]! }
+    // Unit suffixes only follow literal numbers, not scalar refs
+    if (typeof value === 'number') {
+      const unitKind = peek().kind
+      if (unitKind in unitMap) {
+        advance()
+        return { value, unit: unitMap[unitKind]! }
+      }
     }
 
     return { value, unit: null }
@@ -337,9 +341,9 @@ export function parse(tokens: Token[]): Program {
     eat('LINE')
     const name = eat('NAME').value
 
-    let a: number | null = null
-    let b: number | null = null
-    let c: number | null = null
+    let a: ScalarExpr | null = null
+    let b: ScalarExpr | null = null
+    let c: ScalarExpr | null = null
 
     if (check('EQUALS')) {
       eat('EQUALS')
@@ -348,11 +352,11 @@ export function parse(tokens: Token[]): Program {
       // Check for leading comma: (, b) form — first field is null
       if (check('COMMA')) {
         advance()
-        const second = parseSignedNumber()
+        const second = parseScalarExpr()
         eat('RPAREN')
         b = -1; c = second
       } else {
-        const first = parseSignedNumber()
+        const first = parseScalarExpr()
         eat('COMMA')
 
         // Trailing comma after first: (m,) form — second field is null
@@ -360,7 +364,7 @@ export function parse(tokens: Token[]): Program {
           advance()
           a = first; b = -1
         } else {
-          const second = parseSignedNumber()
+          const second = parseScalarExpr()
 
           if (check('COMMA')) {
             advance()
@@ -370,7 +374,7 @@ export function parse(tokens: Token[]): Program {
               a = first; b = second
             } else {
               // Full 3-tuple: (a, b, c)
-              const third = parseSignedNumber()
+              const third = parseScalarExpr()
               eat('RPAREN')
               a = first; b = second; c = third
             }
@@ -390,10 +394,10 @@ export function parse(tokens: Token[]): Program {
       do {
         if (check('SLOPE')) {
           advance(); eat('EQUALS')
-          a = parseSignedNumber(); b = -1
+          a = parseScalarExpr(); b = -1
         } else if (check('INTERCEPT')) {
           advance(); eat('EQUALS')
-          c = parseSignedNumber(); b = -1
+          c = parseScalarExpr(); b = -1
         } else {
           throw new ParseError(`Expected 'slope' or 'intercept' after 'with'`, peek().line, peek().col)
         }
@@ -421,11 +425,11 @@ export function parse(tokens: Token[]): Program {
       if (check('LINE')) advance()  // optional hint
       const right = parseRef()
       let at: Ref | undefined
-      let distance: number | undefined
+      let distance: ScalarExpr | undefined
       if (check('AT')) {
         advance()
         if (check('NUMBER') || check('MINUS')) {
-          distance = parseSignedNumber()
+          distance = parseScalarExpr()
         } else {
           at = parseRef()
         }
@@ -449,9 +453,9 @@ export function parse(tokens: Token[]): Program {
     }
     eat('EQUALS')
     eat('LPAREN')
-    const x = parseSignedNumber()
+    const x = parseScalarExpr()
     eat('COMMA')
-    const y = parseSignedNumber()
+    const y = parseScalarExpr()
     eat('RPAREN')
     eat('NEWLINE', 'EOF')
     return { kind: 'PointDecl', name, params: { x, y } }
@@ -460,6 +464,27 @@ export function parse(tokens: Token[]): Program {
   function parseSignedNumber(): number {
     const neg = check('MINUS') ? (advance(), -1) : 1
     return neg * parseFloat(eat('NUMBER').value)
+  }
+
+  /** Parse a scalar expression: a literal number or a name ref to a scalar. */
+  function parseScalarExpr(): ScalarExpr {
+    if (check('NAME')) return { kind: 'NameRef', name: advance().value } satisfies NameRef
+    return parseSignedNumber()
+  }
+
+  // ── Scalar declaration ────────────────────────────────────────────────────
+
+  function parseScalarDecl(): ScalarDecl {
+    eat('SCALAR')
+    const name = eat('NAME').value
+    if (check('EQUALS')) {
+      advance()
+      const value = parseScalarExpr()
+      eat('NEWLINE', 'EOF')
+      return { kind: 'ScalarDecl', name, params: value }
+    }
+    eat('NEWLINE', 'EOF')
+    return { kind: 'ScalarDecl', name, params: null }
   }
 
   // ── Pick ───────────────────────────────────────────────────────────────────

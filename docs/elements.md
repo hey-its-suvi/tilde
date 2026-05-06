@@ -1,38 +1,53 @@
 # Elements
 
-Elements are the geometric objects you declare in Tilde — segments, triangles, lines, and points.
+Elements are the building blocks you declare in Tilde — scalars, points, lines, segments, and triangles.
 
 ---
 
-## Segment
+## Scalar
 
-A segment between two vertices. The `= 5` form is shorthand for a length constraint.
+A named value. Scalars can be used anywhere a number is expected — in coordinates, line equations, length constraints, and inline tuples.
 
 ```
-segment ab
-segment ab = 5
-let segment ab = 5      # 'let' is optional sugar
+scalar m = 2
+line a = (m, -1, 0)
+line b = (m, -1, -3)    # same slope, different intercept
 ```
 
-<TildeSketch source="
-segment ab = 4
-" :cx="2" :cy="0" :zoom="1.2" :annotations="true"/>
+Scalars can reference other scalars and support forward declarations (use before the `scalar` statement appears).
+
+```
+point p = (k, 0)
+scalar k = 5            # p is placed at (5, 0)
+```
+
+A scalar declared without a value is determined by the solver from geometric constraints.
+
+```
+scalar m
+line l = (m, -1, 0)
+point a = (0, 0)
+point b = (1, 3)
+a on l
+b on l                  # solver determines m = 3
+```
 
 ---
 
-## Triangle
+## Point
 
-Three vertices with segments `ab`, `bc`, `ca` registered automatically. Inline constraints follow `with ... and ...`.
+An explicit point at exact world coordinates.
 
 ```
-triangle abc
-triangle abc with ab = 3 and bc = 4 and ca = 5
+point p = (3, 5)
 ```
 
 <TildeSketch source="
-triangle abc with ab = 3 and bc = 4 and ca = 5
-pick c 1
-" :cx="1.5" :cy="2" :zoom="0.8" :annotations="true"/>
+point a = (0, 0)
+point b = (4, 0)
+point c = (2, 3)
+segment ab; segment bc; segment ca
+" :cx="2" :cy="1.5" :zoom="1.2" :annotations="true"/>
 
 ---
 
@@ -107,17 +122,32 @@ line m = (1, 1, -4)
 
 ---
 
-## Point
+## Segment
 
-An explicit point at exact world coordinates.
+A segment between two vertices. The `= 5` form is shorthand for a length constraint.
 
 ```
-point p = (3, 5)
+segment ab
+segment ab = 5
+let segment ab = 5      # 'let' is optional sugar
 ```
 
 <TildeSketch source="
-point a = (0, 0)
-point b = (4, 0)
-point c = (2, 3)
-segment ab; segment bc; segment ca
-" :cx="2" :cy="1.5" :zoom="1.2" :annotations="true"/>
+segment ab = 4
+" :cx="2" :cy="0" :zoom="1.2" :annotations="true"/>
+
+---
+
+## Triangle
+
+Three vertices with segments `ab`, `bc`, `ca` registered automatically. Inline constraints follow `with ... and ...`.
+
+```
+triangle abc
+triangle abc with ab = 3 and bc = 4 and ca = 5
+```
+
+<TildeSketch source="
+triangle abc with ab = 3 and bc = 4 and ca = 5
+pick c 1
+" :cx="1.5" :cy="2" :zoom="0.8" :annotations="true"/>

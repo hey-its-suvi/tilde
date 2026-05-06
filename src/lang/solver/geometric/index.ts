@@ -5,10 +5,10 @@
 
 import {
   Solver, ConstraintSet, SolveResult,
-  ResolvedConstraint, ElementResult, Point, Line,
+  ResolvedConstraint, ElementResult, Point, Line, Scalar,
 } from '../interface.js'
 import { GeomModel, makeModel, touchPoint, setPoint, setLength, setAngle, segKey } from './model.js'
-import { makeWorkingLine, workingVal, isWorkingComplete } from './types.js'
+import { makeWorkingLine, makeWorkingScalar, workingVal, isWorkingComplete } from './types.js'
 import { ConstraintError } from '../interface.js'
 import { isEqual } from './geom.js'
 import { applyAnchor } from './anchor.js'
@@ -36,6 +36,9 @@ export class GeometricSolver implements Solver {
     }
     for (const name of input.lines) {
       model.lines.set(name, makeWorkingLine(null, null, null))
+    }
+    for (const name of input.scalars) {
+      model.scalars.set(name, makeWorkingScalar())
     }
 
     // Apply picks
@@ -116,6 +119,17 @@ export class GeometricSolver implements Solver {
         model.linePerpendicular.set(c.l2, rpp)
         break
       }
+      case 'scalar-equality': {
+        const ws = model.scalars.get(c.scalar)
+        if (!ws) throw new ConstraintError(`scalar "${c.scalar}" is not declared`)
+        if (typeof c.target === 'number') {
+          ws.resolved[0] = c.target
+          ws.dof = 0
+        } else {
+          model.scalarBindings.push({ scalar: c.scalar, element: c.target.element, field: c.target.field })
+        }
+        break
+      }
     }
   }
 
@@ -124,6 +138,7 @@ export class GeometricSolver implements Solver {
   private extractResult(model: GeomModel, input: ConstraintSet): SolveResult {
     const points = new Map<string, ElementResult<Point>>()
     const lines = new Map<string, ElementResult<Line>>()
+    const scalars = new Map<string, ElementResult<Scalar>>()
 
     for (const [key, wp] of model.points) {
       if (wp.resolved.length > 1) {
@@ -173,6 +188,14 @@ export class GeometricSolver implements Solver {
       }
     }
 
-    return { points, lines, segments: input.segments }
+    for (const [name, ws] of model.scalars) {
+      if (ws.resolved[0] !== null) {
+        scalars.set(name, { solutions: [ws.resolved[0]!], dof: ws.dof })
+      } else {
+        scalars.set(name, { solutions: [], dof: ws.dof })
+      }
+    }
+
+    return { points, lines, scalars, segments: input.segments }
   }
 }

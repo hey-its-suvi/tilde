@@ -26,6 +26,7 @@ export type ResolvedConstraint =
   | LineEquationConstraint
   | ParallelConstraint
   | PerpendicularConstraint
+  | ScalarEqualityConstraint
 
 export type PositionConstraint = {
   kind: 'position'
@@ -83,6 +84,12 @@ export type PerpendicularConstraint = {
   l2: string
 }
 
+export type ScalarEqualityConstraint = {
+  kind: 'scalar-equality'
+  scalar: string
+  target: number | { element: string; field: string }
+}
+
 /** Everything the solver needs to solve a geometry problem.
  *  Produced by the elaboration layer from the AST. */
 export type ConstraintSet = {
@@ -92,6 +99,8 @@ export type ConstraintSet = {
   segments: Set<string>
   /** All declared line names (e.g. 'l', 'm') */
   lines: Set<string>
+  /** All declared scalar names (e.g. 'm', 'k') */
+  scalars: Set<string>
   /** Resolved constraints between elements */
   constraints: ResolvedConstraint[]
   /** User solution picks: element key → 1-based solution index */
@@ -100,12 +109,13 @@ export type ConstraintSet = {
 
 // ─── Geometry Primitives ─────────────────────────────────────────────────────
 
-export type Point = { x: number; y: number }
-export type Line  = { a: number; b: number; c: number }  // ax + by + c = 0
+export type Scalar = number
+export type Point = { x: Scalar; y: Scalar }
+export type Line  = { a: Scalar; b: Scalar; c: Scalar }  // ax + by + c = 0
 
 /** Makes every field of T nullable. Used by the AST to represent partial
  *  declarations (e.g. a bare `point p` with no coordinates). */
-export type Nullable<T> = { [K in keyof T]: T[K] | null }
+export type Nullable<T> = T extends number ? T | null : { [K in keyof T]: T[K] | null }
 
 // ─── Solver Output ───────────────────────────────────────────────────────────
 
@@ -120,6 +130,7 @@ export type ElementResult<T> = {
 export type SolveResult = {
   points: Map<string, ElementResult<Point>>
   lines: Map<string, ElementResult<Line>>
+  scalars: Map<string, ElementResult<Scalar>>
   /** Passed through from input for the scene graph builder */
   segments: Set<string>
 }

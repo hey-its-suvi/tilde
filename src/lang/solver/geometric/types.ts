@@ -1,10 +1,7 @@
 // ─── Geometric Solver — Internal Types ────────────────────────────────────────
 
-import type { Point, Line } from '../interface.js'
-export type { Point, Line }
-
-// All fields of T made optional-null — used for incremental solver state.
-export type Nullable<T> = { [K in keyof T]: T[K] | null }
+import type { Scalar, Point, Line, Nullable } from '../interface.js'
+export type { Scalar, Point, Line, Nullable }
 
 // ── Internal working types (mutable, solver scratchpad) ───────────────────────
 // `resolved` accumulates solutions as the solver runs:
@@ -21,8 +18,9 @@ export type WorkingElement<T> = {
   dof: number
 }
 
-export type WorkingPoint = WorkingElement<Point>
-export type WorkingLine  = WorkingElement<Line>
+export type WorkingPoint  = WorkingElement<Point>
+export type WorkingLine   = WorkingElement<Line>
+export type WorkingScalar = WorkingElement<Scalar>
 
 // ── Public output types (consumed by renderer) ────────────────────────────────
 // `allSolutions` contains only complete (all non-null) solutions.
@@ -61,6 +59,11 @@ export function makeWorkingLine(a: number | null, b: number | null, c: number | 
   const nulls = (a === null ? 1 : 0) + (b === null ? 1 : 0) + (c === null ? 1 : 0)
   const dof = Math.min(nulls, 2)  // a line in 2D has at most 2 geometric DOF
   return { resolved: [{ a, b, c }], dof }
+}
+
+/** Create a working scalar — null value means unknown (dof=1). */
+export function makeWorkingScalar(value: number | null = null): WorkingScalar {
+  return { resolved: [value], dof: value === null ? 1 : 0 }
 }
 
 // ── Resolution state ──────────────────────────────────────────────────────────

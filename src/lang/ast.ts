@@ -1,7 +1,7 @@
 // ─── Tilde AST ───────────────────────────────────────────────────────────────
 // Every node has a `kind` discriminant for exhaustive pattern matching.
 
-import type { Point, Line, Nullable } from './solver/interface.js'
+import type { Scalar, Point, Line } from './solver/interface.js'
 
 export type Program = {
   kind: 'Program'
@@ -14,10 +14,18 @@ export type Statement =
   | ShapeDecl
   | LineDecl
   | PointDecl
+  | ScalarDecl
   | ConstraintStmt
   | PrintStmt
   | SettingStmt
   | PickStmt
+
+/** A scalar value expression — either a literal number or a reference to a named scalar. */
+export type ScalarExpr = Scalar | NameRef
+
+/** Unresolved form of a geometry type — each field becomes ScalarExpr | null.
+ *  For Scalar itself (number), becomes ScalarExpr | null directly. */
+type Unresolved<T> = T extends number ? ScalarExpr | null : { [K in keyof T]: ScalarExpr | null }
 
 /** Element declaration — declares a named geometric primitive with optional params.
  *  Constraints that appear as inline sugar (e.g. `through`, `perpendicular`)
@@ -25,11 +33,12 @@ export type Statement =
 export type ElementDecl<K extends string, T> = {
   kind: K
   name: string
-  params: Nullable<T>
+  params: Unresolved<T>
 }
 
 export type LineDecl = ElementDecl<'LineDecl', Line>
 export type PointDecl = ElementDecl<'PointDecl', Point>
+export type ScalarDecl = ElementDecl<'ScalarDecl', Scalar>
 
 export type ShapeKind = 'triangle' | 'square' | 'rectangle' | 'segment' | 'polygon'
 
@@ -77,10 +86,11 @@ export type NameRef = { kind: 'NameRef'; name: string }
  */
 export type SubscriptRef = { kind: 'SubscriptRef'; shape: string; indices: number[] }
 
-/** An inline numeric tuple — e.g. (1, 2) or (1, -1, 0).
+/** An inline numeric tuple — e.g. (1, 2) or (m, -1, 0).
+ *  Values may be scalar refs resolved during elaboration.
  *  The optional hint keyword (point/line/circle) disambiguates when
  *  the tuple length is ambiguous for the context. */
-export type TupleRef = { kind: 'TupleRef'; values: number[]; hint?: 'point' | 'line' | 'circle' }
+export type TupleRef = { kind: 'TupleRef'; values: ScalarExpr[]; hint?: 'point' | 'line' | 'circle' }
 
 export type Ref = NameRef | SubscriptRef | TupleRef
 
@@ -115,7 +125,7 @@ export type RelationConstraint = {
   left: Ref
   right: Ref
   at?: Ref        // perpendicular: intersection point (sugar for point on both lines)
-  distance?: number  // parallel: distance between the lines (produces two solutions)
+  distance?: ScalarExpr  // parallel: distance between the lines (produces two solutions)
 }
 
 /** ab = cd  (equal length)  |  a = b  (coincidence)  — solver resolves which */
@@ -129,8 +139,8 @@ export type EqualityConstraint = {
 export type PositionConstraint = {
   kind: 'PositionConstraint'
   vertex: Ref
-  x: number
-  y: number
+  x: ScalarExpr
+  y: ScalarExpr
 }
 
 /** point p on line l  |  p on ab  |  p on t_1_2  |  p on l and m */
@@ -143,7 +153,7 @@ export type OnConstraint = {
 // ─── Values ──────────────────────────────────────────────────────────────────
 
 export type MeasureValue = {
-  value: number
+  value: ScalarExpr
   unit: LengthUnit | AngleUnit | null  // null = use current default
 }
 

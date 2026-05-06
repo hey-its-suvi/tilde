@@ -3,7 +3,7 @@
 // This is solver-agnostic — it only reads the SolveResult interface.
 
 import { SolveResult, ElementResult } from './interface.js'
-import { SceneGraph, SceneLine, SceneSegment, ScenePoint, Solutions } from '../../renderer/interface.js'
+import { SceneGraph, SceneLine, SceneSegment, ScenePoint, SceneScalar, Solutions } from '../../renderer/interface.js'
 
 function solutionsStatus<T>(result: ElementResult<T>): Solutions {
   if (result.solutions.length > 1) return 'multiple'
@@ -68,5 +68,13 @@ export function buildSceneGraph(result: SolveResult): SceneGraph {
     }
   }
 
-  return { segments, points, arcs: [], annotations: [], lines }
+  // Scalars
+  const scalars: SceneScalar[] = []
+  for (const [name, sr] of result.scalars) {
+    if (sr.solutions.length > 0) {
+      scalars.push({ label: name, value: sr.solutions[0]! })
+    }
+  }
+
+  return { segments, points, arcs: [], annotations: [], lines, scalars }
 }

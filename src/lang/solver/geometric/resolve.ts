@@ -9,7 +9,7 @@
 //   0  fallback — 0 loci               → structural guess, always free
 
 import { GeomModel } from './model.js'
-import { isWorkingComplete, PlacementState } from './types.js'
+import { isWorkingComplete, workingVal, PlacementState } from './types.js'
 import {
   tryPlaceVertexByLineIntersectLine,
   tryPlaceVertexByCircleIntersectCircle,
@@ -50,5 +50,38 @@ export function resolve(model: GeomModel): void {
     if (tryCompleteLineByDefault(model, st))              { changed = true; continue }
     // Priority 0: fallback
     if (tryPlaceVertexByFallback(model, st))              { changed = true; continue }
+    // Scalar bindings: propagate element fields → scalars
+    if (tryResolveScalarBindings(model))                  { changed = true; continue }
   }
+}
+
+function tryResolveScalarBindings(model: GeomModel): boolean {
+  for (const binding of model.scalarBindings) {
+    const ws = model.scalars.get(binding.scalar)
+    if (!ws || ws.resolved[0] !== null) continue
+
+    // Try to extract the field from the bound element
+    const wl = model.lines.get(binding.element)
+    if (wl && isWorkingComplete(wl)) {
+      const lv = workingVal(wl)
+      const val = (lv as Record<string, number | null>)[binding.field]
+      if (val !== null && val !== undefined) {
+        ws.resolved[0] = val
+        ws.dof = 0
+        return true
+      }
+    }
+
+    const wp = model.points.get(binding.element)
+    if (wp && isWorkingComplete(wp)) {
+      const pv = workingVal(wp)
+      const val = (pv as Record<string, number | null>)[binding.field]
+      if (val !== null && val !== undefined) {
+        ws.resolved[0] = val
+        ws.dof = 0
+        return true
+      }
+    }
+  }
+  return false
 }

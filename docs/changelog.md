@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.3.16 — current
+## 0.3.18 — current
+
+- **Solver-derived scalars**: scalars can now be declared without a value (`scalar m`) and derived by the solver from geometric constraints. For example, `scalar m; line l = (m, -1, 0); l through (0,0); l through (1,3)` determines `m = 3`. Multiple scalars can be derived from the same element.
+- **Bare scalar declarations**: `scalar m` (no `= value`) declares an unknown scalar whose value is determined by the solver.
+
+## 0.3.17
+
+- **Scalar declarations**: `scalar m = 3` declares a named constant usable anywhere a number is expected — coordinates, line equations, length constraints, inline tuples. Scalars support forward references and can reference other scalars.
+- **`Scalar` type**: geometry primitives (`Point`, `Line`) are now defined in terms of `Scalar` (= `number`), documenting the relationship to the language concept.
+
+## 0.3.16
 
 - **Inline tuple refs**: numeric tuples can now appear wherever a name is expected — `line l perpendicular m at (1, -1)` places the intersection inline, `line l parallel (1, -1, 0)` references a line by equation, `p on (1, -1, 0)` constrains a point to an inline line. Optional `point`/`line` keyword disambiguates when the tuple length is ambiguous for the context.
 - **Templatized element declarations**: `LineDecl` and `PointDecl` now share an `ElementDecl<K, T>` template with a `params: Nullable<T>` field, ready for future element types (e.g. circles).

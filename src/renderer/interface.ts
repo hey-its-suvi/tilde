@@ -41,12 +41,18 @@ export type SceneLine = {
   solutionIndex?: number  // set when solutions === 'multiple', 1-based
 }
 
+export type SceneScalar = {
+  label: string
+  value: number
+}
+
 export type SceneGraph = {
   segments: SceneSegment[]
   points: ScenePoint[]
   arcs: SceneArc[]
   annotations: SceneAnnotation[]
   lines: SceneLine[]
+  scalars: SceneScalar[]
 }
 
 // ─── Hover Info ───────────────────────────────────────────────────────────────

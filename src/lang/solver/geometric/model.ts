@@ -2,7 +2,7 @@
 
 import { LengthUnit, ShapeKind } from '../../ast.js'
 import {
-  WorkingPoint, WorkingLine,
+  WorkingPoint, WorkingLine, WorkingScalar,
   makeWorkingPoint,
 } from './types.js'
 
@@ -19,6 +19,8 @@ export type GeomModel = {
   onSegment:    Map<string, { v1: string; v2: string }>  // vertex name → segment endpoints
   lineParallel:       Map<string, Array<{ other: string; distance?: number }>>  // line → parallel partners
   linePerpendicular:  Map<string, string[]>              // line → perpendicular partners
+  scalars:      Map<string, WorkingScalar>                // named scalars
+  scalarBindings: Array<{ scalar: string; element: string; field: string }>  // scalar ← element.field
   solutionPicks: Map<string, number>                     // vertex name → 1-based solution index
   anchorKey:    string | null
   activeUnit:   LengthUnit | null                        // null = pure abstract (no units used)
@@ -30,6 +32,7 @@ export function makeModel(): GeomModel {
     lengths: new Map(), angles: new Map(),
     lines: new Map(), shapes: new Map(), onLine: new Map(), onSegment: new Map(),
     lineParallel: new Map(), linePerpendicular: new Map(),
+    scalars: new Map(), scalarBindings: [],
     solutionPicks: new Map(),
     anchorKey: null,
     activeUnit: null,
