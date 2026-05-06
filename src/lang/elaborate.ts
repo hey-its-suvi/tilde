@@ -4,7 +4,7 @@
 // into their constituent points/segments/constraints. The output is pure data
 // with no AST nodes — ready to hand to any solver.
 
-import { Program, Ref, Constraint, ShapeDecl, ShapeKind, LengthUnit } from './ast.js'
+import { Program, Ref, TupleRef, Constraint, ShapeDecl, ShapeKind, LengthUnit } from './ast.js'
 import { resolveLength } from './units.js'
 import {
   ConstraintSet, ResolvedConstraint,
@@ -65,6 +65,9 @@ class ElaborationContext {
   // Track named shapes for subscript ref resolution
   private shapes = new Map<string, { kind: ShapeKind; vertexCount: number }>()
 
+  // Counter for anonymous elements created from TupleRefs
+  private anonCounter = 0
+
   // ── Unit resolution ──────────────────────────────────────────────────────
 
   resolveActiveUnit(program: Program) {
@@ -87,14 +90,11 @@ class ElaborationContext {
 
     // No explicit set unit — infer from first length that carries a unit suffix
     for (const stmt of program.statements) {
-      const constraints =
-        stmt.kind === 'ShapeDecl'      ? stmt.constraints :
-        stmt.kind === 'ConstraintStmt' ? [stmt.constraint] : []
-      for (const c of constraints) {
-        if ((c.kind === 'LengthConstraint' || c.kind === 'AngleConstraint') && c.value.unit !== null) {
-          this.activeUnit = c.value.unit as LengthUnit
-          return
-        }
+      if (stmt.kind !== 'ConstraintStmt') continue
+      const c = stmt.constraint
+      if ((c.kind === 'LengthConstraint' || c.kind === 'AngleConstraint') && c.value.unit !== null) {
+        this.activeUnit = c.value.unit as LengthUnit
+        return
       }
     }
   }
@@ -138,7 +138,6 @@ class ElaborationContext {
       }
     }
 
-    for (const c of decl.constraints) this.elaborateConstraint(c)
   }
 
   // ── Line elaboration ─────────────────────────────────────────────────────
@@ -153,14 +152,10 @@ class ElaborationContext {
     this.lines.add(decl.name)
 
     // Emit line-equation constraint if any coefficients are provided
-    if (decl.a !== null || decl.b !== null || decl.c !== null) {
-      this.constraints.push({
-        kind: 'line-equation', line: decl.name,
-        a: decl.a, b: decl.b, c: decl.c,
-      })
+    const { a, b, c } = decl.params
+    if (a !== null || b !== null || c !== null) {
+      this.constraints.push({ kind: 'line-equation', line: decl.name, a, b, c })
     }
-
-    for (const c of decl.constraints) this.elaborateConstraint(c)
   }
 
   // ── Point elaboration ────────────────────────────────────────────────────
@@ -171,8 +166,9 @@ class ElaborationContext {
     }
     this.points.add(decl.name)
 
-    if (decl.x !== null && decl.y !== null) {
-      this.constraints.push({ kind: 'position', point: decl.name, x: decl.x, y: decl.y })
+    const { x, y } = decl.params
+    if (x !== null && y !== null) {
+      this.constraints.push({ kind: 'position', point: decl.name, x, y })
     }
   }
 
@@ -278,6 +274,12 @@ class ElaborationContext {
       }
       throw new ElaborationError(`"${name}" is not a declared line or segment`)
     }
+    if (target.kind === 'TupleRef') {
+      // Tuple in on-context is a line: `p on (1, -1, 0)`
+      const lineName = this.materializeLine(target)
+      this.constraints.push({ kind: 'on-line', point: pointName, line: lineName })
+      return
+    }
     throw new ElaborationError('invalid on-constraint target')
   }
 
@@ -285,6 +287,7 @@ class ElaborationContext {
 
   resolveVertexName(ref: Ref): string {
     if (ref.kind === 'NameRef') return ref.name
+    if (ref.kind === 'TupleRef') return this.materializePoint(ref)
     if (ref.indices.length === 1) return vn(ref.shape, ref.indices[0]!)
     throw new ElaborationError(`expected a vertex, got segment ref ${ref.shape}_${ref.indices.join('_')}`)
   }
@@ -298,6 +301,7 @@ class ElaborationContext {
       if (name.length === 2) return { v1: name[0]!, v2: name[1]! }
       throw new ElaborationError(`"${name}" is not a valid segment reference — use a 2-char name or subscript form t_1_2`)
     }
+    if (ref.kind === 'TupleRef') throw new ElaborationError('cannot use an inline tuple as a segment reference')
     throw new ElaborationError(`expected a segment ref, got vertex ${ref.shape}_${ref.indices[0]}`)
   }
 
@@ -318,9 +322,38 @@ class ElaborationContext {
   }
 
   private resolveLineName(ref: Ref): string {
+    if (ref.kind === 'TupleRef') return this.materializeLine(ref)
     if (ref.kind !== 'NameRef') throw new ElaborationError('expected a line name, got subscript ref')
     if (!this.lines.has(ref.name)) throw new ElaborationError(`"${ref.name}" is not a declared line`)
     return ref.name
+  }
+
+  // ── TupleRef materialization ──────────────────────────────────────────────
+
+  /** Interpret a TupleRef as a point: mint an anonymous point with a position constraint. */
+  private materializePoint(ref: TupleRef): string {
+    if (ref.values.length !== 2)
+      throw new ElaborationError(`expected 2 values for a point, got ${ref.values.length}`)
+    const name = `_pt${++this.anonCounter}`
+    this.points.add(name)
+    this.constraints.push({ kind: 'position', point: name, x: ref.values[0]!, y: ref.values[1]! })
+    return name
+  }
+
+  /** Interpret a TupleRef as a line: mint an anonymous line with a line-equation constraint. */
+  private materializeLine(ref: TupleRef): string {
+    const name = `_ln${++this.anonCounter}`
+    this.lines.add(name)
+    if (ref.values.length === 2) {
+      // slope-intercept (m, b) → a=m, b=-1, c=b
+      this.constraints.push({ kind: 'line-equation', line: name, a: ref.values[0]!, b: -1, c: ref.values[1]! })
+    } else if (ref.values.length === 3) {
+      // general form (a, b, c)
+      this.constraints.push({ kind: 'line-equation', line: name, a: ref.values[0]!, b: ref.values[1]!, c: ref.values[2]! })
+    } else {
+      throw new ElaborationError(`expected 2 or 3 values for a line, got ${ref.values.length}`)
+    }
+    return name
   }
 
   // ── Point helpers ────────────────────────────────────────────────────────

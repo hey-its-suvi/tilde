@@ -14,7 +14,7 @@ import {
   ConstraintStmt, PrintStmt, SettingStmt, PickStmt,
   Constraint, LengthConstraint, AngleConstraint, RelationConstraint,
   EqualityConstraint, OnConstraint, PositionConstraint,
-  Ref, NameRef, SubscriptRef,
+  Ref, NameRef, SubscriptRef, TupleRef,
   MeasureValue, LengthUnit, AngleUnit,
 } from './ast.js'
 
@@ -60,15 +60,17 @@ export function parse(tokens: Token[]): Program {
     const statements: Statement[] = []
     eatNewlines()
     while (!check('EOF')) {
-      statements.push(parseStatement())
+      statements.push(...parseStatement())
       eatNewlines()
     }
     return { kind: 'Program', statements }
   }
 
   // ── Statement ──────────────────────────────────────────────────────────────
+  // Returns an array because sugar declarations (e.g. `line l through p`)
+  // expand into a declaration + separate constraint statements.
 
-  function parseStatement(): Statement {
+  function parseStatement(): Statement[] {
     const tok = peek()
 
     if (check('LET')) advance()  // optional sugar
@@ -77,15 +79,15 @@ export function parse(tokens: Token[]): Program {
     if (check('LINE')) return parseLineDecl()
     if (check('POINT')) {
       const op = tokens[pos + 2]?.kind
-      if (op === 'EQUALS') return parsePointDecl()
-      if (op === 'NEWLINE' || op === 'EOF' || op === undefined) return parsePointDecl()
-      return parseConstraintStmt()  // point a on ...
+      if (op === 'EQUALS') return [parsePointDecl()]
+      if (op === 'NEWLINE' || op === 'EOF' || op === undefined) return [parsePointDecl()]
+      return [parseConstraintStmt()]  // point a on ...
     }
-    if (check('PRINT')) return parsePrintStmt()
-    if (check('SET')) return parseSettingStmt()
-    if (check('PICK')) return parsePickStmt()
-    if (check('ANGLE')) return parseConstraintStmt()
-    if (check('NAME')) return parseConstraintStmt()
+    if (check('PRINT')) return [parsePrintStmt()]
+    if (check('SET')) return [parseSettingStmt()]
+    if (check('PICK')) return [parsePickStmt()]
+    if (check('ANGLE')) return [parseConstraintStmt()]
+    if (check('NAME')) return [parseConstraintStmt()]
 
     throw new ParseError(`Unexpected token ${tok.kind} ("${tok.value}")`, tok.line, tok.col)
   }
@@ -99,7 +101,26 @@ export function parse(tokens: Token[]): Program {
     return check('NAME') && tokens[pos + 1]?.kind === 'UNDERSCORE'
   }
 
+  function parseTuple(): number[] {
+    eat('LPAREN')
+    const vals = [parseSignedNumber()]
+    while (check('COMMA')) { advance(); vals.push(parseSignedNumber()) }
+    eat('RPAREN')
+    return vals
+  }
+
   function parseRef(): Ref {
+    // Optional type hint before a tuple: `point (1,2)` or `line (2,3)`
+    if (check('POINT', 'LINE') && tokens[pos + 1]?.kind === 'LPAREN') {
+      const hint = advance().value as 'point' | 'line'
+      const values = parseTuple()
+      return { kind: 'TupleRef', values, hint } satisfies TupleRef
+    }
+    // Bare tuple: `(1,2)`
+    if (check('LPAREN')) {
+      const values = parseTuple()
+      return { kind: 'TupleRef', values } satisfies TupleRef
+    }
     if (isSubscriptRef()) {
       const shape = advance().value
       eat('UNDERSCORE')
@@ -116,7 +137,7 @@ export function parse(tokens: Token[]): Program {
 
   // ── Shape declaration ──────────────────────────────────────────────────────
 
-  function parseShapeDecl(): ShapeDecl {
+  function parseShapeDecl(): Statement[] {
     const kw = advance()
     const shapeKind = kw.value as ShapeKind
 
@@ -138,20 +159,24 @@ export function parse(tokens: Token[]): Program {
       && isAllDistinct
     const named = !decompose
 
-    const constraints: Constraint[] = []
+    const stmts: Statement[] = [
+      { kind: 'ShapeDecl', shapeKind, name, named, polygonSides } satisfies ShapeDecl,
+    ]
 
-    // `segment ab = 5` — inline length sugar
+    // `segment ab = 5` — inline length sugar → separate constraint
     if (check('EQUALS') && !named) {
       advance()
       const value = parseMeasureValue()
-      constraints.push({ kind: 'LengthConstraint', target: { kind: 'NameRef', name }, value })
+      stmts.push({ kind: 'ConstraintStmt', constraint: { kind: 'LengthConstraint', target: { kind: 'NameRef', name }, value } })
     } else if (check('WITH')) {
       advance()
-      constraints.push(...parseConstraintList())
+      for (const c of parseConstraintList()) {
+        stmts.push({ kind: 'ConstraintStmt', constraint: c })
+      }
     }
 
     eat('NEWLINE', 'EOF')
-    return { kind: 'ShapeDecl', shapeKind, name, named, polygonSides, constraints }
+    return stmts
   }
 
   // ── Constraint list (after 'with') ─────────────────────────────────────────
@@ -308,7 +333,7 @@ export function parse(tokens: Token[]): Program {
   //   line l = (, b)       y-intercept known, slope unknown      →  a=null, b=-1,   c=b
   //   line l = (a, b,)     direction known, position unknown     →  a,      b,      c=null
 
-  function parseLineDecl(): LineDecl {
+  function parseLineDecl(): Statement[] {
     eat('LINE')
     const name = eat('NAME').value
 
@@ -375,18 +400,21 @@ export function parse(tokens: Token[]): Program {
       } while ((check('AND') || check('COMMA')) && !!advance())
     }
 
-    // `through p, q` or `through p and q` — one OnConstraint per point
-    const constraints: Constraint[] = []
+    const stmts: Statement[] = [
+      { kind: 'LineDecl', name, params: { a, b, c } } satisfies LineDecl,
+    ]
+
+    // `through p, q` or `through p and q` — sugar: expand to OnConstraints
     if (check('THROUGH')) {
       advance()
       if (check('POINT')) advance()  // optional keyword hint
       const lineRef: NameRef = { kind: 'NameRef', name }
       for (const point of parseRefList(parseRef())) {
-        constraints.push({ kind: 'OnConstraint', point, targets: [lineRef] } satisfies OnConstraint)
+        stmts.push({ kind: 'ConstraintStmt', constraint: { kind: 'OnConstraint', point, targets: [lineRef] } })
       }
     }
 
-    // `parallel m` / `parallel line m` / `perpendicular m at p` / `parallel m at 3`
+    // `parallel m` / `perpendicular m at p` — sugar: expand to RelationConstraint
     if (check('PARALLEL', 'PERPENDICULAR')) {
       const relKind = advance().kind
       const rel = relKind === 'PARALLEL' ? 'parallel' : 'perpendicular'
@@ -403,11 +431,11 @@ export function parse(tokens: Token[]): Program {
         }
       }
       const left: NameRef = { kind: 'NameRef', name }
-      constraints.push({ kind: 'RelationConstraint', relation: rel, left, right, at, distance } satisfies RelationConstraint)
+      stmts.push({ kind: 'ConstraintStmt', constraint: { kind: 'RelationConstraint', relation: rel, left, right, at, distance } })
     }
 
     eat('NEWLINE', 'EOF')
-    return { kind: 'LineDecl', name, a, b, c, constraints }
+    return stmts
   }
 
   // ── Point declaration ──────────────────────────────────────────────────────
@@ -417,7 +445,7 @@ export function parse(tokens: Token[]): Program {
     const name = eat('NAME').value
     if (!check('EQUALS')) {
       eat('NEWLINE', 'EOF')
-      return { kind: 'PointDecl', name, x: null, y: null }
+      return { kind: 'PointDecl', name, params: { x: null, y: null } }
     }
     eat('EQUALS')
     eat('LPAREN')
@@ -426,7 +454,7 @@ export function parse(tokens: Token[]): Program {
     const y = parseSignedNumber()
     eat('RPAREN')
     eat('NEWLINE', 'EOF')
-    return { kind: 'PointDecl', name, x, y }
+    return { kind: 'PointDecl', name, params: { x, y } }
   }
 
   function parseSignedNumber(): number {

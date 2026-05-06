@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.3.15 — current
+## 0.3.16 — current
+
+- **Inline tuple refs**: numeric tuples can now appear wherever a name is expected — `line l perpendicular m at (1, -1)` places the intersection inline, `line l parallel (1, -1, 0)` references a line by equation, `p on (1, -1, 0)` constrains a point to an inline line. Optional `point`/`line` keyword disambiguates when the tuple length is ambiguous for the context.
+- **Templatized element declarations**: `LineDecl` and `PointDecl` now share an `ElementDecl<K, T>` template with a `params: Nullable<T>` field, ready for future element types (e.g. circles).
+- **Declarations no longer carry constraints**: inline sugar (`through`, `parallel`, `perpendicular`, `= 5`) is expanded by the parser into separate constraint statements. Declarations are pure declarations.
+
+## 0.3.15
 
 - **Line anchoring**: disconnected bare lines now correctly render as underconstrained when other elements (e.g. fixed points) consume the global symmetries that would otherwise absorb the line's degrees of freedom. Previously, a bare line always rendered as fully determined regardless of surrounding constraints.
 

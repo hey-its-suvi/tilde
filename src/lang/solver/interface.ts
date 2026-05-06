@@ -103,6 +103,10 @@ export type ConstraintSet = {
 export type Point = { x: number; y: number }
 export type Line  = { a: number; b: number; c: number }  // ax + by + c = 0
 
+/** Makes every field of T nullable. Used by the AST to represent partial
+ *  declarations (e.g. a bare `point p` with no coordinates). */
+export type Nullable<T> = { [K in keyof T]: T[K] | null }
+
 // ─── Solver Output ───────────────────────────────────────────────────────────
 
 /** Result for a single element. If picked or unique, solutions has length 1.

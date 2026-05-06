@@ -16,9 +16,9 @@ export function buildSceneGraph(result: SolveResult): SceneGraph {
   const points: ScenePoint[] = []
   const lines: SceneLine[] = []
 
-  // Lines
+  // Lines (skip anonymous elements created from inline tuples)
   for (const [name, lr] of result.lines) {
-    if (lr.solutions.length === 0) continue
+    if (name.startsWith('_') || lr.solutions.length === 0) continue
     const status = solutionsStatus(lr)
     if (status === 'multiple') {
       lr.solutions.forEach((s, i) => {
@@ -54,8 +54,9 @@ export function buildSceneGraph(result: SolveResult): SceneGraph {
     }
   }
 
-  // Points
+  // Points (skip anonymous elements created from inline tuples)
   for (const [key, pr] of result.points) {
+    if (key.startsWith('_')) continue
     const status = solutionsStatus(pr)
     if (status === 'multiple') {
       pr.solutions.forEach((s, i) => {

@@ -1,6 +1,8 @@
 // ─── Tilde AST ───────────────────────────────────────────────────────────────
 // Every node has a `kind` discriminant for exhaustive pattern matching.
 
+import type { Point, Line, Nullable } from './solver/interface.js'
+
 export type Program = {
   kind: 'Program'
   statements: Statement[]
@@ -17,21 +19,17 @@ export type Statement =
   | SettingStmt
   | PickStmt
 
-export type LineDecl = {
-  kind: 'LineDecl'
+/** Element declaration — declares a named geometric primitive with optional params.
+ *  Constraints that appear as inline sugar (e.g. `through`, `perpendicular`)
+ *  are expanded by the parser into separate ConstraintStmts. */
+export type ElementDecl<K extends string, T> = {
+  kind: K
   name: string
-  a: number | null      // ax + by + c = 0; null = unknown (partial line)
-  b: number | null
-  c: number | null
-  constraints: Constraint[]  // from `through p and q` — stored as OnConstraints
+  params: Nullable<T>
 }
 
-export type PointDecl = {
-  kind: 'PointDecl'
-  name: string
-  x: number | null  // null = bare declaration, no coordinates
-  y: number | null
-}
+export type LineDecl = ElementDecl<'LineDecl', Line>
+export type PointDecl = ElementDecl<'PointDecl', Point>
 
 export type ShapeKind = 'triangle' | 'square' | 'rectangle' | 'segment' | 'polygon'
 
@@ -41,7 +39,6 @@ export type ShapeDecl = {
   name: string           // declaration label — not a ref
   named: boolean         // true = subscript mode
   polygonSides?: number
-  constraints: Constraint[]
 }
 
 export type ConstraintStmt = {
@@ -80,7 +77,12 @@ export type NameRef = { kind: 'NameRef'; name: string }
  */
 export type SubscriptRef = { kind: 'SubscriptRef'; shape: string; indices: number[] }
 
-export type Ref = NameRef | SubscriptRef
+/** An inline numeric tuple — e.g. (1, 2) or (1, -1, 0).
+ *  The optional hint keyword (point/line/circle) disambiguates when
+ *  the tuple length is ambiguous for the context. */
+export type TupleRef = { kind: 'TupleRef'; values: number[]; hint?: 'point' | 'line' | 'circle' }
+
+export type Ref = NameRef | SubscriptRef | TupleRef
 
 // ─── Constraints ─────────────────────────────────────────────────────────────
 
