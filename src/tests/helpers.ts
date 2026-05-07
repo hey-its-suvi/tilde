@@ -97,6 +97,16 @@ export function assertLineEq(scene: SceneGraph, label: string, a: number, b: num
   }
 }
 
+export function assertScalar(scene: SceneGraph, label: string, expected: number, epsilon = 1e-9): void {
+  const sc = scene.scalars.find(s => s.label === label)
+  if (!sc) {
+    throw new Error(`assertScalar: scalar "${label}" not found\n  scalars: [${scene.scalars.map(s => s.label).join(', ')}]`)
+  }
+  if (Math.abs(sc.value - expected) > epsilon) {
+    throw new Error(`assertScalar: "${label}" has value ${sc.value}, expected ${expected}`)
+  }
+}
+
 export function assertThrows(source: string, expectedMessage?: string): void {
   let threw = false
   try {
