@@ -389,15 +389,34 @@ export function parse(tokens: Token[]): Program {
 
     // `with slope=m` / `with intercept=k` / `with slope=m and intercept=k`
     // Sugar for partial slope-intercept form. Sets a=m, b=-1, c=k as available.
+    //
+    // The `=` between the property name and the value is optional — `with slope 2`
+    // reads the same as `with slope=2`.
+    //
+    // Bundled form: `with slope s = 3` declares scalar `s` with value 3 AND uses
+    // it as the slope. Equivalent to `scalar s = 3; line l with slope=s`. The
+    // bundled `=` is only allowed when there was no leading `=` before the name
+    // (i.e. one `=` per binding — `with slope = s = 3` is a parse error).
+    const bundledScalarDecls: ScalarDecl[] = []
     if (check('WITH')) {
       advance()
+      const parseSlopeOrInterceptValue = (): ScalarExpr => {
+        const hadEquals = check('EQUALS') ? (advance(), true) : false
+        const value = parseScalarExpr()
+        if (!hadEquals && typeof value !== 'number' && value.kind === 'NameRef' && check('EQUALS')) {
+          advance()
+          const bound = parseScalarExpr()
+          bundledScalarDecls.push({ kind: 'ScalarDecl', name: value.name, params: bound })
+        }
+        return value
+      }
       do {
         if (check('SLOPE')) {
-          advance(); eat('EQUALS')
-          a = parseScalarExpr(); b = -1
+          advance()
+          a = parseSlopeOrInterceptValue(); b = -1
         } else if (check('INTERCEPT')) {
-          advance(); eat('EQUALS')
-          c = parseScalarExpr(); b = -1
+          advance()
+          c = parseSlopeOrInterceptValue(); b = -1
         } else {
           throw new ParseError(`Expected 'slope' or 'intercept' after 'with'`, peek().line, peek().col)
         }
@@ -405,6 +424,7 @@ export function parse(tokens: Token[]): Program {
     }
 
     const stmts: Statement[] = [
+      ...bundledScalarDecls,
       { kind: 'LineDecl', name, params: { a, b, c } } satisfies LineDecl,
     ]
 

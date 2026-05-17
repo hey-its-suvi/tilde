@@ -68,19 +68,27 @@ line l = (, 1)          # y-intercept 1, slope unknown
 line l = (1, -1,)       # direction (1, −1) known, position unknown
 ```
 
-For slope-intercept form, `with slope=` and `with intercept=` are clearer alternatives:
+For slope-intercept form, `with slope` and `with intercept` are clearer alternatives. The `=` is optional — `with slope 2` reads the same as `with slope=2`.
 
 ```
-line l with slope=2
-line l with intercept=1
-line l with slope=2 and intercept=1
-line l with slope=2, intercept=1     # comma works too
+line l with slope 2
+line l with intercept 1
+line l with slope 2 and intercept 1
+line l with slope=2, intercept=1     # = and comma both still work
 ```
 
 These can be combined with `through`:
 
 ```
-line l with slope=2 through p        # slope fixed, position determined by p
+line l with slope 2 through p        # slope fixed, position determined by p
+```
+
+The bundled form lets a scalar be declared and assigned in the same statement as the line:
+
+```
+line l with slope m = 2              # same as: scalar m = 2; line l with slope=m
+line l with intercept k = 5
+line l with slope m = 2 and intercept k = 1
 ```
 
 A partially declared line with no constraining point is drawn the same way as an underconstrained point — its position is a representative choice, not uniquely determined.

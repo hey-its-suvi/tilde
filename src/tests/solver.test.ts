@@ -420,6 +420,58 @@ describe('with slope/intercept syntax', () => {
     assertLine(scene, 'l', 'one')
     assertLineEq(scene, 'l', 1, -1, 2)
   })
+
+  it('slope without = — same as with =', () => {
+    // `with slope 2` should parse identically to `with slope=2`.
+    const scene = run('line l with slope 2 and intercept 1')
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 2, -1, 1)
+  })
+
+  it('intercept without = — same as with =', () => {
+    const scene = run([
+      'line l with intercept 0',
+      'point a = (2, 4)',
+      'point a on l',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 2, -1, 0)
+  })
+
+  it('mixed = and no-= in the same with clause', () => {
+    const scene = run('line l with slope 2, intercept=1')
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 2, -1, 1)
+  })
+
+  it('bundled: with slope s = 3 declares scalar s and uses it', () => {
+    // `line l with slope s = 3` desugars to `scalar s = 3; line l with slope=s`.
+    const scene = run('line l with slope s = 3')
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 3, -1, 0)
+    assertScalar(scene, 's', 3)
+  })
+
+  it('bundled: with intercept k = 5 declares scalar k', () => {
+    const scene = run([
+      'line l with intercept k = 5',
+      'point a = (2, 5)',
+      'point a on l',
+    ].join('\n'))
+    assertLineEq(scene, 'l', 0, -1, 5)
+    assertScalar(scene, 'k', 5)
+  })
+
+  it('bundled: slope and intercept both bundled', () => {
+    const scene = run('line l with slope m = 2 and intercept k = 1')
+    assertLineEq(scene, 'l', 2, -1, 1)
+    assertScalar(scene, 'm', 2)
+    assertScalar(scene, 'k', 1)
+  })
+
+  it('double = is rejected: with slope = s = 3 throws', () => {
+    assertThrows('line l with slope = s = 3', '')
+  })
 })
 
 describe('parallel and perpendicular', () => {

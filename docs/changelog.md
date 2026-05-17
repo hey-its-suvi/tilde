@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.18 — current
+## 0.3.19 — current
+
+- **Optional `=` in `with` clauses**: `line l with slope 2 and intercept 1` now parses the same as `line l with slope=2 and intercept=1`. The `=` between a property name and its value is optional; existing code is unchanged.
+- **Bundled scalar declarations in `with` clauses**: `line l with slope m = 2` is sugar for `scalar m = 2; line l with slope=m` — declares a named scalar and uses it as the slope in one statement. Double-`=` forms like `with slope = m = 2` are rejected to enforce one binding per name.
+
+## 0.3.18
 
 - **Solver-derived scalars**: scalars can now be declared without a value (`scalar m`) and derived by the solver from geometric constraints. For example, `scalar m; line l = (m, -1, 0); l through (0,0); l through (1,3)` determines `m = 3`. Multiple scalars can be derived from the same element.
 - **Bare scalar declarations**: `scalar m` (no `= value`) declares an unknown scalar whose value is determined by the solver.
