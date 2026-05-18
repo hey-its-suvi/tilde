@@ -45,7 +45,22 @@ export function applyAnchor(model: GeomModel): void {
   const sFree    = [...model.lengths.values()].every(l => l === null) && fixedPts.length < 2
 
   // ── T fixer ──
-  // Find eligible anchor: free point, not on-line, not on-segment.
+  // Find eligible anchor and consume T-gauge. Two-tier search:
+  //
+  //   Tier 1: a free point with no on-line, on-segment, or on-circle constraints
+  //           → pin it at the canonical origin (0, 0).
+  //
+  //   Tier 2: if no tier-1 candidate exists, fall back to a free point with a
+  //           single on-line constraint. Place it at the line's "natural" point
+  //           (the position that satisfies the constraint regardless of the
+  //           line's still-unknown coefficients). Lines whose only unknown is
+  //           `c` go through the origin; lines pinned at (0, k) take that pin
+  //           as the natural position; etc.
+  //
+  // This tier-2 path is what lets `line l = (1,); point p on l` resolve fully
+  // (T-gauge absorbs p's slide-along-line freedom) instead of leaving both as
+  // representative placements.
+  //
   // If T is already fixed by exactly 1 explicit point, use it as the pivot for R.
   let anchor: string | null = null
   if (tFree) {
@@ -58,6 +73,22 @@ export function applyAnchor(model: GeomModel): void {
     if (anchor !== null) {
       setPoint(model, anchor, CANONICAL_X, CANONICAL_Y, 0)
       model.anchorKey = anchor
+    } else {
+      // Tier 2: fall back to a free on-line point with a single line constraint.
+      for (const [k, wp] of model.points) {
+        if (wp.dof === 0) continue
+        if (model.onSegment.has(k)) continue
+        const lineNames = model.onLine.get(k)
+        if (!lineNames || lineNames.length !== 1) continue
+        const wl = model.lines.get(lineNames[0]!)
+        if (!wl) continue
+        const placement = naturalPointOnLine(wl)
+        if (placement === null) continue
+        setPoint(model, k, placement.x, placement.y, 0)
+        model.anchorKey = k
+        anchor = k
+        break
+      }
     }
   } else if (rFree && fixedPts.length === 1) {
     // T fixed by 1 explicit point — use it as pivot for R fixer below
@@ -212,4 +243,37 @@ function isLineConnected(model: GeomModel, lineName: string): boolean {
   if (perp && perp.length > 0) return true
 
   return false
+}
+
+/** A point on a line that satisfies the constraint regardless of which of the
+ *  line's remaining unknown coefficients gets filled in later. Used by the
+ *  tier-2 T-anchor to find a "natural" position for an on-line point.
+ *
+ *  Cases:
+ *    all of a, b, c known          → foot of perpendicular from origin
+ *    c null (any direction, any pos) → origin (lets resolve set c = 0 to match)
+ *    a null but b, c known           → invariant (0, -c/b) — line family pivots
+ *                                       around this point as a varies
+ *    b null but a, c known           → invariant (-c/a, 0) — symmetric case
+ *    otherwise (two or more unknowns
+ *    with c known)                   → not enough information; defer
+ *
+ *  Returns null when no well-defined natural placement exists. */
+function naturalPointOnLine(wl: import('./types.js').WorkingLine): { x: number; y: number } | null {
+  const { a, b, c } = workingVal(wl)
+  if (a !== null && b !== null && c !== null) {
+    const denom = a * a + b * b
+    if (isZero(denom)) return null
+    return { x: -a * c / denom, y: -b * c / denom }
+  }
+  if (c === null) return { x: 0, y: 0 }
+  if (a === null && b !== null) {
+    if (isZero(b)) return null
+    return { x: 0, y: -c / b }
+  }
+  if (b === null && a !== null) {
+    if (isZero(a)) return null
+    return { x: -c / a, y: 0 }
+  }
+  return null
 }

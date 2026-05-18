@@ -182,12 +182,47 @@ export function tryCompleteLineByDefault(model: GeomModel, st: PlacementState): 
     }
 
     if (nullCount === 1) {
-      // Fill the single missing coefficient with a canonical default
-      // dof was set by anchor; if anchor didn't touch it, keep existing dof
+      // Fill the single missing coefficient with a canonical default.
+      //
+      // For direction defaults (a or b), the canonical choice is slope = 1 —
+      // matching the bare-line case which defaults to y = x. The line equation
+      // ax + by + c = 0 has slope -a/b, so slope-1 means a = -b. We also check
+      // whether R-gauge is still free; if so, the canonical choice consumes R
+      // and the line is fully resolved (dof=0).
+      //
+      // Position defaults (c) are left to the anchor's line section.
       if (lv.c === null) { lv.c = 0; return true }
-      if (lv.a === null) { lv.a = 0; return true }
-      if (lv.b === null) { lv.b = 1; return true }
+      if (lv.a === null) {
+        const rFree = rFreeIgnoring(model, lineName)
+        lv.a = isZero(lv.b!) ? 1 : -lv.b!  // slope 1 unless b=0 (horizontal already)
+        if (rFree) wl.dof = 0
+        return true
+      }
+      if (lv.b === null) {
+        const rFree = rFreeIgnoring(model, lineName)
+        lv.b = isZero(lv.a!) ? 1 : -lv.a!  // slope 1 unless a=0 (vertical already)
+        if (rFree) wl.dof = 0
+        return true
+      }
     }
   }
   return false
+}
+
+/** True if rotation-gauge is still unconsumed, ignoring the given line (which
+ *  is the line about to be canonicalized — we don't want it counting itself). */
+function rFreeIgnoring(model: GeomModel, exceptLineName: string): boolean {
+  for (const [name, wl] of model.lines) {
+    if (name === exceptLineName) continue
+    const lv = workingVal(wl)
+    if (lv.a !== null && lv.b !== null) return false
+  }
+  let placedCount = 0
+  for (const wp of model.points.values()) {
+    if (isWorkingComplete(wp)) {
+      placedCount++
+      if (placedCount >= 2) return false
+    }
+  }
+  return true
 }

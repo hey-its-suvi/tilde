@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.19 — current
+## 0.3.20 — current
+
+- **Better anchor accounting for partial lines with a free point**: `line l = (1,); point p on l` (and the symmetric direction-only / y-intercept-only forms) now resolves fully — the T-gauge that was previously unused is consumed by placing the point at the line's natural position (origin for slope-only and direction-only forms; the line's pinned point for y-intercept-only forms). Both line and point render as solid instead of underconstrained.
+- **R-gauge tracking when canonicalizing line direction**: when a connected line gets a canonical default slope filled in (e.g. y-intercept-only line with a free point at the y-intercept), the line is marked as resolved (dof=0) if rotation-gauge was still available, rather than left as underconstrained.
+
+## 0.3.19
 
 - **Optional `=` in `with` clauses**: `line l with slope 2 and intercept 1` now parses the same as `line l with slope=2 and intercept=1`. The `=` between a property name and its value is optional; existing code is unchanged.
 - **Bundled scalar declarations in `with` clauses**: `line l with slope m = 2` is sugar for `scalar m = 2; line l with slope=m` — declares a named scalar and uses it as the slope in one statement. Double-`=` forms like `with slope = m = 2` are rejected to enforce one binding per name.

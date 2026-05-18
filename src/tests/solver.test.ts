@@ -285,34 +285,50 @@ describe('bare line declarations', () => {
 })
 
 describe('partial line declarations', () => {
-  // ── Default path: no constraining point, solver fills in a canonical value ────
-  // The line's position/direction is arbitrary → solutions='infinite'
+  // ── Default path: the partial line plus a free on-line point consume the
+  // remaining T-gauge — both end up uniquely determined up to that gauge.
+  // The free point is placed at the line's "natural" point:
+  //   slope-only / direction-only (c null) → origin
+  //   y-intercept-only (c known)           → the line's pinned point
 
-  it('slope-only (m,): no constraining point — line is infinite', () => {
+  it('slope-only (m,) with free on-line point — both resolved at origin', () => {
+    // line l = (1,) → a=1, b=-1, c=null; T-anchor places p at origin,
+    // which fixes c=0 → line is y = x passing through (0, 0).
     const scene = run([
       'line l = (1,)',
       'point p on l',
     ].join('\n'))
-    assertLine(scene, 'l', 'infinite')
-    assertPoint(scene, 'p', 'infinite')
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 1, -1, 0)
+    assertPoint(scene, 'p', 'one')
+    assertPointAt(scene, 'p', 0, 0)
   })
 
-  it('direction-only 3-tuple (a,b,): no constraining point — line is infinite', () => {
+  it('direction-only 3-tuple (a,b,) with free on-line point — both resolved at origin', () => {
+    // line l = (0, 1,) → horizontal line, unknown height. T-anchor at origin
+    // fixes the line to y = 0.
     const scene = run([
       'line l = (0, 1,)',
       'point p on l',
     ].join('\n'))
-    assertLine(scene, 'l', 'infinite')
-    assertPoint(scene, 'p', 'infinite')
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 0, 1, 0)
+    assertPoint(scene, 'p', 'one')
+    assertPointAt(scene, 'p', 0, 0)
   })
 
-  it('y-intercept-only (,b): no constraining point — line is infinite', () => {
+  it('y-intercept-only (,b) with free on-line point — p at the y-intercept', () => {
+    // line l = (,3) → a=null, b=-1, c=3; the line family pivots around (0, 3).
+    // T-anchor places p at (0, 3) (the natural invariant point); resolve fills
+    // in the canonical slope-1 default (a = -b = 1) → line y = x + 3.
     const scene = run([
       'line l = (,3)',
       'point p on l',
     ].join('\n'))
-    assertLine(scene, 'l', 'infinite')
-    assertPoint(scene, 'p', 'infinite')
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 1, -1, 3)
+    assertPoint(scene, 'p', 'one')
+    assertPointAt(scene, 'p', 0, 3)
   })
 
   // ── Constraint path: placed point fills in the missing parameter exactly ──────
