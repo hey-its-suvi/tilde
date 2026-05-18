@@ -5,10 +5,10 @@
 
 import {
   Solver, ConstraintSet, SolveResult,
-  ResolvedConstraint, ElementResult, Point, Line, Scalar,
+  ResolvedConstraint, ElementResult, Point, Line, Circle, Scalar,
 } from '../interface.js'
 import { GeomModel, makeModel, touchPoint, setPoint, setLength, setAngle, segKey } from './model.js'
-import { makeWorkingLine, makeWorkingScalar, workingVal, isWorkingComplete } from './types.js'
+import { makeWorkingLine, makeWorkingCircle, makeWorkingScalar, workingVal, isWorkingComplete } from './types.js'
 import { ConstraintError } from '../interface.js'
 import { isEqual } from './geom.js'
 import { applyAnchor } from './anchor.js'
@@ -36,6 +36,9 @@ export class GeometricSolver implements Solver {
     }
     for (const name of input.lines) {
       model.lines.set(name, makeWorkingLine(null, null, null))
+    }
+    for (const name of input.circles) {
+      model.circles.set(name, makeWorkingCircle())
     }
     for (const name of input.scalars) {
       model.scalars.set(name, makeWorkingScalar())
@@ -83,6 +86,13 @@ export class GeometricSolver implements Solver {
         }
         break
       }
+      case 'on-circle': {
+        const existing = model.onCircle.get(c.point) ?? []
+        if (!existing.includes(c.circle)) {
+          model.onCircle.set(c.point, [...existing, c.circle])
+        }
+        break
+      }
       case 'on-segment': {
         model.onSegment.set(c.point, { v1: c.s1, v2: c.s2 })
         break
@@ -97,6 +107,18 @@ export class GeometricSolver implements Solver {
         // Recalculate dof
         const nulls = (lv.a === null ? 1 : 0) + (lv.b === null ? 1 : 0) + (lv.c === null ? 1 : 0)
         wl.dof = Math.min(nulls, 2)
+        break
+      }
+      case 'circle-spec': {
+        const wc = model.circles.get(c.circle)
+        if (!wc) throw new ConstraintError(`circle "${c.circle}" is not declared`)
+        const cv = workingVal(wc)
+        if (c.center !== null) cv.center = c.center
+        if (c.r !== null) cv.r = c.r
+        // dof: center contributes 2 if unset, r contributes 1 if unset.
+        // The center being a ref doesn't count toward circle dof — placement
+        // of the center point is tracked separately via the points machinery.
+        wc.dof = (cv.center === null ? 2 : 0) + (cv.r === null ? 1 : 0)
         break
       }
       case 'parallel': {
@@ -138,6 +160,7 @@ export class GeometricSolver implements Solver {
   private extractResult(model: GeomModel, input: ConstraintSet): SolveResult {
     const points = new Map<string, ElementResult<Point>>()
     const lines = new Map<string, ElementResult<Line>>()
+    const circles = new Map<string, ElementResult<Circle>>()
     const scalars = new Map<string, ElementResult<Scalar>>()
 
     for (const [key, wp] of model.points) {
@@ -196,6 +219,26 @@ export class GeometricSolver implements Solver {
       }
     }
 
-    return { points, lines, scalars, segments: input.segments }
+    for (const [name, wc] of model.circles) {
+      const cv = workingVal(wc)
+      // A circle is fully resolved when its center point is placed AND r is known.
+      const centerName = cv.center
+      const centerWp = centerName !== null ? model.points.get(centerName) : null
+      const centerPlaced = centerWp !== null && centerWp !== undefined && isWorkingComplete(centerWp)
+      if (!centerPlaced || cv.r === null) {
+        circles.set(name, { solutions: [], dof: wc.dof })
+        continue
+      }
+      // A circle is at least as underconstrained as its center point: a circle
+      // whose center sits at a representative-chosen position cannot itself be
+      // fully determined, even if its own radius is fixed.
+      const effectiveDof = wc.dof + centerWp!.dof
+      circles.set(name, {
+        solutions: [{ center: centerName!, r: cv.r }],
+        dof: effectiveDof,
+      })
+    }
+
+    return { points, lines, circles, scalars, segments: input.segments }
   }
 }

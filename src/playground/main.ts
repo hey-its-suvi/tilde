@@ -177,6 +177,9 @@ canvas.addEventListener('mousemove', (e) => {
     } else if (info.kind === 'line') {
       const prefix = info.solutions === 'infinite' ? '~' : info.solutions === 'multiple' ? '?' : ''
       tooltip.textContent = `${prefix}  ${info.label}  ${formatLineEq(info.a, info.b, info.c)}`
+    } else if (info.kind === 'circle') {
+      const prefix = info.solutions === 'infinite' ? '~' : info.solutions === 'multiple' ? '?' : ''
+      tooltip.textContent = `${prefix}  ${info.label}  center (${fmt(info.cx)}, ${fmt(info.cy)})  r=${fmt(info.r)}`
     }
   } else {
     tooltip.style.display = 'none'

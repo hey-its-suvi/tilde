@@ -70,6 +70,25 @@ pick b 1
 
 ---
 
+## On-circle
+
+Constrains a point to lie on a circle. With one circle, the point's position along the circle is underconstrained; combine with a second locus (line or another circle) to pin it down.
+
+```
+p on c
+point p on c
+```
+
+<TildeSketch source="
+point o = (0, 0)
+circle c = (o, 3)
+p on c
+" :cx="0" :cy="0" :zoom="1.1"/>
+
+When three or more points are known to lie on the same circle, the circle's center and radius are uniquely determined and the solver places them automatically.
+
+---
+
 ## On-segment
 
 Constrains a point to lie somewhere on a segment. Its position along the segment is always underconstrained — free to be anywhere on it. Multiple underconstrained points on the same segment are distributed evenly.

@@ -18,6 +18,7 @@ import {
   tryPlaceVertexByFallback,
 } from './points.js'
 import { tryCompleteLineByConstraint, tryCompleteLineByDefault, tryApplyLineRelation } from './lines.js'
+import { tryCompleteCircleByConstraint, tryCompleteCircleByDefault } from './circles.js'
 
 export function resolve(model: GeomModel): void {
   const placed = new Set<string>()
@@ -45,9 +46,11 @@ export function resolve(model: GeomModel): void {
     if (tryPlaceVertexByCircleIntersectCircle(model, st)) { changed = true; continue }
     if (tryPlaceVertexByCircleIntersectLine(model, st))   { changed = true; continue }
     if (tryCompleteLineByConstraint(model, st))           { changed = true; continue }
+    if (tryCompleteCircleByConstraint(model, st))         { changed = true; continue }
     // Priority 1: locus
     if (tryPlaceVertexByLocus(model, st))                 { changed = true; continue }
     if (tryCompleteLineByDefault(model, st))              { changed = true; continue }
+    if (tryCompleteCircleByDefault(model, st))            { changed = true; continue }
     // Priority 0: fallback
     if (tryPlaceVertexByFallback(model, st))              { changed = true; continue }
     // Scalar bindings: propagate element fields → scalars
@@ -77,6 +80,17 @@ function tryResolveScalarBindings(model: GeomModel): boolean {
       const pv = workingVal(wp)
       const val = (pv as Record<string, number | null>)[binding.field]
       if (val !== null && val !== undefined) {
+        ws.resolved[0] = val
+        ws.dof = 0
+        return true
+      }
+    }
+
+    const wc = model.circles.get(binding.element)
+    if (wc) {
+      const cv = workingVal(wc)
+      const val = (cv as Record<string, number | string | null>)[binding.field]
+      if (typeof val === 'number') {
         ws.resolved[0] = val
         ws.dof = 0
         return true

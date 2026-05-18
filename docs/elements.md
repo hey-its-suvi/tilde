@@ -1,6 +1,6 @@
 # Elements
 
-Elements are the building blocks you declare in Tilde — scalars, points, lines, segments, and triangles.
+Elements are the building blocks you declare in Tilde — scalars, points, lines, circles, segments, and triangles.
 
 ---
 
@@ -127,6 +127,73 @@ Rendered as an infinite dashed line clipped to the viewport.
 line l = (1, -1, 0)
 line m = (1, 1, -4)
 " :cx="2" :cy="2" :zoom="0.9"/>
+
+---
+
+## Circle
+
+A circle declared by its center and radius.
+
+```
+circle c = (p, 3)           # center p, radius 3
+circle c = ((2, 1), 4)      # center at (2, 1), radius 4
+circle c                    # bare — center at origin, radius 1
+```
+
+The center may be a named point or an inline `(x, y)` tuple. The radius can be a literal number or a scalar reference.
+
+```
+scalar r = 5
+circle c = (p, r)
+```
+
+A bare circle declaration `circle c` chooses a canonical center and radius the same way bare points and segments do — center at origin, radius 1.
+
+`with center` and `with radius` are clearer alternatives, and either parameter can be specified independently. The `=` is optional.
+
+```
+circle c with center p
+circle c with center=(5, 3)
+circle c with radius 3
+circle c with center p and radius 3
+```
+
+The bundled form declares a sub-element and binds it in the same statement:
+
+```
+circle c with center p = (5, 3)      # same as: point p = (5, 3); circle c with center=p
+circle c with radius r = 4           # same as: scalar r = 4; circle c with radius=r
+```
+
+Use `on` to constrain a point to lie on a circle. With one circle, the point sits on the circle's locus; with two circles (or a circle and a line) the point is placed at their intersection.
+
+```
+point a = (0, 0)
+point b = (4, 0)
+circle c1 = (a, 3)
+circle c2 = (b, 5)
+point p
+p on c1
+p on c2                     # p at (0, ±3)
+```
+
+A circle is also determined uniquely by any three points known to lie on it:
+
+```
+point a = (1, 0)
+point b = (-1, 0)
+point c = (0, 1)
+point o
+circle k = (o, 1)
+a on k
+b on k
+c on k                      # o placed at (0, 0)
+```
+
+<TildeSketch source="
+point a = (0, 0)
+circle c = (a, 2)
+" :cx="0" :cy="0" :zoom="1.2"/>
 
 ---
 

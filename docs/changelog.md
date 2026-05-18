@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.3.20 — current
+## 0.3.21 — current
+
+- **Circles**: first-class element declared as `circle c = (p, 3)` (named center + radius), `circle c = ((x, y), r)` (inline center), or `circle c` (bare — center at origin, radius 1).
+- **`with center` and `with radius`**: alternative property syntax — `circle c with center p and radius 3`. Each parameter can be specified independently; `=` is optional.
+- **Bundled forms for circles**: `circle c with center p = (5, 3)` declares point `p` and places it; `circle c with radius r = 4` declares scalar `r` with value 4.
+- **On-circle constraints**: `p on c` constrains a point to a circle. Combined with another locus (line or second circle), a point can be placed at the exact intersection.
+- **Three points determine a circle**: if three or more placed points lie on the same circle, the solver derives its center and radius.
+- **Derived circle radius**: a scalar declared without a value and used as a circle's radius is back-propagated when the radius is determined by an on-circle constraint.
+
+## 0.3.20
 
 - **Better anchor accounting for partial lines with a free point**: `line l = (1,); point p on l` (and the symmetric direction-only / y-intercept-only forms) now resolves fully — the T-gauge that was previously unused is consumed by placing the point at the line's natural position (origin for slope-only and direction-only forms; the line's pinned point for y-intercept-only forms). Both line and point render as solid instead of underconstrained.
 - **R-gauge tracking when canonicalizing line direction**: when a connected line gets a canonical default slope filled in (e.g. y-intercept-only line with a free point at the y-intercept), the line is marked as resolved (dof=0) if rotation-gauge was still available, rather than left as underconstrained.

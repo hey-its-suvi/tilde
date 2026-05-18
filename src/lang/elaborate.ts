@@ -5,6 +5,7 @@
 // with no AST nodes — ready to hand to any solver.
 
 import { Program, Ref, TupleRef, Constraint, ShapeDecl, ShapeKind, ScalarExpr, LengthUnit } from './ast.js'
+import type { CircleDecl } from './ast.js'
 import { resolveLength } from './units.js'
 import {
   Scalar, ConstraintSet, ResolvedConstraint,
@@ -39,6 +40,7 @@ export function elaborate(program: Program): ElaborationResult {
     else if (stmt.kind === 'ShapeDecl')      ctx.elaborateShape(stmt)
     else if (stmt.kind === 'LineDecl')       ctx.elaborateLine(stmt)
     else if (stmt.kind === 'PointDecl')      ctx.elaboratePoint(stmt)
+    else if (stmt.kind === 'CircleDecl')     ctx.elaborateCircle(stmt)
     else if (stmt.kind === 'ConstraintStmt') ctx.elaborateConstraint(stmt.constraint)
     else if (stmt.kind === 'SetGrid')        ctx.config.grid = stmt.on
     else if (stmt.kind === 'PickStmt')       ctx.picks.set(ctx.resolveVertexName(stmt.vertex), stmt.index)
@@ -49,6 +51,7 @@ export function elaborate(program: Program): ElaborationResult {
       points: ctx.points,
       segments: ctx.segments,
       lines: ctx.lines,
+      circles: ctx.circles,
       scalars: ctx.solverScalars,
       constraints: ctx.constraints,
       picks: ctx.picks,
@@ -63,6 +66,7 @@ class ElaborationContext {
   points = new Set<string>()
   segments = new Set<string>()
   lines = new Set<string>()
+  circles = new Set<string>()
   constraints: ResolvedConstraint[] = []
   picks = new Map<string, number>()
   config: RenderConfig = { ...DEFAULT_CONFIG }
@@ -264,6 +268,52 @@ class ElaborationContext {
     }
   }
 
+  // ── Circle elaboration ───────────────────────────────────────────────────
+
+  elaborateCircle(decl: CircleDecl) {
+    if (this.lines.has(decl.name)) {
+      throw new ElaborationError(`"${decl.name}" is already declared as a line`)
+    }
+    if (this.points.has(decl.name)) {
+      throw new ElaborationError(`"${decl.name}" is already declared as a point`)
+    }
+    if (this.circles.has(decl.name)) {
+      throw new ElaborationError(`circle "${decl.name}" is already declared`)
+    }
+    this.circles.add(decl.name)
+
+    const { center, r } = decl.params
+    let centerName: string | null = null
+    if (center !== null) {
+      if (center.kind === 'NameRef') {
+        centerName = center.name
+        this.touchPoint(centerName)
+      } else if (center.kind === 'TupleRef') {
+        centerName = this.materializePoint(center)
+      } else {
+        throw new ElaborationError(`invalid circle center reference`)
+      }
+    } else {
+      // Bare circle — mint an anonymous free center
+      centerName = `_pt${++this.anonCounter}`
+      this.points.add(centerName)
+    }
+
+    // If r is an unresolved scalar ref, emit a binding so the solver can
+    // back-propagate the derived radius to the scalar.
+    if (r !== null && this.isUnresolvedScalarRef(r)) {
+      this.constraints.push({
+        kind: 'scalar-equality', scalar: r.name,
+        target: { element: decl.name, field: 'r' },
+      })
+    }
+
+    this.constraints.push({
+      kind: 'circle-spec', circle: decl.name,
+      center: centerName, r: this.resolveScalarOrNull(r),
+    })
+  }
+
   // ── Constraint elaboration ───────────────────────────────────────────────
 
   elaborateConstraint(c: Constraint) {
@@ -353,6 +403,10 @@ class ElaborationContext {
         this.constraints.push({ kind: 'on-line', point: pointName, line: name })
         return
       }
+      if (this.circles.has(name)) {
+        this.constraints.push({ kind: 'on-circle', point: pointName, circle: name })
+        return
+      }
       if (name.length === 2) {
         const v1 = name[0]!, v2 = name[1]!
         this.touchPoint(v1)
@@ -426,6 +480,14 @@ class ElaborationContext {
 
   // ── TupleRef materialization ──────────────────────────────────────────────
 
+  /** Extract a ScalarExpr from a tuple slot — rejects nested TupleRefs. */
+  private scalarSlot(value: ScalarExpr | TupleRef): ScalarExpr {
+    if (typeof value !== 'number' && value.kind === 'TupleRef') {
+      throw new ElaborationError('nested tuple not allowed here')
+    }
+    return value as ScalarExpr
+  }
+
   /** Interpret a TupleRef as a point: mint an anonymous point with a position constraint. */
   private materializePoint(ref: TupleRef): string {
     if (ref.values.length !== 2)
@@ -434,7 +496,8 @@ class ElaborationContext {
     this.points.add(name)
     this.constraints.push({
       kind: 'position', point: name,
-      x: this.resolveScalar(ref.values[0]!), y: this.resolveScalar(ref.values[1]!),
+      x: this.resolveScalar(this.scalarSlot(ref.values[0]!)),
+      y: this.resolveScalar(this.scalarSlot(ref.values[1]!)),
     })
     return name
   }
@@ -447,13 +510,16 @@ class ElaborationContext {
       // slope-intercept (m, b) → a=m, b=-1, c=b
       this.constraints.push({
         kind: 'line-equation', line: name,
-        a: this.resolveScalar(ref.values[0]!), b: -1, c: this.resolveScalar(ref.values[1]!),
+        a: this.resolveScalar(this.scalarSlot(ref.values[0]!)), b: -1,
+        c: this.resolveScalar(this.scalarSlot(ref.values[1]!)),
       })
     } else if (ref.values.length === 3) {
       // general form (a, b, c)
       this.constraints.push({
         kind: 'line-equation', line: name,
-        a: this.resolveScalar(ref.values[0]!), b: this.resolveScalar(ref.values[1]!), c: this.resolveScalar(ref.values[2]!),
+        a: this.resolveScalar(this.scalarSlot(ref.values[0]!)),
+        b: this.resolveScalar(this.scalarSlot(ref.values[1]!)),
+        c: this.resolveScalar(this.scalarSlot(ref.values[2]!)),
       })
     } else {
       throw new ElaborationError(`expected 2 or 3 values for a line, got ${ref.values.length}`)
@@ -466,6 +532,9 @@ class ElaborationContext {
   private touchPoint(name: string) {
     if (this.lines.has(name)) {
       throw new ElaborationError(`"${name}" is already declared as a line`)
+    }
+    if (this.circles.has(name)) {
+      throw new ElaborationError(`"${name}" is already declared as a circle`)
     }
     this.points.add(name)
   }

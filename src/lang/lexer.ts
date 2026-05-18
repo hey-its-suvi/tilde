@@ -4,7 +4,7 @@ export type TokenKind =
   // Declaration
   | 'LET'
   // Shape keywords
-  | 'TRIANGLE' | 'SQUARE' | 'RECTANGLE' | 'SEGMENT' | 'POLYGON' | 'LINE'
+  | 'TRIANGLE' | 'SQUARE' | 'RECTANGLE' | 'SEGMENT' | 'POLYGON' | 'LINE' | 'CIRCLE'
   // Constraint keywords
   | 'PARALLEL' | 'PERPENDICULAR' | 'ANGLE' | 'POINT' | 'SCALAR'
   // Output
@@ -20,6 +20,8 @@ export type TokenKind =
   | 'WITH' | 'AND' | 'THROUGH' | 'AT'
   // Line property keywords
   | 'SLOPE' | 'INTERCEPT'
+  // Circle property keywords
+  | 'CENTER' | 'RADIUS'
   // Names
   | 'NAME'         // any alphanumeric identifier: abc, ABC, MyShape, t1
   // Literals
@@ -73,7 +75,10 @@ const KEYWORDS: Record<string, TokenKind> = {
   at:               'AT',
   slope:            'SLOPE',
   intercept:        'INTERCEPT',
+  center:           'CENTER',
+  radius:           'RADIUS',
   line:             'LINE',
+  circle:           'CIRCLE',
   scalar:           'SCALAR',
   pick:             'PICK',
 }

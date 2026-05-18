@@ -64,11 +64,18 @@ export function applyAnchor(model: GeomModel): void {
   // If T is already fixed by exactly 1 explicit point, use it as the pivot for R.
   let anchor: string | null = null
   if (tFree) {
+    // Anonymous points (e.g. anonymous circle centers) yield T-priority to any
+    // disconnected bare line that would otherwise absorb T via canonicalization.
+    // Without this, an anon point gets pinned at origin, the line still claims
+    // T-or-S for its position, and gauge gets double-counted with the next
+    // S-consumer (e.g. a bare circle's radius).
+    const lineWantsT = hasDisconnectedLineWantingPosition(model)
     for (const [k, wp] of model.points) {
-      if (wp.dof > 0 && !model.onLine.has(k) && !model.onSegment.has(k)) {
-        anchor = k
-        break
-      }
+      if (wp.dof === 0) continue
+      if (model.onLine.has(k) || model.onSegment.has(k) || model.onCircle.has(k)) continue
+      if (k.startsWith('_') && lineWantsT) continue
+      anchor = k
+      break
     }
     if (anchor !== null) {
       setPoint(model, anchor, CANONICAL_X, CANONICAL_Y, 0)
@@ -77,7 +84,7 @@ export function applyAnchor(model: GeomModel): void {
       // Tier 2: fall back to a free on-line point with a single line constraint.
       for (const [k, wp] of model.points) {
         if (wp.dof === 0) continue
-        if (model.onSegment.has(k)) continue
+        if (model.onSegment.has(k) || model.onCircle.has(k)) continue
         const lineNames = model.onLine.get(k)
         if (!lineNames || lineNames.length !== 1) continue
         const wl = model.lines.get(lineNames[0]!)
@@ -121,7 +128,7 @@ export function applyAnchor(model: GeomModel): void {
     const tryFix = (ref: string): boolean => {
       if (isZero(refDist)) return false  // anchor coincides with target — degenerate
       const refWp = model.points.get(ref)
-      if (!refWp || refWp.dof === 0 || model.onLine.has(ref) || model.onSegment.has(ref)) return false
+      if (!refWp || refWp.dof === 0 || model.onLine.has(ref) || model.onSegment.has(ref) || model.onCircle.has(ref)) return false
       const knownLen = getLength(model, anchor!, ref)
       if (sFree) {
         // Fix R + S: place ref at canonical target, set length = distance anchor→target
@@ -242,6 +249,19 @@ function isLineConnected(model: GeomModel, lineName: string): boolean {
   const perp = model.linePerpendicular.get(lineName)
   if (perp && perp.length > 0) return true
 
+  return false
+}
+
+/** True if at least one disconnected line has its position parameter (c) still
+ *  unknown — such a line will absorb T via canonicalization, so anonymous
+ *  points should yield to it rather than consuming T themselves. */
+function hasDisconnectedLineWantingPosition(model: GeomModel): boolean {
+  for (const [name, wl] of model.lines) {
+    const lv = workingVal(wl)
+    if (lv.c !== null) continue
+    if (isLineConnected(model, name)) continue
+    return true
+  }
   return false
 }
 

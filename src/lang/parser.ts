@@ -10,7 +10,7 @@
 
 import { Token, TokenKind } from './lexer.js'
 import {
-  Program, Statement, ShapeDecl, ShapeKind, LineDecl, PointDecl, ScalarDecl,
+  Program, Statement, ShapeDecl, ShapeKind, LineDecl, PointDecl, CircleDecl, ScalarDecl,
   ConstraintStmt, PrintStmt, SettingStmt, PickStmt,
   Constraint, LengthConstraint, AngleConstraint, RelationConstraint,
   EqualityConstraint, OnConstraint, PositionConstraint,
@@ -77,6 +77,7 @@ export function parse(tokens: Token[]): Program {
 
     if (check('TRIANGLE', 'SQUARE', 'RECTANGLE', 'SEGMENT', 'POLYGON')) return parseShapeDecl()
     if (check('LINE')) return parseLineDecl()
+    if (check('CIRCLE')) return parseCircleDecl()
     if (check('POINT')) {
       const op = tokens[pos + 2]?.kind
       if (op === 'EQUALS') return [parsePointDecl()]
@@ -108,6 +109,16 @@ export function parse(tokens: Token[]): Program {
     while (check('COMMA')) { advance(); vals.push(parseScalarExpr()) }
     eat('RPAREN')
     return vals
+  }
+
+  /** Parse a tuple value that may itself be a nested tuple — e.g. ((0,0), 5).
+   *  Used for circle declaration parameters. */
+  function parseTupleValue(): ScalarExpr | TupleRef {
+    if (check('LPAREN')) {
+      const values = parseTuple()
+      return { kind: 'TupleRef', values } satisfies TupleRef
+    }
+    return parseScalarExpr()
   }
 
   function parseRef(): Ref {
@@ -460,6 +471,104 @@ export function parse(tokens: Token[]): Program {
 
     eat('NEWLINE', 'EOF')
     return stmts
+  }
+
+  // ── Circle declaration ─────────────────────────────────────────────────────
+  //
+  // Tuple form:
+  //   circle c               — bare; center and radius free
+  //   circle c = (p, r)      — center is a named point, radius r
+  //   circle c = ((x, y), r) — anonymous center at (x, y), radius r
+  //
+  // `with` clause (alternative to the tuple form):
+  //   circle c with center p
+  //   circle c with center=(5, 3)
+  //   circle c with radius 3
+  //   circle c with center p and radius 3
+  //
+  // The `=` after a property name is optional (`with center p` = `with center=p`).
+  //
+  // Bundled forms — declare a sub-element and bind it in one statement:
+  //   circle c with center p = (5, 3)   ↔  point p = (5, 3); circle c with center=p
+  //   circle c with radius r = 3        ↔  scalar r = 3; circle c with radius=r
+  //
+  // One `=` per binding: `with center = p = (5, 3)` is rejected.
+
+  function parseCircleDecl(): Statement[] {
+    eat('CIRCLE')
+    const name = eat('NAME').value
+
+    let center: Ref | null = null
+    let r: ScalarExpr | null = null
+    const bundled: Statement[] = []
+
+    if (check('EQUALS')) {
+      // Tuple form: circle c = (...)
+      eat('EQUALS')
+      eat('LPAREN')
+      const first = parseTupleValue()
+      if (typeof first === 'number') {
+        throw new ParseError(`Expected a point name or inline (x, y) tuple as circle center, got number`, peek().line, peek().col)
+      } else if (first.kind === 'NameRef' || first.kind === 'TupleRef') {
+        center = first
+      } else {
+        throw new ParseError(`Expected a point name or inline (x, y) tuple as circle center`, peek().line, peek().col)
+      }
+      eat('COMMA')
+      r = parseScalarExpr()
+      eat('RPAREN')
+    } else if (check('WITH')) {
+      advance()
+      do {
+        if (check('CENTER')) {
+          advance()
+          const hadEquals = check('EQUALS') ? (advance(), true) : false
+          // Center value is either a point name (NameRef) or an inline tuple (TupleRef).
+          // Reject leading numeric literals — a single number isn't a valid center.
+          if (check('LPAREN')) {
+            const values = parseTuple()
+            center = { kind: 'TupleRef', values } satisfies TupleRef
+          } else if (check('NAME')) {
+            const pointName = advance().value
+            center = { kind: 'NameRef', name: pointName } satisfies NameRef
+            // Bundled: `with center p = (x, y)` also places point p
+            if (!hadEquals && check('EQUALS')) {
+              advance()
+              eat('LPAREN')
+              const x = parseScalarExpr()
+              eat('COMMA')
+              const y = parseScalarExpr()
+              eat('RPAREN')
+              bundled.push({
+                kind: 'ConstraintStmt',
+                constraint: { kind: 'PositionConstraint', vertex: { kind: 'NameRef', name: pointName }, x, y },
+              })
+            }
+          } else {
+            throw new ParseError(`Expected a point name or inline (x, y) after 'with center'`, peek().line, peek().col)
+          }
+        } else if (check('RADIUS')) {
+          advance()
+          const hadEquals = check('EQUALS') ? (advance(), true) : false
+          const value = parseScalarExpr()
+          // Bundled: `with radius r = 3` declares scalar r and binds radius to it
+          if (!hadEquals && typeof value !== 'number' && value.kind === 'NameRef' && check('EQUALS')) {
+            advance()
+            const bound = parseScalarExpr()
+            bundled.push({ kind: 'ScalarDecl', name: value.name, params: bound })
+          }
+          r = value
+        } else {
+          throw new ParseError(`Expected 'center' or 'radius' after 'with'`, peek().line, peek().col)
+        }
+      } while ((check('AND') || check('COMMA')) && !!advance())
+    }
+
+    eat('NEWLINE', 'EOF')
+    return [
+      ...bundled,
+      { kind: 'CircleDecl', name, params: { center, r } } satisfies CircleDecl,
+    ]
   }
 
   // ── Point declaration ──────────────────────────────────────────────────────

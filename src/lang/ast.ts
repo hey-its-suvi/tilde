@@ -1,7 +1,7 @@
 // ─── Tilde AST ───────────────────────────────────────────────────────────────
 // Every node has a `kind` discriminant for exhaustive pattern matching.
 
-import type { Scalar, Point, Line } from './solver/interface.js'
+import type { Scalar, Point, Line, Circle } from './solver/interface.js'
 
 export type Program = {
   kind: 'Program'
@@ -14,6 +14,7 @@ export type Statement =
   | ShapeDecl
   | LineDecl
   | PointDecl
+  | CircleDecl
   | ScalarDecl
   | ConstraintStmt
   | PrintStmt
@@ -23,9 +24,16 @@ export type Statement =
 /** A scalar value expression — either a literal number or a reference to a named scalar. */
 export type ScalarExpr = Scalar | NameRef
 
-/** Unresolved form of a geometry type — each field becomes ScalarExpr | null.
- *  For Scalar itself (number), becomes ScalarExpr | null directly. */
-type Unresolved<T> = T extends number ? ScalarExpr | null : { [K in keyof T]: ScalarExpr | null }
+/** Unresolved form of a geometry type. Dispatches on leaf types:
+ *   Scalar → ScalarExpr | null   (a number slot — literal or scalar ref)
+ *   string → Ref     | null      (a point-ref slot, e.g. circle center)
+ *   object → recurse field-wise
+ */
+type Unresolved<T> = T extends Scalar
+  ? ScalarExpr | null
+  : T extends string
+  ? Ref | null
+  : { [K in keyof T]: Unresolved<T[K]> }
 
 /** Element declaration — declares a named geometric primitive with optional params.
  *  Constraints that appear as inline sugar (e.g. `through`, `perpendicular`)
@@ -38,6 +46,7 @@ export type ElementDecl<K extends string, T> = {
 
 export type LineDecl = ElementDecl<'LineDecl', Line>
 export type PointDecl = ElementDecl<'PointDecl', Point>
+export type CircleDecl = ElementDecl<'CircleDecl', Circle>
 export type ScalarDecl = ElementDecl<'ScalarDecl', Scalar>
 
 export type ShapeKind = 'triangle' | 'square' | 'rectangle' | 'segment' | 'polygon'
@@ -86,11 +95,11 @@ export type NameRef = { kind: 'NameRef'; name: string }
  */
 export type SubscriptRef = { kind: 'SubscriptRef'; shape: string; indices: number[] }
 
-/** An inline numeric tuple — e.g. (1, 2) or (m, -1, 0).
- *  Values may be scalar refs resolved during elaboration.
- *  The optional hint keyword (point/line/circle) disambiguates when
- *  the tuple length is ambiguous for the context. */
-export type TupleRef = { kind: 'TupleRef'; values: ScalarExpr[]; hint?: 'point' | 'line' | 'circle' }
+/** An inline tuple — e.g. (1, 2), (m, -1, 0), or ((0, 0), 5).
+ *  Values are usually ScalarExprs; nested tuples are allowed so a circle
+ *  can be written ((cx, cy), r). The optional hint keyword (point/line/circle)
+ *  disambiguates when the tuple length is ambiguous for the context. */
+export type TupleRef = { kind: 'TupleRef'; values: (ScalarExpr | TupleRef)[]; hint?: 'point' | 'line' | 'circle' }
 
 export type Ref = NameRef | SubscriptRef | TupleRef
 

@@ -216,5 +216,17 @@ function placedNeighborsWithDist(
       result.push({ x: pv.x!, y: pv.y!, dist, dof: wp.dof })
     }
   }
+  // On-circle: each circle whose center is placed and radius is known acts as
+  // a circular locus around the center, with dist = r.
+  for (const circleName of model.onCircle.get(v) ?? []) {
+    const wc = model.circles.get(circleName)
+    if (!wc) continue
+    const cv = workingVal(wc)
+    if (cv.center === null || cv.r === null) continue
+    if (!placed.has(cv.center)) continue
+    const wp = getPoint(model, cv.center)!
+    const pv = workingVal(wp)
+    result.push({ x: pv.x!, y: pv.y!, dist: cv.r, dof: wp.dof })
+  }
   return result
 }

@@ -97,6 +97,16 @@ export function assertLineEq(scene: SceneGraph, label: string, a: number, b: num
   }
 }
 
+export function assertCircle(scene: SceneGraph, label: string, cx: number, cy: number, r: number, epsilon = 1e-9): void {
+  const c = scene.circles.find(c => c.label === label)
+  if (!c) {
+    throw new Error(`assertCircle: circle "${label}" not found\n  circles: [${scene.circles.map(c => c.label).join(', ')}]`)
+  }
+  if (Math.abs(c.cx - cx) > epsilon || Math.abs(c.cy - cy) > epsilon || Math.abs(c.r - r) > epsilon) {
+    throw new Error(`assertCircle: "${label}" is (cx=${c.cx}, cy=${c.cy}, r=${c.r}), expected (cx=${cx}, cy=${cy}, r=${r})`)
+  }
+}
+
 export function assertScalar(scene: SceneGraph, label: string, expected: number, epsilon = 1e-9): void {
   const sc = scene.scalars.find(s => s.label === label)
   if (!sc) {

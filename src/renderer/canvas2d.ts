@@ -1,6 +1,6 @@
 // ─── Canvas 2D Renderer ───────────────────────────────────────────────────────
 
-import { Renderer, SceneGraph, SceneLine, SceneSegment, ScenePoint, RenderConfig, Solutions } from './interface.js'
+import { Renderer, SceneGraph, SceneLine, SceneCircle, SceneSegment, ScenePoint, RenderConfig, Solutions } from './interface.js'
 
 const SCALE       = 60   // pixels per unit
 const DOT_RADIUS  = 3    // inner filled dot, screen pixels
@@ -15,7 +15,7 @@ const COLOR: Record<Solutions, string> = {
 
 export class Canvas2DRenderer implements Renderer {
   private ctx: CanvasRenderingContext2D
-  private scene: SceneGraph = { segments: [], points: [], arcs: [], annotations: [], lines: [] }
+  private scene: SceneGraph = { segments: [], points: [], arcs: [], annotations: [], lines: [], circles: [], scalars: [] }
   private config: RenderConfig = { grid: true }
   private panX = 0   // screen pixels
   private panY = 0   // screen pixels
@@ -106,6 +106,12 @@ export class Canvas2DRenderer implements Renderer {
         return { kind: 'line' as const, label: ln.label, a: ln.a, b: ln.b, c: ln.c, solutions: ln.solutions }
       }
     }
+    for (const ci of this.scene.circles) {
+      const dist = Math.abs(Math.sqrt((wx - ci.cx) ** 2 + (wy - ci.cy) ** 2) - ci.r)
+      if (dist <= hitWorld) {
+        return { kind: 'circle' as const, label: ci.label, cx: ci.cx, cy: ci.cy, r: ci.r, solutions: ci.solutions }
+      }
+    }
     return null
   }
 
@@ -120,6 +126,7 @@ export class Canvas2DRenderer implements Renderer {
 
     if (this.config.grid) this.drawGrid()
     for (const ln  of this.scene.lines)    this.drawLine(ln)
+    for (const ci  of this.scene.circles)  this.drawCircle(ci)
     for (const seg of this.scene.segments) this.drawSegment(seg)
     for (const pt  of this.scene.points)   this.drawPoint(pt)
 
@@ -227,6 +234,39 @@ export class Canvas2DRenderer implements Renderer {
     ctx.fillStyle = color
     const label = ln.solutionIndex !== undefined ? `${ln.label} ${ln.solutionIndex}` : ln.label
     ctx.fillText(label, labelX, labelY)
+    ctx.restore()
+  }
+
+  // ── Circles ───────────────────────────────────────────────────────────────
+
+  private drawCircle(ci: SceneCircle) {
+    const { ctx } = this
+    const scale = SCALE * this.zoom
+    const px = 1 / scale
+    const color = COLOR[ci.solutions]
+
+    ctx.save()
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1.5 * px
+    ctx.beginPath()
+
+    if (ci.solutions === 'one') {
+      ctx.arc(ci.cx, ci.cy, ci.r, 0, Math.PI * 2)
+    } else if (ci.solutions === 'infinite') {
+      drawWavyArc(ctx, ci.cx, ci.cy, ci.r)
+    } else {
+      drawJaggedArc(ctx, ci.cx, ci.cy, ci.r)
+    }
+    ctx.stroke()
+
+    // Label: place outside the circle, NE quadrant
+    const offset = 6 * px
+    const labelX = (ci.cx + ci.r * Math.SQRT1_2 + offset) * scale
+    const labelY = -(ci.cy + ci.r * Math.SQRT1_2 + offset) * scale
+    ctx.scale(1 / scale, -1 / scale)
+    ctx.font = '11px monospace'
+    ctx.fillStyle = color
+    ctx.fillText(ci.label, labelX, labelY)
     ctx.restore()
   }
 
@@ -388,6 +428,40 @@ function drawWavyCircle(
   for (let i = 0; i <= steps; i++) {
     const angle  = (i / steps) * Math.PI * 2
     const radius = r + amp * Math.sin(waves * angle)
+    const x = cx + Math.cos(angle) * radius
+    const y = cy + Math.sin(angle) * radius
+    if (i === 0) ctx.moveTo(x, y)
+    else         ctx.lineTo(x, y)
+  }
+  ctx.closePath()
+}
+
+// Full-circle wavy/jagged variants with fixed-pixel amplitude — mirroring
+// drawSquiggly / drawJaggyLine but parameterized for a closed circular path.
+// (The point-ring helpers above use radius-relative amplitudes appropriate
+//  for a small 10px ring and would look extreme on a world-scale circle.)
+
+function drawWavyArc(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  const amp   = 3.5 / SCALE
+  const waves = Math.max(12, Math.round(r * 6))
+  const steps = Math.max(64, waves * 8)
+  for (let i = 0; i <= steps; i++) {
+    const angle  = (i / steps) * Math.PI * 2
+    const radius = r + amp * Math.sin(waves * angle)
+    const x = cx + Math.cos(angle) * radius
+    const y = cy + Math.sin(angle) * radius
+    if (i === 0) ctx.moveTo(x, y)
+    else         ctx.lineTo(x, y)
+  }
+  ctx.closePath()
+}
+
+function drawJaggedArc(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  const amp   = 2.5 / SCALE
+  const steps = Math.max(24, Math.round(r * 12))
+  for (let i = 0; i <= steps; i++) {
+    const angle  = (i / steps) * Math.PI * 2
+    const radius = r + (i % 2 === 0 ? amp : -amp)
     const x = cx + Math.cos(angle) * radius
     const y = cy + Math.sin(angle) * radius
     if (i === 0) ctx.moveTo(x, y)
