@@ -7,17 +7,21 @@ import {
   Solver, ConstraintSet, SolveResult,
   ResolvedConstraint, ElementResult, Point, Line, Scalar,
 } from '../interface.js'
-import { GeomModel, makeModel, touchPoint, setPoint, setLength, setAngle, segKey } from './model.js'
-import { makeWorkingLine, makeWorkingScalar, workingVal, isWorkingComplete } from './types.js'
+import { GeomModel, makeModel, touchPoint, setPoint, setLength, setAngle } from './model.js'
+import { makeWorkingLine, makeWorkingScalar, workingVal, isWorkingComplete, lineDofFromState } from './types.js'
 import { ConstraintError } from '../interface.js'
 import { isEqual } from './geom.js'
-import { applyAnchor } from './anchor.js'
+import { AnchorStrategy, RuleBasedAnchor } from './anchor.js'
 import { resolve } from './resolve.js'
 
 export class GeometricSolver implements Solver {
+  constructor(private anchor: AnchorStrategy = new RuleBasedAnchor()) {}
+
   solve(input: ConstraintSet): SolveResult {
     const model = this.buildModel(input)
-    applyAnchor(model)
+    const plan = this.anchor.plan(model)
+    model.anchorKey = plan.anchorKey
+    for (const c of plan.constraints) this.applyConstraint(model, c)
     resolve(model)
     return this.extractResult(model, input)
   }
@@ -94,9 +98,7 @@ export class GeometricSolver implements Solver {
         if (c.a !== null) lv.a = c.a
         if (c.b !== null) lv.b = c.b
         if (c.c !== null) lv.c = c.c
-        // Recalculate dof
-        const nulls = (lv.a === null ? 1 : 0) + (lv.b === null ? 1 : 0) + (lv.c === null ? 1 : 0)
-        wl.dof = Math.min(nulls, 2)
+        wl.dof = lineDofFromState(lv.a, lv.b, lv.c)
         break
       }
       case 'parallel': {

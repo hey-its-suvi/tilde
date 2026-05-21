@@ -1,27 +1,37 @@
-// ─── Tilde Solver — Pass 2: Anchor Selection ─────────────────────────────────
-// Detects which global DOFs (T, R, S) are unconstrained and pins them
-// to a canonical position.  This is deterministic constraint solving —
-// not guesswork — it's the minimal set of fixers that lift a floating scene
-// into standard form (gauge fixing).
+// ─── Tilde Solver — Pass 2: Anchor ─────────────────────────────────────────────
+// An AnchorStrategy analyses a GeomModel and returns the set of gauge-fixing
+// constraints needed to lift a floating scene into a standard position.
+// Conceptually anchor just *adds constraints* — points pinned, segments given
+// canonical length, lines given canonical direction/position. The solver
+// applies the returned constraints alongside the user's; the dof of each
+// element falls out naturally from constraint counting.
 //
-// DOF detection rules:
-//   T (translation) free  — no point has explicit coords AND no line has a known position
-//   R (rotation) free     — no line AND at most 1 point has explicit coords
-//                           (2+ placed points define a direction → rotation fixed)
-//   S (scale) free        — no length constraint exists AND fewer than 2 points have explicit coords
-//                           (2+ placed points implicitly define a scale via their distance)
-//
-// Canonical fixers applied in order T → R+S → lines:
-//   T      : pin first eligible free point to origin (0, 0)
-//   R + S  : find first free segment from anchor, set length = 1, pin far end to (1, 0)
-//   R only : find first free segment from anchor with known length L, pin far end to (L, 0)
-//   S only : find first segment between two free points with no length, set length = 1
-//   Lines  : for each disconnected line, determine how many DOFs are absorbed
-//            by remaining global freedoms after point anchoring
+// Multiple strategies can implement the same interface — they differ in how
+// they decide which gauges go where. `RuleBasedAnchor` (this file) reproduces
+// the original rule-pile behaviour; future strategies (e.g. a budget-based
+// one) plug into the same interface and can be A/B tested by passing a
+// different strategy into `GeometricSolver`.
 
-import { GeomModel, setPoint, setLength, getLength } from './model.js'
-import { workingVal, isWorkingComplete } from './types.js'
+import { GeomModel, setPoint, setLength, getLength, cloneModel } from './model.js'
+import { workingVal, isWorkingComplete, lineDofFromState } from './types.js'
 import { isZero, isEqual } from './geom.js'
+import type { ResolvedConstraint } from '../interface.js'
+
+// ── Strategy interface ────────────────────────────────────────────────────────
+
+export type AnchorPlan = {
+  /** Gauge-fixing constraints to apply to the model. Same shape as user constraints. */
+  constraints: ResolvedConstraint[]
+  /** The T-anchor point, if one was selected. Used by `resolve` to determine
+   *  whether scene orientation is already pinned. */
+  anchorKey: string | null
+}
+
+export interface AnchorStrategy {
+  /** Read-only analysis. Returns the gauge-fixing constraints; the caller
+   *  applies them to a model. Implementations must not mutate the input. */
+  plan(model: GeomModel): AnchorPlan
+}
 
 // These define the "standard position" that pass 2 normalises every floating
 // scene into.  Change them here to shift the convention globally.
@@ -31,7 +41,20 @@ export const CANONICAL_DIR_X = 1   // R fixer: reference point is placed in this
 export const CANONICAL_DIR_Y = 0   //          (1,0) = +x axis; must be a unit vector
 export const CANONICAL_SCALE = 1   // S fixer: canonical distance from anchor to reference point
 
-export function applyAnchor(model: GeomModel): void {
+// ── Rule-based strategy ───────────────────────────────────────────────────────
+// Runs the legacy two-pass logic (T → R+S → line absorbing) on a private clone
+// of the model, then diffs against the input to produce gauge-fixing
+// constraints. The strategy itself doesn't mutate the caller's model.
+
+export class RuleBasedAnchor implements AnchorStrategy {
+  plan(model: GeomModel): AnchorPlan {
+    const scratch = cloneModel(model)
+    runRuleBasedAnchor(scratch)
+    return diffToPlan(model, scratch)
+  }
+}
+
+function runRuleBasedAnchor(model: GeomModel): void {
   let hasFullLine      = false  // all of a,b,c known — fixes T and R
   let hasDirectionLine = false  // a,b known (c may be null) — fixes R only
   for (const wl of model.lines.values()) {
@@ -206,25 +229,77 @@ export function applyAnchor(model: GeomModel): void {
   const postSFree = [...model.lengths.values()].every(l => l === null) && postFixedPts.length < 2
 
   for (const [lineName, wl] of model.lines) {
-    // Skip lines that already have coefficients (not bare/partial from declaration)
     const lv = workingVal(wl)
     const nullCount = (lv.a === null ? 1 : 0) + (lv.b === null ? 1 : 0) + (lv.c === null ? 1 : 0)
     if (nullCount === 0) continue  // fully specified, nothing to anchor
+    if (isLineConnected(model, lineName)) continue  // resolve handles these
 
-    // Skip connected lines — resolve pass handles them
-    if (isLineConnected(model, lineName)) continue
-
-    // Determine how many intrinsic DOFs are absorbed by global freedoms
+    // Absorb available global freedoms by writing canonical values into the
+    // line's unknown coefficients. dof falls out naturally from how many nulls
+    // remain after the assignment (via `lineDofFromState`).
+    //   R absorbs direction (canonical slope 1: a = -b)
+    //   T or S absorbs position (canonical c = 0)
     const directionKnown = lv.a !== null && lv.b !== null
-    const positionKnown = lv.c !== null  // simplified: c known means position is constrained
+    const positionKnown = lv.c !== null
 
-    let absorbed = 0
-    if (!directionKnown && postRFree) absorbed++   // R absorbs direction
-    if (!positionKnown && (postTFree || postSFree)) absorbed++  // T or S absorbs position
+    if (!directionKnown && postRFree) {
+      // Slope 1: a = -b. If b is also null, use the canonical (1, -1) pair.
+      if (lv.b !== null) {
+        lv.a = -lv.b
+      } else if (lv.a !== null) {
+        lv.b = -lv.a
+      } else {
+        lv.a = 1
+        lv.b = -1
+      }
+    }
+    if (!positionKnown && (postTFree || postSFree)) {
+      lv.c = 0
+    }
 
-    const intrinsicDof = (directionKnown ? 0 : 1) + (positionKnown ? 0 : 1)
-    wl.dof = intrinsicDof - absorbed
+    wl.dof = lineDofFromState(lv.a, lv.b, lv.c)
   }
+}
+
+// ── Diffing ───────────────────────────────────────────────────────────────────
+// Read the scratch model after `runRuleBasedAnchor` has mutated it, compare to
+// the input, and emit the constraints that describe the difference.
+
+function diffToPlan(before: GeomModel, after: GeomModel): AnchorPlan {
+  const constraints: ResolvedConstraint[] = []
+
+  // Points that gained a placement
+  for (const [k, afterWp] of after.points) {
+    const beforeWp = before.points.get(k)
+    if (beforeWp && isWorkingComplete(beforeWp)) continue   // already placed
+    if (!isWorkingComplete(afterWp)) continue               // still unplaced
+    const pv = workingVal(afterWp)
+    constraints.push({ kind: 'position', point: k, x: pv.x!, y: pv.y! })
+  }
+
+  // Lengths that gained a value
+  for (const [k, afterLen] of after.lengths) {
+    if (afterLen === null) continue
+    const beforeLen = before.lengths.get(k)
+    if (beforeLen !== null && beforeLen !== undefined) continue
+    const [p1, p2] = k.split(':') as [string, string]
+    constraints.push({ kind: 'distance', p1, p2, value: afterLen })
+  }
+
+  // Lines whose coefficients gained values (anchor canonicalising direction/position)
+  for (const [name, afterWl] of after.lines) {
+    const beforeWl = before.lines.get(name)
+    if (!beforeWl) continue
+    const bv = workingVal(beforeWl), av = workingVal(afterWl)
+    const dA = bv.a === null && av.a !== null ? av.a : null
+    const dB = bv.b === null && av.b !== null ? av.b : null
+    const dC = bv.c === null && av.c !== null ? av.c : null
+    if (dA !== null || dB !== null || dC !== null) {
+      constraints.push({ kind: 'line-equation', line: name, a: dA, b: dB, c: dC })
+    }
+  }
+
+  return { constraints, anchorKey: after.anchorKey }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

@@ -53,12 +53,19 @@ export function makeWorkingPoint(x: number | null = null, y: number | null = nul
   return { resolved: [{ x, y }], dof }
 }
 
-/** Create a working line from nullable coefficients.
- *  dof = number of null fields (0 = fully specified, 1 = one unknown). */
+/** Create a working line from nullable coefficients. */
 export function makeWorkingLine(a: number | null, b: number | null, c: number | null): WorkingLine {
-  const nulls = (a === null ? 1 : 0) + (b === null ? 1 : 0) + (c === null ? 1 : 0)
-  const dof = Math.min(nulls, 2)  // a line in 2D has at most 2 geometric DOF
-  return { resolved: [{ a, b, c }], dof }
+  return { resolved: [{ a, b, c }], dof: lineDofFromState(a, b, c) }
+}
+
+/** Geometric DOF count for a line with the given coefficient state. A line in
+ *  2D has at most 2 DOFs: direction (1) and position (1). The direction is
+ *  determined by the (a, b) pair as a whole — having BOTH null counts as one
+ *  unknown DOF, not two, because their ratio is what matters. */
+export function lineDofFromState(a: number | null, b: number | null, c: number | null): number {
+  const directionKnown = a !== null && b !== null
+  const positionKnown = c !== null
+  return (directionKnown ? 0 : 1) + (positionKnown ? 0 : 1)
 }
 
 /** Create a working scalar — null value means unknown (dof=1). */

@@ -39,6 +39,32 @@ export function makeModel(): GeomModel {
   }
 }
 
+/** Deep-clone a model. Used by anchor strategies that want to compute their
+ *  plan without mutating the caller's model. */
+export function cloneModel(m: GeomModel): GeomModel {
+  const cloneWorking = (w: { resolved: Array<Record<string, unknown> | number | null>; dof: number }) => ({
+    resolved: w.resolved.map(r => r === null || typeof r === 'number' ? r : { ...r }),
+    dof: w.dof,
+  })
+  return {
+    points: new Map([...m.points].map(([k, v]) => [k, cloneWorking(v) as WorkingPoint])),
+    segments: new Set(m.segments),
+    lengths: new Map(m.lengths),
+    angles: new Map(m.angles),
+    lines: new Map([...m.lines].map(([k, v]) => [k, cloneWorking(v) as WorkingLine])),
+    shapes: new Map(m.shapes),
+    onLine: new Map([...m.onLine].map(([k, v]) => [k, [...v]])),
+    onSegment: new Map(m.onSegment),
+    lineParallel: new Map([...m.lineParallel].map(([k, v]) => [k, v.map(p => ({ ...p }))])),
+    linePerpendicular: new Map([...m.linePerpendicular].map(([k, v]) => [k, [...v]])),
+    scalars: new Map([...m.scalars].map(([k, v]) => [k, cloneWorking(v) as WorkingScalar])),
+    scalarBindings: m.scalarBindings.map(b => ({ ...b })),
+    solutionPicks: new Map(m.solutionPicks),
+    anchorKey: m.anchorKey,
+    activeUnit: m.activeUnit,
+  }
+}
+
 // ─── Point helpers ────────────────────────────────────────────────────────────
 
 export function touchPoint(model: GeomModel, key: string): WorkingPoint {
