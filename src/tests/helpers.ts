@@ -1,9 +1,21 @@
 // ─── Tilde Test Helpers ───────────────────────────────────────────────────────
+//
+// `run()` invokes the solver with whichever anchor strategy is currently
+// active. To run the whole suite against a specific anchor, set the ANCHOR
+// env var before invoking vitest:
+//
+//   ANCHOR=budget npx vitest run     # all tests against budget anchor
+//   ANCHOR=rule npx vitest run       # default (also the default with no var)
 
 import { lex } from '@lang/lexer.js'
 import { parse } from '@lang/parser.js'
-import { solve } from '@lang/solver/index.js'
+import { solve, setAnchor, AnchorName } from '@lang/solver/index.js'
 import { SceneGraph, Solutions } from '@renderer/interface.js'
+
+const envAnchor = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.ANCHOR
+if (envAnchor === 'rule' || envAnchor === 'budget') {
+  setAnchor(envAnchor as AnchorName)
+}
 
 export function run(source: string): SceneGraph {
   return solve(parse(lex(source))).scene

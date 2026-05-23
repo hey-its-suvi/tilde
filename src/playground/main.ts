@@ -3,7 +3,7 @@
 import { createEditor } from './editor.js'
 import { lex, LexError } from '../lang/lexer.js'
 import { parse, ParseError } from '../lang/parser.js'
-import { solve } from '../lang/solver/index.js'
+import { solve, setAnchor, getAnchor, ANCHOR_NAMES, AnchorName } from '../lang/solver/index.js'
 import { ConstraintError } from '../lang/solver/interface.js'
 import { ElaborationError } from '../lang/elaborate.js'
 import { Canvas2DRenderer } from '../renderer/canvas2d.js'
@@ -78,6 +78,30 @@ resetBtn.addEventListener('click', () => {
   localStorage.removeItem(STORAGE_KEY)
   editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: DEFAULT_SOURCE } })
 })
+
+// ─── Anchor picker (dev) ──────────────────────────────────────────────────────
+// Gated behind a literal `true` so it can be hidden on the public playground
+// later by flipping this to a real dev flag. While visible, lets us A/B
+// compare anchor strategies without code changes.
+
+if (true) {
+  const header = document.querySelector('header > div:last-child') ?? document.querySelector('header')!
+  const picker = document.createElement('select')
+  picker.id = 'anchor-picker'
+  picker.style.cssText = 'font-family: monospace; font-size: 0.8rem; margin-right: 12px; background: #2a2a3e; color: #f5f5f0; border: 1px solid #444; padding: 2px 6px; border-radius: 3px;'
+  for (const name of ANCHOR_NAMES) {
+    const opt = document.createElement('option')
+    opt.value = name
+    opt.textContent = `anchor: ${name}`
+    picker.appendChild(opt)
+  }
+  picker.value = getAnchor()
+  picker.addEventListener('change', () => {
+    setAnchor(picker.value as AnchorName)
+    compile(editor.state.doc.toString())
+  })
+  header.insertBefore(picker, header.firstChild)
+}
 
 // ─── Pan ──────────────────────────────────────────────────────────────────────
 
