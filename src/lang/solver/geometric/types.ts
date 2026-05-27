@@ -77,7 +77,6 @@ export function makeWorkingScalar(value: number | null = null): WorkingScalar {
 
 export type PlacementState = {
   placed:           Set<string>
-  orientationFixed: boolean
   hdX:              number   // heading for 1-locus circle placements
   hdY:              number
   isolatedSeedIdx:  number

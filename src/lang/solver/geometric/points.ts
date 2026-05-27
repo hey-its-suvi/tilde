@@ -115,14 +115,16 @@ export function tryPlaceVertexByCircleIntersectLine(model: GeomModel, st: Placem
 export function tryPlaceVertexByLocus(model: GeomModel, st: PlacementState): boolean {
   // 1a. Circle — exactly 1 placed neighbour with known distance, no other loci.
   //     Heading rotates 90° CCW after each use to prevent collinear degeneracy.
+  //     The point always remains underdetermined (dof=1) — it's on a circle
+  //     around the neighbour and the direction we picked is a representative
+  //     choice, not a gauge claim. Gauge consumption is the anchor's job.
   for (const v of model.points.keys()) {
     if (st.placed.has(v)) continue
     const nbrs = placedNeighborsWithDist(model, st.placed, v)
     if (nbrs.length !== 1) continue
     const n = nbrs[0]!
-    setPoint(model, v, n.x + n.dist * st.hdX, n.y + n.dist * st.hdY, st.orientationFixed ? 1 : 0)
+    setPoint(model, v, n.x + n.dist * st.hdX, n.y + n.dist * st.hdY, 1)
     ;[st.hdX, st.hdY] = [-st.hdY, st.hdX]  // rotate 90° CCW
-    st.orientationFixed = true
     st.placed.add(v)
     return true
   }

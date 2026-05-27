@@ -22,7 +22,6 @@ export type GeomModel = {
   scalars:      Map<string, WorkingScalar>                // named scalars
   scalarBindings: Array<{ scalar: string; element: string; field: string }>  // scalar ← element.field
   solutionPicks: Map<string, number>                     // vertex name → 1-based solution index
-  anchorKey:    string | null
   activeUnit:   LengthUnit | null                        // null = pure abstract (no units used)
 }
 
@@ -34,7 +33,6 @@ export function makeModel(): GeomModel {
     lineParallel: new Map(), linePerpendicular: new Map(),
     scalars: new Map(), scalarBindings: [],
     solutionPicks: new Map(),
-    anchorKey: null,
     activeUnit: null,
   }
 }
@@ -60,7 +58,6 @@ export function cloneModel(m: GeomModel): GeomModel {
     scalars: new Map([...m.scalars].map(([k, v]) => [k, cloneWorking(v) as WorkingScalar])),
     scalarBindings: m.scalarBindings.map(b => ({ ...b })),
     solutionPicks: new Map(m.solutionPicks),
-    anchorKey: m.anchorKey,
     activeUnit: m.activeUnit,
   }
 }

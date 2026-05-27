@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.20 — current
+## 0.3.21 — current
+
+- **Fix dof reporting for free 1-locus points**: a point with a known distance to a single placed neighbour (and no other constraints) used to be reported as fully determined when it happened to be placed first, even when the neighbour itself was at an arbitrary position. It is now correctly reported as underconstrained — the placement we picked is representative, not canonical. Affects scenes with disconnected components whose canonicalization can't be reached from the anchor (e.g. `point a; segment bc = 5`).
+
+## 0.3.20
 
 - **Better anchor accounting for partial lines with a free point**: `line l = (1,); point p on l` (and the symmetric direction-only / y-intercept-only forms) now resolves fully — the T-gauge that was previously unused is consumed by placing the point at the line's natural position (origin for slope-only and direction-only forms; the line's pinned point for y-intercept-only forms). Both line and point render as solid instead of underconstrained.
 - **R-gauge tracking when canonicalizing line direction**: when a connected line gets a canonical default slope filled in (e.g. y-intercept-only line with a free point at the y-intercept), the line is marked as resolved (dof=0) if rotation-gauge was still available, rather than left as underconstrained.

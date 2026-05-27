@@ -25,14 +25,10 @@ export function resolve(model: GeomModel): void {
     if (isWorkingComplete(wp)) placed.add(k)
   }
 
-  const explicitlyPlaced = placed.size - (model.anchorKey !== null ? 1 : 0)
-  const orientationFixed  = explicitlyPlaced > 0
-
   const st: PlacementState = {
     placed,
-    orientationFixed,
-    hdX: orientationFixed ? 0 : 1,
-    hdY: orientationFixed ? 1 : 0,
+    hdX: 1,
+    hdY: 0,
     isolatedSeedIdx: 0,
   }
 

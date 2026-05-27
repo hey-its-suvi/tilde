@@ -22,9 +22,6 @@ import type { ResolvedConstraint } from '../interface.js'
 export type AnchorPlan = {
   /** Gauge-fixing constraints to apply to the model. Same shape as user constraints. */
   constraints: ResolvedConstraint[]
-  /** The T-anchor point, if one was selected. Used by `resolve` to determine
-   *  whether scene orientation is already pinned. */
-  anchorKey: string | null
 }
 
 export interface AnchorStrategy {
@@ -95,7 +92,6 @@ function runRuleBasedAnchor(model: GeomModel): void {
     }
     if (anchor !== null) {
       setPoint(model, anchor, CANONICAL_X, CANONICAL_Y, 0)
-      model.anchorKey = anchor
     } else {
       // Tier 2: fall back to a free on-line point with a single line constraint.
       for (const [k, wp] of model.points) {
@@ -108,7 +104,6 @@ function runRuleBasedAnchor(model: GeomModel): void {
         const placement = naturalPointOnLine(wl)
         if (placement === null) continue
         setPoint(model, k, placement.x, placement.y, 0)
-        model.anchorKey = k
         anchor = k
         break
       }
@@ -299,7 +294,7 @@ function diffToPlan(before: GeomModel, after: GeomModel): AnchorPlan {
     }
   }
 
-  return { constraints, anchorKey: after.anchorKey }
+  return { constraints }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

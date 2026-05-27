@@ -20,7 +20,6 @@ export class GeometricSolver implements Solver {
   solve(input: ConstraintSet): SolveResult {
     const model = this.buildModel(input)
     const plan = this.anchor.plan(model)
-    model.anchorKey = plan.anchorKey
     for (const c of plan.constraints) this.applyConstraint(model, c)
     resolve(model)
     return this.extractResult(model, input)
