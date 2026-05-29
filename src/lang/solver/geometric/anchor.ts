@@ -15,19 +15,13 @@
 import { GeomModel, setPoint, setLength, getLength, cloneModel } from './model.js'
 import { workingVal, isWorkingComplete, lineDofFromState } from './types.js'
 import { isZero, isEqual } from './geom.js'
-import type { ResolvedConstraint } from '../interface.js'
 
 // ── Strategy interface ────────────────────────────────────────────────────────
 
-export type AnchorPlan = {
-  /** Gauge-fixing constraints to apply to the model. Same shape as user constraints. */
-  constraints: ResolvedConstraint[]
-}
-
 export interface AnchorStrategy {
-  /** Read-only analysis. Returns the gauge-fixing constraints; the caller
-   *  applies them to a model. Implementations must not mutate the input. */
-  plan(model: GeomModel): AnchorPlan
+  /** Returns a new model with gauge-fixing applied. Must not mutate the input.
+   *  The returned model is fed straight to `resolve`. */
+  plan(model: GeomModel): GeomModel
 }
 
 // These define the "standard position" that pass 2 normalises every floating
@@ -40,14 +34,13 @@ export const CANONICAL_SCALE = 1   // S fixer: canonical distance from anchor to
 
 // ── Rule-based strategy ───────────────────────────────────────────────────────
 // Runs the legacy two-pass logic (T → R+S → line absorbing) on a private clone
-// of the model, then diffs against the input to produce gauge-fixing
-// constraints. The strategy itself doesn't mutate the caller's model.
+// of the model and returns the modified clone.
 
 export class RuleBasedAnchor implements AnchorStrategy {
-  plan(model: GeomModel): AnchorPlan {
+  plan(model: GeomModel): GeomModel {
     const scratch = cloneModel(model)
     runRuleBasedAnchor(scratch)
-    return diffToPlan(model, scratch)
+    return scratch
   }
 }
 
@@ -254,47 +247,6 @@ function runRuleBasedAnchor(model: GeomModel): void {
 
     wl.dof = lineDofFromState(lv.a, lv.b, lv.c)
   }
-}
-
-// ── Diffing ───────────────────────────────────────────────────────────────────
-// Read the scratch model after `runRuleBasedAnchor` has mutated it, compare to
-// the input, and emit the constraints that describe the difference.
-
-function diffToPlan(before: GeomModel, after: GeomModel): AnchorPlan {
-  const constraints: ResolvedConstraint[] = []
-
-  // Points that gained a placement
-  for (const [k, afterWp] of after.points) {
-    const beforeWp = before.points.get(k)
-    if (beforeWp && isWorkingComplete(beforeWp)) continue   // already placed
-    if (!isWorkingComplete(afterWp)) continue               // still unplaced
-    const pv = workingVal(afterWp)
-    constraints.push({ kind: 'position', point: k, x: pv.x!, y: pv.y! })
-  }
-
-  // Lengths that gained a value
-  for (const [k, afterLen] of after.lengths) {
-    if (afterLen === null) continue
-    const beforeLen = before.lengths.get(k)
-    if (beforeLen !== null && beforeLen !== undefined) continue
-    const [p1, p2] = k.split(':') as [string, string]
-    constraints.push({ kind: 'distance', p1, p2, value: afterLen })
-  }
-
-  // Lines whose coefficients gained values (anchor canonicalising direction/position)
-  for (const [name, afterWl] of after.lines) {
-    const beforeWl = before.lines.get(name)
-    if (!beforeWl) continue
-    const bv = workingVal(beforeWl), av = workingVal(afterWl)
-    const dA = bv.a === null && av.a !== null ? av.a : null
-    const dB = bv.b === null && av.b !== null ? av.b : null
-    const dC = bv.c === null && av.c !== null ? av.c : null
-    if (dA !== null || dB !== null || dC !== null) {
-      constraints.push({ kind: 'line-equation', line: name, a: dA, b: dB, c: dC })
-    }
-  }
-
-  return { constraints }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

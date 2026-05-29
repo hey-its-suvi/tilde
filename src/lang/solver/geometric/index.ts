@@ -18,11 +18,10 @@ export class GeometricSolver implements Solver {
   constructor(private anchor: AnchorStrategy = new RuleBasedAnchor()) {}
 
   solve(input: ConstraintSet): SolveResult {
-    const model = this.buildModel(input)
-    const plan = this.anchor.plan(model)
-    for (const c of plan.constraints) this.applyConstraint(model, c)
-    resolve(model)
-    return this.extractResult(model, input)
+    const inputModel = this.buildModel(input)
+    const anchored = this.anchor.plan(inputModel)
+    resolve(anchored)
+    return this.extractResult(anchored, input)
   }
 
   // ── Build GeomModel from ConstraintSet ───────────────────────────────────

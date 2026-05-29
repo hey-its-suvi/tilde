@@ -22,9 +22,9 @@
 // hidden dependencies on RuleBasedAnchor's behaviour.
 
 import type { GeomModel } from './model.js'
-import type { AnchorStrategy, AnchorPlan } from './anchor.js'
+import { cloneModel, setPoint } from './model.js'
+import type { AnchorStrategy } from './anchor.js'
 import { CANONICAL_X, CANONICAL_Y } from './anchor.js'
-import type { ResolvedConstraint } from '../interface.js'
 import { isWorkingComplete, workingVal } from './types.js'
 
 // ── Gauge budget ──────────────────────────────────────────────────────────────
@@ -90,21 +90,14 @@ export class GaugeBudget {
 
 // ── Claimant interface ────────────────────────────────────────────────────────
 
-/** Auxiliary line synthesized by a claimant to express a partial-T claim on
- *  a point (e.g. "p's projection onto direction d is zero" → an internal line
- *  perpendicular to d through origin, with `on-line` constraint on p). Names
- *  are underscore-prefixed so the scene builder filters them out. */
-export type AuxLine = { name: string; a: number; b: number; c: number }
-
-export type ClaimResult = {
-  constraints: ResolvedConstraint[]
-  auxLines: AuxLine[]
-}
-
 export interface Claimant {
-  /** Inspect the model and the live budget; emit constraints + aux lines.
-   *  Empty result = nothing claimed (inapplicable or budget exhausted). */
-  claim(model: GeomModel, budget: GaugeBudget): ClaimResult
+  /** Returns a new model with the claim applied. Must not mutate `model`.
+   *  If the claim is inapplicable or the required gauges are unavailable,
+   *  return `model` unchanged. May also synthesize internal aux lines
+   *  (underscore-prefixed names, filtered by the scene builder) — for example
+   *  a perpendicular helper line used to express a partial-T claim on a point.
+   *  The budget IS mutated as gauges are claimed (it's a running tally). */
+  claim(model: GeomModel, budget: GaugeBudget): GeomModel
 }
 
 // ── Pre-debit ────────────────────────────────────────────────────────────────
@@ -157,44 +150,39 @@ function preDebit(model: GeomModel, budget: GaugeBudget): void {
  *  eligible candidate because once T-full is claimed, no other bare point can
  *  claim it; subsequent points need a different claimant (e.g. R-reference). */
 class BarePointClaimant implements Claimant {
-  claim(model: GeomModel, budget: GaugeBudget): ClaimResult {
+  claim(model: GeomModel, budget: GaugeBudget): GeomModel {
     for (const [k, wp] of model.points) {
       if (isWorkingComplete(wp)) continue
       if (model.onLine.has(k)) continue
       if (model.onSegment.has(k)) continue
-      if (!budget.claimTFull()) return { constraints: [], auxLines: [] }
-      return {
-        constraints: [{ kind: 'position', point: k, x: CANONICAL_X, y: CANONICAL_Y }],
-        auxLines: [],
-      }
+      if (!budget.claimTFull()) return model
+      const next = cloneModel(model)
+      setPoint(next, k, CANONICAL_X, CANONICAL_Y, 0)
+      return next
     }
-    return { constraints: [], auxLines: [] }
+    return model
   }
 }
 
 // ── BudgetAnchor ──────────────────────────────────────────────────────────────
 
 export class BudgetAnchor implements AnchorStrategy {
-  /** Run in order. Each claimant inspects the live model + budget and emits
-   *  constraints; the caller applies them to the scratch model before the
-   *  next claimant runs, so each one sees the cumulative state. */
+  /** Each claimant takes the running model + live budget and returns a new
+   *  model (possibly unchanged). The chained output is fed straight to
+   *  resolve — no constraint round-trip. */
   private claimants: Claimant[] = [
     new BarePointClaimant(),
   ]
 
-  plan(model: GeomModel): AnchorPlan {
+  plan(model: GeomModel): GeomModel {
     const budget = new GaugeBudget()
     preDebit(model, budget)
 
-    const constraints: ResolvedConstraint[] = []
-
+    let current = model
     for (const claimant of this.claimants) {
-      const result = claimant.claim(model, budget)
-      constraints.push(...result.constraints)
-      // auxLines: deferred until a claimant actually emits them (step 4).
+      current = claimant.claim(current, budget)
     }
-
-    return { constraints }
+    return current
   }
 }
 
