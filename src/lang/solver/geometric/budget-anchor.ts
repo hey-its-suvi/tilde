@@ -22,9 +22,12 @@
 // hidden dependencies on RuleBasedAnchor's behaviour.
 
 import type { GeomModel } from './model.js'
-import { cloneModel, setPoint } from './model.js'
+import { cloneModel, setPoint, setLength } from './model.js'
 import type { AnchorStrategy } from './anchor.js'
-import { CANONICAL_X, CANONICAL_Y } from './anchor.js'
+import {
+  CANONICAL_X, CANONICAL_Y,
+  CANONICAL_DIR_X, CANONICAL_DIR_Y, CANONICAL_SCALE,
+} from './anchor.js'
 import { isWorkingComplete, workingVal } from './types.js'
 
 // ── Gauge budget ──────────────────────────────────────────────────────────────
@@ -164,6 +167,59 @@ class BarePointClaimant implements Claimant {
   }
 }
 
+/** Pin a second free point at the canonical reference target, claiming R + S
+ *  together. Requires a pivot (any already-placed point — explicit, or pinned
+ *  by BarePointClaimant) and an eligible bare point. Synthesizes a unit-scale
+ *  distance constraint between them so the placement is consistent.
+ *
+ *  Reference target depends on the pivot's position:
+ *    pivot at origin     → reference at CANONICAL_DIR × CANONICAL_SCALE
+ *    pivot anywhere else → reference at origin (so the new placement lies on
+ *                          the line from pivot toward the canonical frame).
+ *
+ *  Covers: `point a; point b`, `segment ab`, `triangle abc`, `point a = …;
+ *  point b`, `point a = …; segment bc`. Does NOT cover segments with known
+ *  lengths or any case where S is already consumed — that's the R-only
+ *  claimant's job (next step). */
+class BareRSReferenceClaimant implements Claimant {
+  claim(model: GeomModel, budget: GaugeBudget): GeomModel {
+    if (budget.rConsumed || budget.sConsumed) return model
+
+    let pivotName: string | null = null
+    let pivotX = 0, pivotY = 0
+    for (const [k, wp] of model.points) {
+      if (!isWorkingComplete(wp)) continue
+      const pv = workingVal(wp)
+      pivotName = k
+      pivotX = pv.x!
+      pivotY = pv.y!
+      break
+    }
+    if (pivotName === null) return model
+
+    const pivotAtOrigin = Math.hypot(pivotX - CANONICAL_X, pivotY - CANONICAL_Y) < EPS_DIR
+    const refTargetX = pivotAtOrigin ? CANONICAL_X + CANONICAL_DIR_X * CANONICAL_SCALE : CANONICAL_X
+    const refTargetY = pivotAtOrigin ? CANONICAL_Y + CANONICAL_DIR_Y * CANONICAL_SCALE : CANONICAL_Y
+    const refDist = Math.hypot(refTargetX - pivotX, refTargetY - pivotY)
+    if (refDist < EPS_DIR) return model
+
+    for (const [k, wp] of model.points) {
+      if (k === pivotName) continue
+      if (isWorkingComplete(wp)) continue
+      if (model.onLine.has(k)) continue
+      if (model.onSegment.has(k)) continue
+
+      budget.claimR()
+      budget.claimS()
+      const next = cloneModel(model)
+      setPoint(next, k, refTargetX, refTargetY, 0)
+      setLength(next, pivotName, k, refDist)
+      return next
+    }
+    return model
+  }
+}
+
 // ── BudgetAnchor ──────────────────────────────────────────────────────────────
 
 export class BudgetAnchor implements AnchorStrategy {
@@ -172,6 +228,7 @@ export class BudgetAnchor implements AnchorStrategy {
    *  resolve — no constraint round-trip. */
   private claimants: Claimant[] = [
     new BarePointClaimant(),
+    new BareRSReferenceClaimant(),
   ]
 
   plan(model: GeomModel): GeomModel {
