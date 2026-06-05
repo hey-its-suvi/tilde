@@ -4,7 +4,7 @@
 // existing passes, and converts the result to a SolveResult.
 
 import {
-  Solver, ConstraintSet, SolveResult,
+  SolverInterface, ConstraintSet, SolveResult,
   ResolvedConstraint, ElementResult, Point, Line, Scalar,
 } from '../interface.js'
 import { GeomModel, makeModel, touchPoint, setPoint, setLength, setAngle } from './model.js'
@@ -14,7 +14,7 @@ import { isEqual } from './geom.js'
 import { AnchorStrategy, RuleBasedAnchor } from './anchor.js'
 import { resolve } from './resolve.js'
 
-export class GeometricSolver implements Solver {
+export class GeometricSolver implements SolverInterface {
   constructor(private anchor: AnchorStrategy = new RuleBasedAnchor()) {}
 
   solve(input: ConstraintSet): SolveResult {

@@ -137,6 +137,6 @@ export type SolveResult = {
 
 // ─── Solver Interface ────────────────────────────────────────────────────────
 
-export interface Solver {
+export interface SolverInterface {
   solve(input: ConstraintSet): SolveResult
 }
