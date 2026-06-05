@@ -22,7 +22,7 @@
 // hidden dependencies on RuleBasedAnchor's behaviour.
 
 import type { GeomModel } from './model.js'
-import { cloneModel, setPoint, setLength } from './model.js'
+import { cloneModel, setPoint, setLength, getLength } from './model.js'
 import type { AnchorStrategy } from './anchor.js'
 import {
   CANONICAL_X, CANONICAL_Y,
@@ -148,76 +148,93 @@ function preDebit(model: GeomModel, budget: GaugeBudget): void {
 
 // ── Claimants ────────────────────────────────────────────────────────────────
 
-/** Pin one fully-free point at the canonical origin, claiming T-full.
- *  "Bare" = not on any line, not on any segment, dof > 0. We stop at the first
- *  eligible candidate because once T-full is claimed, no other bare point can
- *  claim it; subsequent points need a different claimant (e.g. R-reference). */
-class BarePointClaimant implements Claimant {
-  claim(model: GeomModel, budget: GaugeBudget): GeomModel {
-    for (const [k, wp] of model.points) {
-      if (isWorkingComplete(wp)) continue
-      if (model.onLine.has(k)) continue
-      if (model.onSegment.has(k)) continue
-      if (!budget.claimTFull()) return model
-      const next = cloneModel(model)
-      setPoint(next, k, CANONICAL_X, CANONICAL_Y, 0)
-      return next
-    }
-    return model
-  }
-}
-
-/** Pin a second free point at the canonical reference target, claiming R + S
- *  together. Requires a pivot (any already-placed point — explicit, or pinned
- *  by BarePointClaimant) and an eligible bare point. Synthesizes a unit-scale
- *  distance constraint between them so the placement is consistent.
+/** Canonicalizes points. Iterates eligible bare points and decides per-point
+ *  how much gauge to claim, based on what's still free:
+ *
+ *    1. T-full free                          → pin at origin (claim T)
+ *    2. T consumed, R + S both free          → pin at canonical reference
+ *                                              from the placed pivot, synthesize
+ *                                              unit-length distance (claim R + S)
+ *    3. T consumed, R free, S consumed, and
+ *       there's a known length from pivot     → pin along reference direction
+ *                                              at that length (claim R)
+ *    4. otherwise                            → leave the point underconstrained
+ *
+ *  Iteration order picks roles implicitly: first eligible point grabs T, second
+ *  grabs R+S, subsequent ones grab R if length-connected, etc. "Eligible bare"
+ *  = unplaced, not on any line, not on any segment (those have their own
+ *  placement mechanics handled elsewhere).
  *
  *  Reference target depends on the pivot's position:
  *    pivot at origin     → reference at CANONICAL_DIR × CANONICAL_SCALE
- *    pivot anywhere else → reference at origin (so the new placement lies on
- *                          the line from pivot toward the canonical frame).
- *
- *  Covers: `point a; point b`, `segment ab`, `triangle abc`, `point a = …;
- *  point b`, `point a = …; segment bc`. Does NOT cover segments with known
- *  lengths or any case where S is already consumed — that's the R-only
- *  claimant's job (next step). */
-class BareRSReferenceClaimant implements Claimant {
+ *    pivot anywhere else → reference at origin (the new placement then lies
+ *                          on the line from pivot toward the canonical frame). */
+class PointClaimant implements Claimant {
   claim(model: GeomModel, budget: GaugeBudget): GeomModel {
-    if (budget.rConsumed || budget.sConsumed) return model
+    let current = model
 
-    let pivotName: string | null = null
-    let pivotX = 0, pivotY = 0
-    for (const [k, wp] of model.points) {
-      if (!isWorkingComplete(wp)) continue
-      const pv = workingVal(wp)
-      pivotName = k
-      pivotX = pv.x!
-      pivotY = pv.y!
-      break
-    }
-    if (pivotName === null) return model
-
-    const pivotAtOrigin = Math.hypot(pivotX - CANONICAL_X, pivotY - CANONICAL_Y) < EPS_DIR
-    const refTargetX = pivotAtOrigin ? CANONICAL_X + CANONICAL_DIR_X * CANONICAL_SCALE : CANONICAL_X
-    const refTargetY = pivotAtOrigin ? CANONICAL_Y + CANONICAL_DIR_Y * CANONICAL_SCALE : CANONICAL_Y
-    const refDist = Math.hypot(refTargetX - pivotX, refTargetY - pivotY)
-    if (refDist < EPS_DIR) return model
-
-    for (const [k, wp] of model.points) {
-      if (k === pivotName) continue
+    for (const [k] of model.points) {
+      const wp = current.points.get(k)!
       if (isWorkingComplete(wp)) continue
-      if (model.onLine.has(k)) continue
-      if (model.onSegment.has(k)) continue
+      if (current.onLine.has(k)) continue
+      if (current.onSegment.has(k)) continue
 
-      budget.claimR()
-      budget.claimS()
-      const next = cloneModel(model)
-      setPoint(next, k, refTargetX, refTargetY, 0)
-      setLength(next, pivotName, k, refDist)
-      return next
+      // Case 1: pin at origin via T-full.
+      if (budget.claimTFull()) {
+        current = cloneModel(current)
+        setPoint(current, k, CANONICAL_X, CANONICAL_Y, 0)
+        continue
+      }
+
+      // T is consumed. Need a placed pivot to compute the reference geometry.
+      const pivot = findFirstPlaced(current)
+      if (pivot === null) continue
+
+      const pivotAtOrigin = Math.hypot(pivot.x - CANONICAL_X, pivot.y - CANONICAL_Y) < EPS_DIR
+      const refTargetX = pivotAtOrigin ? CANONICAL_X + CANONICAL_DIR_X * CANONICAL_SCALE : CANONICAL_X
+      const refTargetY = pivotAtOrigin ? CANONICAL_Y + CANONICAL_DIR_Y * CANONICAL_SCALE : CANONICAL_Y
+      const refDirX = refTargetX - pivot.x
+      const refDirY = refTargetY - pivot.y
+      const refDist = Math.hypot(refDirX, refDirY)
+      if (refDist < EPS_DIR) continue
+
+      // Case 2: pin at canonical reference, synthesize unit length, claim R + S.
+      if (!budget.rConsumed && !budget.sConsumed) {
+        budget.claimR()
+        budget.claimS()
+        current = cloneModel(current)
+        setPoint(current, k, refTargetX, refTargetY, 0)
+        setLength(current, pivot.name, k, refDist)
+        continue
+      }
+
+      // Case 3: R free, S consumed — need a known length from pivot to this point.
+      if (!budget.rConsumed && budget.sConsumed) {
+        const knownLen = getLength(current, pivot.name, k)
+        if (knownLen !== null) {
+          budget.claimR()
+          const dx = refDirX / refDist
+          const dy = refDirY / refDist
+          current = cloneModel(current)
+          setPoint(current, k, pivot.x + dx * knownLen, pivot.y + dy * knownLen, 0)
+          continue
+        }
+      }
+
+      // Otherwise: leave the point underconstrained — resolve handles it.
     }
-    return model
+
+    return current
   }
+}
+
+function findFirstPlaced(model: GeomModel): { name: string; x: number; y: number } | null {
+  for (const [k, wp] of model.points) {
+    if (!isWorkingComplete(wp)) continue
+    const pv = workingVal(wp)
+    return { name: k, x: pv.x!, y: pv.y! }
+  }
+  return null
 }
 
 // ── BudgetAnchor ──────────────────────────────────────────────────────────────
@@ -227,8 +244,7 @@ export class BudgetAnchor implements AnchorStrategy {
    *  model (possibly unchanged). The chained output is fed straight to
    *  resolve — no constraint round-trip. */
   private claimants: Claimant[] = [
-    new BarePointClaimant(),
-    new BareRSReferenceClaimant(),
+    new PointClaimant(),
   ]
 
   plan(model: GeomModel): GeomModel {
