@@ -4,7 +4,7 @@
 // any change, or null when nothing fires. Stateless: any "state" is derived
 // from the model on entry to each `step` call.
 
-import type { GeomModel } from '../geometric/model.js'
+import type { GeomModel } from '../model.js'
 
 export interface PropagateStrategy {
   /** Apply one or more forced placements. Returns a new model if anything

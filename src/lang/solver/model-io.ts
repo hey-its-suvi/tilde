@@ -9,11 +9,11 @@ import {
 } from './interface.js'
 import {
   GeomModel, makeModel, touchPoint, setPoint, setLength, setAngle,
-} from './geometric/model.js'
+} from './model.js'
 import {
   makeWorkingLine, makeWorkingScalar, workingVal, isWorkingComplete, lineDofFromState,
-} from './geometric/types.js'
-import { isEqual } from './geometric/geom.js'
+} from './types.js'
+import { isEqual } from './geom.js'
 
 // ── Build GeomModel from ConstraintSet ───────────────────────────────────────
 

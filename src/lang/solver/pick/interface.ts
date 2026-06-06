@@ -5,7 +5,7 @@
 // when nothing more can be picked. Stateless: budget/state is derived from the
 // model on entry to each `step` call.
 
-import type { GeomModel } from '../geometric/model.js'
+import type { GeomModel } from '../model.js'
 
 export interface PickStrategy {
   /** Place one element. Returns a new model if anything changed, else null.

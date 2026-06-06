@@ -1,6 +1,6 @@
 // ─── Tilde GeomModel ──────────────────────────────────────────────────────────
 
-import { LengthUnit, ShapeKind } from '../../ast.js'
+import { LengthUnit, ShapeKind } from '../ast.js'
 import {
   WorkingPoint, WorkingLine, WorkingScalar,
   makeWorkingPoint,

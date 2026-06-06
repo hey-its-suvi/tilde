@@ -1,6 +1,6 @@
 // ─── Geometric Solver — Internal Types ────────────────────────────────────────
 
-import type { Scalar, Point, Line, Nullable } from '../interface.js'
+import type { Scalar, Point, Line, Nullable } from './interface.js'
 export type { Scalar, Point, Line, Nullable }
 
 // ── Internal working types (mutable, solver scratchpad) ───────────────────────

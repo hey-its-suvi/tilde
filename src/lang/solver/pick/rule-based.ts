@@ -11,13 +11,13 @@
 // — the two are free to diverge as BudgetPick learns to consume more
 // symmetries directly.
 
-import type { GeomModel } from '../geometric/model.js'
-import { cloneModel, getPoint, setPoint, setLength, getLength, segKey } from '../geometric/model.js'
+import type { GeomModel } from '../model.js'
+import { cloneModel, getPoint, setPoint, setLength, getLength, segKey } from '../model.js'
 import {
   workingVal, isWorkingComplete, lineDofFromState,
   makePlacementState, PlacementState, WorkingLine,
-} from '../geometric/types.js'
-import { isZero, isEqual } from '../geometric/geom.js'
+} from '../types.js'
+import { isZero, isEqual } from '../geom.js'
 import type { PickStrategy } from './interface.js'
 
 const DEFAULT_LEN = 3
