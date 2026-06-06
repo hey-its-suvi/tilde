@@ -12,21 +12,20 @@
 // step call from the model alone. Nothing persists between calls.
 
 import type { GeomModel } from '../geometric/model.js'
-import { cloneModel, setPoint, setLength, getLength } from '../geometric/model.js'
-import { makePlacementState, workingVal, isWorkingComplete } from '../geometric/types.js'
+import { cloneModel, getPoint, setPoint, setLength, getLength, segKey } from '../geometric/model.js'
+import {
+  makePlacementState, workingVal, isWorkingComplete, PlacementState,
+} from '../geometric/types.js'
+import { isZero } from '../geometric/geom.js'
 import {
   CANONICAL_X, CANONICAL_Y,
   CANONICAL_DIR_X, CANONICAL_DIR_Y, CANONICAL_SCALE,
 } from '../geometric/anchor.js'
 import { GaugeBudget } from '../geometric/budget-anchor.js'
-import {
-  tryPlaceVertexByLocus,
-  tryPlaceVertexByFallback,
-} from '../geometric/points.js'
-import { tryCompleteLineByDefault } from '../geometric/lines.js'
 import type { PickStrategy } from './interface.js'
 
 const EPS = 1e-9
+const DEFAULT_LEN = 3
 
 export class BudgetPick implements PickStrategy {
   step(model: GeomModel): GeomModel | null {
@@ -170,4 +169,170 @@ function findFirstPlaced(model: GeomModel): { name: string; x: number; y: number
     return { name: k, x: pv.x!, y: pv.y! }
   }
   return null
+}
+
+// ── Representative tail ───────────────────────────────────────────────────────
+// Locus and fallback rules used when no gauge claim is available. Owned by
+// this pick — RuleBasedPick has its own copy. Free to diverge as BudgetPick
+// learns to consume more symmetries directly (e.g. bare lines via R + T-perp,
+// at which point tryCompleteLineByDefault here can drop its bare-line case).
+
+function tryPlaceVertexByLocus(model: GeomModel, st: PlacementState): boolean {
+  // Circle — exactly 1 placed neighbour with known distance.
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    const nbrs = placedNeighborsWithDist(model, st.placed, v)
+    if (nbrs.length !== 1) continue
+    const n = nbrs[0]!
+    setPoint(model, v, n.x + n.dist * st.hdX, n.y + n.dist * st.hdY, 1)
+    ;[st.hdX, st.hdY] = [-st.hdY, st.hdX]
+    st.placed.add(v)
+    return true
+  }
+
+  // Line — on a named line, no distance neighbours yet.
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    const lineNames = model.onLine.get(v)
+    if (!lineNames || lineNames.length === 0) continue
+    const wl = model.lines.get(lineNames[0]!)!
+    const lv = workingVal(wl)
+    if (lv.a === null || lv.b === null || lv.c === null) continue
+    const { a, b, c } = { a: lv.a, b: lv.b, c: lv.c }
+    const denom = a * a + b * b
+    setPoint(model, v, -a * c / denom, -b * c / denom, 1)
+    st.placed.add(v)
+    return true
+  }
+
+  // Segment — on a segment, both endpoints already placed. Distribute evenly.
+  const groups = new Map<string, string[]>()
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    const seg = model.onSegment.get(v)
+    if (!seg || !st.placed.has(seg.v1) || !st.placed.has(seg.v2)) continue
+    const k = segKey(seg.v1, seg.v2)
+    if (!groups.has(k)) groups.set(k, [])
+    groups.get(k)!.push(v)
+  }
+  for (const [, pts] of groups) {
+    const seg = model.onSegment.get(pts[0]!)!
+    const wp1 = getPoint(model, seg.v1)!, wp2 = getPoint(model, seg.v2)!
+    const pv1 = workingVal(wp1), pv2 = workingVal(wp2)
+    pts.forEach((v, i) => {
+      const t = (i + 1) / (pts.length + 1)
+      setPoint(model, v, pv1.x! + t * (pv2.x! - pv1.x!), pv1.y! + t * (pv2.y! - pv1.y!), 1)
+      st.placed.add(v)
+    })
+    return true
+  }
+
+  return false
+}
+
+function tryPlaceVertexByFallback(model: GeomModel, st: PlacementState): boolean {
+  // Segment neighbour — shares a segment with a placed vertex but no known length.
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    for (const p of st.placed) {
+      if (model.segments.has(segKey(v, p))) {
+        const pv = workingVal(getPoint(model, p)!)
+        setPoint(model, v, pv.x! + DEFAULT_LEN, pv.y!, 1)
+        st.placed.add(v)
+        return true
+      }
+    }
+  }
+
+  // Isolated — no connection to any placed vertex. Stack vertically.
+  for (const v of model.points.keys()) {
+    if (st.placed.has(v)) continue
+    setPoint(model, v, 0, -(st.isolatedSeedIdx + 1) * DEFAULT_LEN * 2, 1)
+    st.isolatedSeedIdx++
+    st.placed.add(v)
+    return true
+  }
+
+  return false
+}
+
+function tryCompleteLineByDefault(model: GeomModel, st: PlacementState): boolean {
+  const placedOnLine = new Map<string, Array<{ x: number; y: number }>>()
+  for (const [v, lineNames] of model.onLine) {
+    if (!st.placed.has(v)) continue
+    const pv = workingVal(model.points.get(v)!)
+    for (const ln of lineNames) {
+      if (!placedOnLine.has(ln)) placedOnLine.set(ln, [])
+      placedOnLine.get(ln)!.push({ x: pv.x!, y: pv.y! })
+    }
+  }
+
+  for (const [lineName, wl] of model.lines) {
+    if (isWorkingComplete(wl)) continue
+    const lv = workingVal(wl)
+    const nullCount = (lv.a === null ? 1 : 0) + (lv.b === null ? 1 : 0) + (lv.c === null ? 1 : 0)
+    const pts = placedOnLine.get(lineName) ?? []
+
+    if (nullCount === 3) {
+      if (pts.length > 0) {
+        const p1 = pts[0]!
+        lv.a = 1; lv.b = -1
+        lv.c = -(p1.x - p1.y)
+        if (wl.dof === 2) wl.dof = 1
+      } else {
+        lv.a = 1; lv.b = -1; lv.c = 0
+      }
+      return true
+    }
+
+    if (nullCount === 1) {
+      if (lv.c === null) { lv.c = 0; return true }
+      if (lv.a === null) {
+        const rFree = rFreeIgnoring(model, lineName)
+        lv.a = isZero(lv.b!) ? 1 : -lv.b!
+        if (rFree) wl.dof = 0
+        return true
+      }
+      if (lv.b === null) {
+        const rFree = rFreeIgnoring(model, lineName)
+        lv.b = isZero(lv.a!) ? 1 : -lv.a!
+        if (rFree) wl.dof = 0
+        return true
+      }
+    }
+  }
+  return false
+}
+
+function rFreeIgnoring(model: GeomModel, exceptLineName: string): boolean {
+  for (const [name, wl] of model.lines) {
+    if (name === exceptLineName) continue
+    const lv = workingVal(wl)
+    if (lv.a !== null && lv.b !== null) return false
+  }
+  let placedCount = 0
+  for (const wp of model.points.values()) {
+    if (isWorkingComplete(wp)) {
+      placedCount++
+      if (placedCount >= 2) return false
+    }
+  }
+  return true
+}
+
+function placedNeighborsWithDist(
+  model: GeomModel,
+  placed: Set<string>,
+  v: string,
+): Array<{ x: number; y: number; dist: number; dof: number }> {
+  const result: Array<{ x: number; y: number; dist: number; dof: number }> = []
+  for (const p of placed) {
+    const dist = getLength(model, v, p)
+    if (dist !== null) {
+      const wp = getPoint(model, p)!
+      const pv = workingVal(wp)
+      result.push({ x: pv.x!, y: pv.y!, dist, dof: wp.dof })
+    }
+  }
+  return result
 }
