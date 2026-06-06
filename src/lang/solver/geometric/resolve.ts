@@ -9,7 +9,7 @@
 //   0  fallback — 0 loci               → structural guess, always free
 
 import { GeomModel } from './model.js'
-import { isWorkingComplete, workingVal, PlacementState } from './types.js'
+import { isWorkingComplete, workingVal, makePlacementState } from './types.js'
 import {
   tryPlaceVertexByLineIntersectLine,
   tryPlaceVertexByCircleIntersectCircle,
@@ -20,17 +20,7 @@ import {
 import { tryCompleteLineByConstraint, tryCompleteLineByDefault, tryApplyLineRelation } from './lines.js'
 
 export function resolve(model: GeomModel): void {
-  const placed = new Set<string>()
-  for (const [k, wp] of model.points) {
-    if (isWorkingComplete(wp)) placed.add(k)
-  }
-
-  const st: PlacementState = {
-    placed,
-    hdX: 1,
-    hdY: 0,
-    isolatedSeedIdx: 0,
-  }
+  const st = makePlacementState(model)
 
   let changed = true
   while (changed) {
@@ -51,7 +41,7 @@ export function resolve(model: GeomModel): void {
   }
 }
 
-function tryResolveScalarBindings(model: GeomModel): boolean {
+export function tryResolveScalarBindings(model: GeomModel): boolean {
   for (const binding of model.scalarBindings) {
     const ws = model.scalars.get(binding.scalar)
     if (!ws || ws.resolved[0] !== null) continue

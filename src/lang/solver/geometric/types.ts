@@ -81,3 +81,13 @@ export type PlacementState = {
   hdY:              number
   isolatedSeedIdx:  number
 }
+
+/** Build a fresh PlacementState from a model. The `placed` set is seeded with
+ *  all points that already have both coordinates filled in. */
+export function makePlacementState(model: { points: Map<string, WorkingPoint> }): PlacementState {
+  const placed = new Set<string>()
+  for (const [k, wp] of model.points) {
+    if (isWorkingComplete(wp)) placed.add(k)
+  }
+  return { placed, hdX: 1, hdY: 0, isolatedSeedIdx: 0 }
+}
