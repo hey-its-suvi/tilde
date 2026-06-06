@@ -17,7 +17,6 @@ import {
   makePlacementState, workingVal, isWorkingComplete, PlacementState,
 } from '../geometric/types.js'
 import { isZero } from '../geometric/geom.js'
-import { GaugeBudget } from '../geometric/budget-anchor.js'
 import type { PickStrategy } from './interface.js'
 
 const EPS = 1e-9
@@ -29,6 +28,61 @@ const CANONICAL_Y     = 0
 const CANONICAL_DIR_X = 1
 const CANONICAL_DIR_Y = 0
 const CANONICAL_SCALE = 1
+
+// ── Gauge budget ──────────────────────────────────────────────────────────────
+// Bookkeeping for which gauges have been canonicalised. Mutated as deriveBudget
+// walks the model and as tryClaimBarePoint commits claims for the element it
+// places. Lives only for the duration of one BudgetPick.step call.
+//
+// Gauge model:
+//   T (translation, 2-dim ℝ²) — splittable. Each claim consumes a 1-dim
+//     subspace (a direction); two linearly-independent claims exhaust it.
+//   R (rotation, 1-dim SO(2)) — atomic. Claimed or not.
+//   S (uniform scale, 1-dim ℝ⁺) — atomic. Claimed or not.
+//
+// The dimensional asymmetry is inherent to the similarity group in 2D, not an
+// implementation choice. See the `line l; line m` derivation in the path-b
+// design notes.
+
+type Direction = { dx: number; dy: number }
+
+class GaugeBudget {
+  /** Unit vectors of T-directions already pinned. Length 0, 1, or 2. */
+  private tPinned: Direction[] = []
+  private rFree = true
+  private sFree = true
+
+  /** Try to claim translation along `dir`. Returns false if `dir` is linearly
+   *  dependent on already-pinned directions (or if T is already full). */
+  claimT(dir: Direction): boolean {
+    const norm = Math.hypot(dir.dx, dir.dy)
+    if (norm < EPS) return false
+    const u: Direction = { dx: dir.dx / norm, dy: dir.dy / norm }
+    if (this.tPinned.length >= 2) return false
+    for (const p of this.tPinned) {
+      const cross = u.dx * p.dy - u.dy * p.dx
+      if (Math.abs(cross) < EPS) return false
+    }
+    this.tPinned.push(u)
+    return true
+  }
+
+  claimR(): boolean {
+    if (!this.rFree) return false
+    this.rFree = false
+    return true
+  }
+
+  claimS(): boolean {
+    if (!this.sFree) return false
+    this.sFree = false
+    return true
+  }
+
+  get tConsumedDim(): number { return this.tPinned.length }
+  get rConsumed(): boolean { return !this.rFree }
+  get sConsumed(): boolean { return !this.sFree }
+}
 
 export class BudgetPick implements PickStrategy {
   step(model: GeomModel): GeomModel | null {
