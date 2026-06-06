@@ -17,15 +17,18 @@ import {
   makePlacementState, workingVal, isWorkingComplete, PlacementState,
 } from '../geometric/types.js'
 import { isZero } from '../geometric/geom.js'
-import {
-  CANONICAL_X, CANONICAL_Y,
-  CANONICAL_DIR_X, CANONICAL_DIR_Y, CANONICAL_SCALE,
-} from '../geometric/anchor.js'
 import { GaugeBudget } from '../geometric/budget-anchor.js'
 import type { PickStrategy } from './interface.js'
 
 const EPS = 1e-9
 const DEFAULT_LEN = 3
+
+// Canonical frame: where this pick sends gauge-justified placements.
+const CANONICAL_X     = 0
+const CANONICAL_Y     = 0
+const CANONICAL_DIR_X = 1
+const CANONICAL_DIR_Y = 0
+const CANONICAL_SCALE = 1
 
 export class BudgetPick implements PickStrategy {
   step(model: GeomModel): GeomModel | null {
