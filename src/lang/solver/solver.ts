@@ -9,6 +9,7 @@
 // on entry to each `step` call — nothing persists across iterations.
 
 import { SolverInterface, ConstraintSet, SolveResult } from './interface.js'
+import { buildModel, extractResult } from './model-io.js'
 import { PropagateStrategy } from './propagate/interface.js'
 import { PickStrategy } from './pick/interface.js'
 
@@ -18,7 +19,13 @@ export class Solver implements SolverInterface {
     private pick: PickStrategy,
   ) {}
 
-  solve(_input: ConstraintSet): SolveResult {
-    throw new Error('Solver.solve: not yet implemented')
+  solve(input: ConstraintSet): SolveResult {
+    let model = buildModel(input)
+    while (true) {
+      const next = this.propagate.step(model) ?? this.pick.step(model)
+      if (next === null) break
+      model = next
+    }
+    return extractResult(model, input)
   }
 }
