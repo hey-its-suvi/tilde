@@ -13,7 +13,7 @@ import { solve, setAnchor, AnchorName } from '@lang/solver/index.js'
 import { SceneGraph, Solutions } from '@renderer/interface.js'
 
 const envAnchor = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.ANCHOR
-if (envAnchor === 'rule' || envAnchor === 'budget' || envAnchor === 'loop-rule') {
+if (envAnchor === 'rule' || envAnchor === 'budget' || envAnchor === 'loop-rule' || envAnchor === 'loop-budget') {
   setAnchor(envAnchor as AnchorName)
 }
 

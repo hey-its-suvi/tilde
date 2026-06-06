@@ -20,18 +20,20 @@ import { BudgetAnchor } from './geometric/budget-anchor.js'
 import { Solver } from './solver.js'
 import { GeometricPropagate } from './propagate/geometric.js'
 import { RuleBasedPick } from './pick/rule-based.js'
+import { BudgetPick } from './pick/budget.js'
 import { buildSceneGraph } from './output.js'
 import { SceneGraph, RenderConfig } from '../../renderer/interface.js'
 
-export type AnchorName = 'rule' | 'budget' | 'loop-rule'
+export type AnchorName = 'rule' | 'budget' | 'loop-rule' | 'loop-budget'
 
 const solverFactories: Record<AnchorName, () => SolverInterface> = {
-  'rule':      () => new GeometricSolver(new RuleBasedAnchor()),
-  'budget':    () => new GeometricSolver(new BudgetAnchor()),
-  'loop-rule': () => new Solver(new GeometricPropagate(), new RuleBasedPick()),
+  'rule':        () => new GeometricSolver(new RuleBasedAnchor()),
+  'budget':      () => new GeometricSolver(new BudgetAnchor()),
+  'loop-rule':   () => new Solver(new GeometricPropagate(), new RuleBasedPick()),
+  'loop-budget': () => new Solver(new GeometricPropagate(), new BudgetPick()),
 }
 
-export const ANCHOR_NAMES: readonly AnchorName[] = ['rule', 'budget', 'loop-rule']
+export const ANCHOR_NAMES: readonly AnchorName[] = ['rule', 'budget', 'loop-rule', 'loop-budget']
 
 let activeAnchor: AnchorName = 'rule'
 let activeSolver = solverFactories[activeAnchor]()
