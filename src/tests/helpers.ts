@@ -1,20 +1,20 @@
 // ─── Tilde Test Helpers ───────────────────────────────────────────────────────
 //
-// `run()` invokes the solver with whichever anchor strategy is currently
-// active. To run the whole suite against a specific anchor, set the ANCHOR
+// `run()` invokes the solver with whichever pick strategy is currently
+// active. To run the whole suite against a specific pick, set the PICK
 // env var before invoking vitest:
 //
-//   ANCHOR=budget npx vitest run     # all tests against budget anchor
-//   ANCHOR=rule npx vitest run       # default (also the default with no var)
+//   PICK=budget npx vitest run     # all tests against BudgetPick
+//   PICK=rule   npx vitest run     # default (also the default with no var)
 
 import { lex } from '@lang/lexer.js'
 import { parse } from '@lang/parser.js'
-import { solve, setAnchor, AnchorName } from '@lang/solver/index.js'
+import { solve, setPick, PickName } from '@lang/solver/index.js'
 import { SceneGraph, Solutions } from '@renderer/interface.js'
 
-const envAnchor = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.ANCHOR
-if (envAnchor === 'rule' || envAnchor === 'budget' || envAnchor === 'loop-rule' || envAnchor === 'loop-budget') {
-  setAnchor(envAnchor as AnchorName)
+const envPick = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.PICK
+if (envPick === 'rule' || envPick === 'budget') {
+  setPick(envPick as PickName)
 }
 
 export function run(source: string): SceneGraph {

@@ -1,50 +1,47 @@
 // ─── Tilde Solver Entry Point ─────────────────────────────────────────────────
-// Pipeline: AST → elaborate → solve → scene graph
+// Pipeline: AST → elaborate → solve → scene graph.
 //
-// The active solver is module-level state, swappable at runtime via
-// `setAnchor`. This lets the playground (and tests) switch between
-// implementations to A/B compare behaviour.
+// One Solver class powers everything. The only swappable bit is the
+// PickStrategy — the policy for canonicalising gauges and choosing arbitrary
+// placements. The PropagateStrategy is fixed (forced placements are forced
+// regardless of policy).
 //
-// During the path-b migration we have three options:
-//   'rule'       — legacy GeometricSolver + RuleBasedAnchor (current default)
-//   'budget'     — legacy GeometricSolver + BudgetAnchor (WIP, 82/88)
-//   'loop-rule'  — new Solver + GeometricPropagate + RuleBasedPick
-//                  (scaffolding for the migration; will be deleted in step 6)
+// The pick is module-level state, swappable at runtime via `setPick`. This
+// lets the playground (and tests) A/B-compare pick strategies.
+//
+//   'rule'   — RuleBasedPick: rule-pile gauge fixing + locus/fallback.
+//   'budget' — BudgetPick: explicit per-axis gauge accounting (point-only;
+//              line cases still defer to the rule-default fallback).
 
 import { Program } from '../ast.js'
 import { elaborate } from '../elaborate.js'
-import { SolverInterface } from './interface.js'
-import { GeometricSolver } from './geometric/index.js'
-import { RuleBasedAnchor } from './geometric/anchor.js'
-import { BudgetAnchor } from './geometric/budget-anchor.js'
 import { Solver } from './solver.js'
 import { GeometricPropagate } from './propagate/geometric.js'
+import { PickStrategy } from './pick/interface.js'
 import { RuleBasedPick } from './pick/rule-based.js'
 import { BudgetPick } from './pick/budget.js'
 import { buildSceneGraph } from './output.js'
 import { SceneGraph, RenderConfig } from '../../renderer/interface.js'
 
-export type AnchorName = 'rule' | 'budget' | 'loop-rule' | 'loop-budget'
+export type PickName = 'rule' | 'budget'
 
-const solverFactories: Record<AnchorName, () => SolverInterface> = {
-  'rule':        () => new GeometricSolver(new RuleBasedAnchor()),
-  'budget':      () => new GeometricSolver(new BudgetAnchor()),
-  'loop-rule':   () => new Solver(new GeometricPropagate(), new RuleBasedPick()),
-  'loop-budget': () => new Solver(new GeometricPropagate(), new BudgetPick()),
+const pickFactories: Record<PickName, () => PickStrategy> = {
+  'rule':   () => new RuleBasedPick(),
+  'budget': () => new BudgetPick(),
 }
 
-export const ANCHOR_NAMES: readonly AnchorName[] = ['rule', 'budget', 'loop-rule', 'loop-budget']
+export const PICK_NAMES: readonly PickName[] = ['rule', 'budget']
 
-let activeAnchor: AnchorName = 'rule'
-let activeSolver = solverFactories[activeAnchor]()
+let activePick: PickName = 'rule'
+let activeSolver = new Solver(new GeometricPropagate(), pickFactories[activePick]())
 
-export function setAnchor(name: AnchorName): void {
-  activeAnchor = name
-  activeSolver = solverFactories[name]()
+export function setPick(name: PickName): void {
+  activePick = name
+  activeSolver = new Solver(new GeometricPropagate(), pickFactories[name]())
 }
 
-export function getAnchor(): AnchorName {
-  return activeAnchor
+export function getPick(): PickName {
+  return activePick
 }
 
 export function solve(program: Program): { scene: SceneGraph; config: RenderConfig } {

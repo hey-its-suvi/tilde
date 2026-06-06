@@ -1,7 +1,7 @@
 // ─── Model I/O ────────────────────────────────────────────────────────────────
 // Functions that translate between the public solver interface (ConstraintSet
-// / SolveResult) and the internal GeomModel. Shared by every Solver
-// implementation — the loop and the legacy GeometricSolver both call them.
+// / SolveResult) and the internal GeomModel. Called by Solver.solve() at the
+// boundaries of the propagate/pick loop.
 
 import {
   ConstraintSet, SolveResult, ResolvedConstraint,
