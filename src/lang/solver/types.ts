@@ -1,9 +1,12 @@
-// ─── Geometric Solver — Internal Types ────────────────────────────────────────
+// ─── Solver working types ─────────────────────────────────────────────────────
+// Shared types that the propagate/pick loop and its supporting helpers operate
+// on. Geometric primitives (Scalar, Point, Line) come from the public
+// interface and are re-exported here for convenience.
 
 import type { Scalar, Point, Line, Nullable } from './interface.js'
 export type { Scalar, Point, Line, Nullable }
 
-// ── Internal working types (mutable, solver scratchpad) ───────────────────────
+// ── Working elements (mutable, solver scratchpad) ─────────────────────────────
 // `resolved` accumulates solutions as the solver runs:
 //   • Always has at least one entry (the current working state at resolved[0]).
 //   • resolved[0] fields are filled in incrementally — null ↔ number.
@@ -21,18 +24,6 @@ export type WorkingElement<T> = {
 export type WorkingPoint  = WorkingElement<Point>
 export type WorkingLine   = WorkingElement<Line>
 export type WorkingScalar = WorkingElement<Scalar>
-
-// ── Public output types (consumed by renderer) ────────────────────────────────
-// `allSolutions` contains only complete (all non-null) solutions.
-// `dof` is passed through from the working element unchanged.
-
-export type GeomElement<T> = {
-  allSolutions?: T[]
-  dof: number
-}
-
-export type GeomPoint = GeomElement<Point>
-export type GeomLine  = GeomElement<Line>
 
 // ── Working element helpers ───────────────────────────────────────────────────
 

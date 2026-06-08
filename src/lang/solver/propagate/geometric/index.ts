@@ -16,14 +16,15 @@
 // fallback, default canonical line direction) are arbitrary placements and
 // belong to PickStrategy, not here.
 
-import type { GeomModel } from '../model.js'
-import { cloneModel, getPoint, setPoint, getLength } from '../model.js'
+import type { GeomModel } from '../../model.js'
+import { cloneModel, getPoint, setPoint, getLength } from '../../model.js'
 import {
   workingVal, isWorkingComplete, makePlacementState, PlacementState,
-} from '../types.js'
-import { isZero, isEqual, lineIntersect, circleIntersectBoth, circleLineIntersectBoth } from '../geom.js'
-import { ConstraintError } from '../interface.js'
-import type { PropagateStrategy } from './interface.js'
+} from '../../types.js'
+import { isZero, isEqual } from '../../geom.js'
+import { lineIntersect, circleIntersectBoth, circleLineIntersectBoth } from './intersections.js'
+import { ConstraintError } from '../../interface.js'
+import type { PropagateStrategy } from '../interface.js'
 
 export class GeometricPropagate implements PropagateStrategy {
   step(model: GeomModel): GeomModel | null {

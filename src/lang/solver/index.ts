@@ -16,10 +16,10 @@
 import { Program } from '../ast.js'
 import { elaborate } from '../elaborate.js'
 import { Solver } from './solver.js'
-import { GeometricPropagate } from './propagate/geometric.js'
+import { GeometricPropagate } from './propagate/geometric/index.js'
 import { PickStrategy } from './pick/interface.js'
-import { RuleBasedPick } from './pick/rule-based.js'
-import { BudgetPick } from './pick/budget.js'
+import { RuleBasedPick } from './pick/rule-based/index.js'
+import { BudgetPick } from './pick/budget/index.js'
 import { buildSceneGraph } from './output.js'
 import { SceneGraph, RenderConfig } from '../../renderer/interface.js'
 

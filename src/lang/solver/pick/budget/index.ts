@@ -11,13 +11,13 @@
 // Critical: BudgetPick is stateless. The budget is derived fresh on every
 // step call from the model alone. Nothing persists between calls.
 
-import type { GeomModel } from '../model.js'
-import { cloneModel, getPoint, setPoint, setLength, getLength, segKey } from '../model.js'
+import type { GeomModel } from '../../model.js'
+import { cloneModel, getPoint, setPoint, setLength, getLength, segKey } from '../../model.js'
 import {
   makePlacementState, workingVal, isWorkingComplete, PlacementState,
-} from '../types.js'
-import { isZero } from '../geom.js'
-import type { PickStrategy } from './interface.js'
+} from '../../types.js'
+import { isZero } from '../../geom.js'
+import type { PickStrategy } from '../interface.js'
 
 const EPS = 1e-9
 const DEFAULT_LEN = 3
