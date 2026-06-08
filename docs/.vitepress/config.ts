@@ -6,6 +6,9 @@ export default withMermaid(defineConfig({
   description: 'A geometric programming language for school-level geometry',
   base: '/',
 
+  // path-b-plan.md is an internal planning document, not user-facing.
+  srcExclude: ['path-b-plan.md'],
+
   vite: {
     server: {
       proxy: {
@@ -50,10 +53,10 @@ export default withMermaid(defineConfig({
             text: 'Solver',
             link: '/solver/',
             items: [
-              { text: 'Pass 0 — Unit Resolution', link: '/solver/unit-resolution' },
-              { text: 'Pass 1 — Constraint Model', link: '/solver/constraint-model' },
-              { text: 'Pass 2 — Anchor', link: '/solver/anchor' },
-              { text: 'Pass 3 — Placement', link: '/solver/placement' },
+              { text: 'Unit Resolution', link: '/solver/unit-resolution' },
+              { text: 'Constraint Model', link: '/solver/constraint-model' },
+              { text: 'Anchor', link: '/solver/anchor' },
+              { text: 'Placement', link: '/solver/placement' },
             ],
           },
           { text: 'Certainty Model', link: '/certainty' },

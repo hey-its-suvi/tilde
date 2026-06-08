@@ -1,10 +1,10 @@
-# Pass 1 — Constraint Model
+# Constraint Model
 
-Pass 1 walks every statement in the program and builds the **constraint model** — a graph of vertices and the relationships between them. This is the data structure Pass 3 works from when placing vertices.
+Before the solver loop can run, every statement in the program gets walked once to build the **constraint model** — a graph of vertices and the relationships between them. This is the data structure the [placement loop](./placement) works from.
 
 ## What gets built
 
-By the end of Pass 1, the model holds:
+The model holds:
 
 | Structure | What it stores |
 |---|---|
@@ -18,7 +18,7 @@ By the end of Pass 1, the model holds:
 
 ## How shapes become vertices and edges
 
-A shape declaration registers its vertices and the edges between them. No positions are assigned yet — that's Pass 3's job.
+A shape declaration registers its vertices and the edges between them. No positions are assigned yet — that's the [placement loop](./placement)'s job.
 
 ```
 let triangle abc
@@ -63,8 +63,8 @@ flowchart LR
 
 ## Pick statements
 
-`pick v 2` tells the solver that when vertex `v` has two possible positions, it should use position 2. These are recorded during Pass 1 and consulted during placement in Pass 3.
+`pick v 2` tells the solver that when vertex `v` has two possible positions, it should use position 2. These are recorded into the constraint model and consulted during placement.
 
-## What Pass 1 does and does not do
+## What the model captures
 
-Pass 1 **does** assign coordinates to explicitly placed vertices — `point a = (3, 4)` or `a = (3, 4)` inside a `with` block resolves immediately to `dof = 0`. Every other vertex enters Pass 3 as an unplaced working point: both coordinates null, `dof = 2`. The constraint model is purely relational for those: it says *what exists* and *what constraints apply*, not *where anything is*.
+The model **does** assign coordinates to explicitly placed vertices — `point a = (3, 4)` or `a = (3, 4)` inside a `with` block resolves immediately to `dof = 0`. Every other vertex enters the loop as an unplaced working point: both coordinates null, `dof = 2`. The constraint model is purely relational for those: it says *what exists* and *what constraints apply*, not *where anything is*.

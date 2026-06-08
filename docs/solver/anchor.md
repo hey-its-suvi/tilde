@@ -1,6 +1,6 @@
-# Pass 2 — Anchor Selection
+# Anchor
 
-Tilde describes geometry in relative terms: "a triangle with sides 3, 4, 5". That description says nothing about *where* the triangle sits in the plane, which direction it faces, or what scale to use. Before placement can begin, the solver detects which of these global degrees of freedom are unconstrained and pins them to a canonical form.
+Tilde describes geometry in relative terms: "a triangle with sides 3, 4, 5". That description says nothing about *where* the triangle sits in the plane, which direction it faces, or what scale to use. The solver detects which of these global degrees of freedom are unconstrained and pins them to a canonical form during the pick phase of [the loop](./placement).
 
 ## Degrees of freedom
 
@@ -12,7 +12,7 @@ A floating figure in the plane has three global degrees of freedom:
 | **R** — rotation | the figure can rotate around any fixed point | a named line with a known direction, or two explicitly placed points |
 | **S** — scale | the figure can be scaled up or down uniformly | a known length, or two explicitly placed points |
 
-Pass 2 detects which of T, R, S are still free after Pass 1, then applies fixers in order to pin them down.
+Each call into the pick phase looks at which of T, R, S are still free and applies a fixer if it can.
 
 ## The three fixers
 
@@ -26,6 +26,8 @@ The solver scans vertices in declaration order and picks the first one that is:
 - not constrained to lie on a segment
 
 That vertex is pinned to **(0, 0)** and becomes the **anchor**. All other vertices will be placed relative to it.
+
+If no such vertex exists, a tier-2 search looks for a free vertex with a single on-line constraint and pins it at the line's natural position (the position that satisfies the constraint regardless of which of the line's coefficients are still unknown). This is what lets `line l = (1,); point p on l` resolve fully — without the tier-2 fall-back, both would remain underconstrained.
 
 ### R + S fixers — rotation and scale
 
@@ -42,9 +44,18 @@ Once found:
 
 **R fixed, S free:** no reference is needed for rotation. Instead, the first unconstrained segment between two free vertices is given a default length of 1.
 
+### Line anchoring
+
+After point-based fixing, any **disconnected** line (no on-line points, no parallel or perpendicular partner) can absorb whatever T, R, or S DOFs remain:
+
+- **R free** → absorbs direction (canonical slope 1: `a = -b`)
+- **T free** or **S free** → absorbs position (canonical `c = 0`)
+
+A connected line gets its position and direction from the propagate phase instead — once a related element is determined, the propagate rules can complete the line exactly.
+
 ## What "canonical" means
 
-The canonical position is defined by constants in `anchor.ts`:
+The canonical position is defined by constants in the rule-based pick strategy:
 
 ```
 CANONICAL_X, CANONICAL_Y = (0, 0)   — anchor lands here
@@ -58,10 +69,10 @@ These are conventions, not constraints. A figure that is described purely in rel
 
 If explicit points or lengths already remove some DOF, the corresponding fixer is skipped:
 
-- Two explicitly placed points → T, R, and S are all fixed; Pass 2 does nothing.
+- Two explicitly placed points → T, R, and S are all fixed; no canonicalization happens.
 - One explicitly placed point → T is fixed; the solver still tries to fix R using the nearest free segment.
 - A named line with known direction → R is fixed; T and S may still need fixers.
 
 ## Why not just always pin at (0, 0)?
 
-Pinning an arbitrary vertex at (0, 0) would conflict with explicit position constraints — if `point a = (3, 4)` is declared, the anchor must not override it. Pass 2 only touches vertices that are genuinely free and not covered by any other constraint.
+Pinning an arbitrary vertex at (0, 0) would conflict with explicit position constraints — if `point a = (3, 4)` is declared, the anchor must not override it. The pick phase only touches vertices that are genuinely free and not covered by any other constraint.

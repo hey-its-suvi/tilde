@@ -1,4 +1,4 @@
-# Pass 0 — Unit Resolution
+# Unit Resolution
 
 Before any geometry is processed, the solver determines the **active unit** for the program. This is what gives a bare number like `5` its physical meaning — centimetres, inches, or nothing at all.
 

@@ -16,4 +16,4 @@ _TODO: walkthrough from empty canvas to a labelled right triangle_
 
 - [Elements](/elements) — segments, triangles, lines, points
 - [Constraints](/constraints) — everything you can say about geometry
-- [Solver](/solver) — how Tilde figures out where things go
+- [Solver](/solver/) — how Tilde figures out where things go

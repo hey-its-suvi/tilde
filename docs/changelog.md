@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.21 — current
+## 0.3.22 — current
+
+- **Unified solver architecture**: the old anchor-then-resolve two-pass solver has been replaced with a single loop that alternates between *propagate* (apply every forced placement) and *pick* (place one element by canonical gauge fixing or by a representative choice). Behaviour is identical — the rule-based strategy still passes the same 88 tests — but the internals are cleaner and easier to extend. The playground dropdown now reads `pick: rule` / `pick: budget` instead of `anchor: rule` / `anchor: budget`. The solver documentation has been rewritten to match the new structure.
+
+## 0.3.21
 
 - **Fix dof reporting for free 1-locus points**: a point with a known distance to a single placed neighbour (and no other constraints) used to be reported as fully determined when it happened to be placed first, even when the neighbour itself was at an arbitrary position. It is now correctly reported as underconstrained — the placement we picked is representative, not canonical. Affects scenes with disconnected components whose canonicalization can't be reached from the anchor (e.g. `point a; segment bc = 5`).
 
