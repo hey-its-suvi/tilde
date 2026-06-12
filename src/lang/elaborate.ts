@@ -256,10 +256,11 @@ class ElaborationContext {
     this.points.add(decl.name)
 
     const { x, y } = decl.params
-    if (x !== null && y !== null) {
+    if (x !== null || y !== null) {
       this.constraints.push({
         kind: 'position', point: decl.name,
-        x: this.resolveScalar(x), y: this.resolveScalar(y),
+        x: x !== null ? this.resolveScalar(x) : null,
+        y: y !== null ? this.resolveScalar(y) : null,
       })
     }
   }

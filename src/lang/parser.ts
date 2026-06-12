@@ -464,6 +464,10 @@ export function parse(tokens: Token[]): Program {
 
   // ── Point declaration ──────────────────────────────────────────────────────
 
+  // Full form: `point p = (x, y)` — both axes set.
+  // Partial forms (mirroring line `(m,)` / `(, b)` syntax):
+  //   point p = (5,)   x known, y unknown   →  x=5,   y=null
+  //   point p = (, 3)  y known, x unknown   →  x=null, y=3
   function parsePointDecl(): PointDecl {
     eat('POINT')
     const name = eat('NAME').value
@@ -473,10 +477,27 @@ export function parse(tokens: Token[]): Program {
     }
     eat('EQUALS')
     eat('LPAREN')
-    const x = parseScalarExpr()
-    eat('COMMA')
-    const y = parseScalarExpr()
-    eat('RPAREN')
+
+    let x: ScalarExpr | null = null
+    let y: ScalarExpr | null = null
+
+    // Leading comma: (, y) form — first field is null.
+    if (check('COMMA')) {
+      advance()
+      y = parseScalarExpr()
+      eat('RPAREN')
+    } else {
+      x = parseScalarExpr()
+      eat('COMMA')
+      // Trailing comma after first: (x,) form — second field is null.
+      if (check('RPAREN')) {
+        advance()
+      } else {
+        y = parseScalarExpr()
+        eat('RPAREN')
+      }
+    }
+
     eat('NEWLINE', 'EOF')
     return { kind: 'PointDecl', name, params: { x, y } }
   }

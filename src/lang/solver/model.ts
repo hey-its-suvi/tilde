@@ -3,7 +3,7 @@
 import { LengthUnit, ShapeKind } from '../ast.js'
 import {
   WorkingPoint, WorkingLine, WorkingScalar,
-  makeWorkingPoint,
+  makeWorkingPoint, makeWorkingLine,
 } from './types.js'
 
 export type RegisteredShape = { kind: ShapeKind; vertexCount: number }
@@ -79,8 +79,43 @@ export function setPoint(model: GeomModel, key: string, x: number, y: number, do
   wp.dof = dof
 }
 
+/** Set one or both axes of a point. Nullable per-axis — used for partial
+ *  declarations like `point p = (5,)`. `dof` is the count of axes still null. */
+export function setPointPartial(model: GeomModel, key: string, x: number | null, y: number | null) {
+  const wp = touchPoint(model, key)
+  wp.resolved[0] = { x, y }
+  wp.dof = (x === null ? 1 : 0) + (y === null ? 1 : 0)
+}
+
 export function getPoint(model: GeomModel, key: string): WorkingPoint | null {
   return model.points.get(key) ?? null
+}
+
+/** Synthesise an axis-aligned line that captures a partial point declaration
+ *  like `point p = (5,)`. The point is added to the synthetic line's on-line
+ *  list so propagate's existing line∩line / circle∩line / line-completion
+ *  rules pick it up — no partial-point-specific propagate rules needed.
+ *
+ *  Underscore-prefixed names are filtered from the rendered scene. */
+export function synthesizeAxisLine(
+  model: GeomModel,
+  pointKey: string,
+  axis: 'x' | 'y',
+  value: number,
+): void {
+  const name = `_axis_${pointKey}_${axis}`
+  if (!model.lines.has(name)) {
+    // x = value  ⇒  1·x + 0·y − value = 0  → (a, b, c) = (1, 0, −value)
+    // y = value  ⇒  0·x + 1·y − value = 0  → (a, b, c) = (0, 1, −value)
+    const a = axis === 'x' ? 1 : 0
+    const b = axis === 'x' ? 0 : 1
+    const c = -value
+    model.lines.set(name, makeWorkingLine(a, b, c))
+  }
+  const existing = model.onLine.get(pointKey) ?? []
+  if (!existing.includes(name)) {
+    model.onLine.set(pointKey, [...existing, name])
+  }
 }
 
 // ─── Segment helpers ──────────────────────────────────────────────────────────

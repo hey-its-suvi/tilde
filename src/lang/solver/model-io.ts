@@ -8,7 +8,7 @@ import {
   ElementResult, Point, Line, Scalar, ConstraintError,
 } from './interface.js'
 import {
-  GeomModel, makeModel, touchPoint, setPoint, setLength, setAngle,
+  GeomModel, makeModel, touchPoint, setPointPartial, setLength, setAngle, synthesizeAxisLine,
 } from './model.js'
 import {
   makeWorkingLine, makeWorkingScalar, workingVal, isWorkingComplete, lineDofFromState,
@@ -51,13 +51,32 @@ function applyConstraint(model: GeomModel, c: ResolvedConstraint): void {
   switch (c.kind) {
     case 'position': {
       const existing = model.points.get(c.point)
-      if (existing && isWorkingComplete(existing)) {
-        const ev = workingVal(existing)
-        if (!isEqual(ev.x!, c.x) || !isEqual(ev.y!, c.y)) {
-          throw new ConstraintError(`vertex "${c.point}" is already placed at (${ev.x}, ${ev.y}), cannot redefine as (${c.x}, ${c.y})`)
+      const ev = existing ? workingVal(existing) : null
+
+      // Consistency: if both sides have a value for an axis, they must agree.
+      if (ev) {
+        if (c.x !== null && ev.x !== null && !isEqual(ev.x, c.x)) {
+          throw new ConstraintError(`vertex "${c.point}" is already placed with x = ${ev.x}, cannot redefine as ${c.x}`)
         }
-      } else {
-        setPoint(model, c.point, c.x, c.y, 0)
+        if (c.y !== null && ev.y !== null && !isEqual(ev.y, c.y)) {
+          throw new ConstraintError(`vertex "${c.point}" is already placed with y = ${ev.y}, cannot redefine as ${c.y}`)
+        }
+      }
+
+      // Merge: new value wins if set, else keep existing.
+      const newX = c.x !== null ? c.x : (ev?.x ?? null)
+      const newY = c.y !== null ? c.y : (ev?.y ?? null)
+      setPointPartial(model, c.point, newX, newY)
+
+      // Synthesise an axis-aligned line ONLY for partial declarations
+      // (exactly one axis pinned by this constraint). Full positions don't
+      // need synthesis — the point is already fully determined and a
+      // synthetic line would be redundant complete-line state that the
+      // pick mistakes for a user-orientation-fixing line.
+      if (c.x !== null && c.y === null) {
+        synthesizeAxisLine(model, c.point, 'x', c.x)
+      } else if (c.x === null && c.y !== null) {
+        synthesizeAxisLine(model, c.point, 'y', c.y)
       }
       break
     }

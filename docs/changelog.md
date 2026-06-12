@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.22 — current
+## 0.3.23 — current
+
+- **Partial point declarations**: `point p = (5,)` declares a point with `x = 5` and `y` unknown; `point p = (,3)` declares the symmetric `y = 3, x` unknown form. The two halves can be combined across multiple statements — `point p = (5,)` followed by `point p = (,3)` merges to a fully placed point at `(5, 3)`. The syntax mirrors the existing partial-line forms `line l = (m,)` and `line l = (,b)`. Internally a partial point is treated as a point lying on an axis-aligned line, so existing constraints work without special cases: e.g. `point p = (5,); line l = (3, 2); p on l` resolves to `p = (5, 17)` automatically.
+
+## 0.3.22
 
 - **Unified solver architecture**: the old anchor-then-resolve two-pass solver has been replaced with a single loop that alternates between *propagate* (apply every forced placement) and *pick* (place one element by canonical gauge fixing or by a representative choice). Behaviour is identical — the rule-based strategy still passes the same 88 tests — but the internals are cleaner and easier to extend. The playground dropdown now reads `pick: rule` / `pick: budget` instead of `anchor: rule` / `anchor: budget`. The solver documentation has been rewritten to match the new structure.
 

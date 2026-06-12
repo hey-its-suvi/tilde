@@ -31,8 +31,8 @@ export type ResolvedConstraint =
 export type PositionConstraint = {
   kind: 'position'
   point: string
-  x: number
-  y: number
+  x: number | null
+  y: number | null
 }
 
 export type DistanceConstraint = {
