@@ -2,7 +2,7 @@
 
 import { LengthUnit, ShapeKind } from '../ast.js'
 import {
-  WorkingPoint, WorkingLine, WorkingScalar,
+  WorkingPoint, WorkingLine, WorkingCircle, WorkingScalar,
   makeWorkingPoint, makeWorkingLine,
 } from './types.js'
 
@@ -14,8 +14,10 @@ export type GeomModel = {
   lengths:      Map<string, number | null>               // null = unknown
   angles:       Map<string, number | null>               // degrees, null = unknown
   lines:        Map<string, WorkingLine>                 // named lines
+  circles:      Map<string, WorkingCircle>               // named circles
   shapes:       Map<string, RegisteredShape>             // named shapes (subscript mode)
   onLine:       Map<string, string[]>                    // vertex name → line names (supports 2+ for intersection)
+  onCircle:     Map<string, string[]>                    // vertex name → circle names
   onSegment:    Map<string, { v1: string; v2: string }>  // vertex name → segment endpoints
   lineParallel:       Map<string, Array<{ other: string; distance?: number }>>  // line → parallel partners
   linePerpendicular:  Map<string, string[]>              // line → perpendicular partners
@@ -29,7 +31,8 @@ export function makeModel(): GeomModel {
   return {
     points: new Map(), segments: new Set(),
     lengths: new Map(), angles: new Map(),
-    lines: new Map(), shapes: new Map(), onLine: new Map(), onSegment: new Map(),
+    lines: new Map(), circles: new Map(), shapes: new Map(),
+    onLine: new Map(), onCircle: new Map(), onSegment: new Map(),
     lineParallel: new Map(), linePerpendicular: new Map(),
     scalars: new Map(), scalarBindings: [],
     solutionPicks: new Map(),
@@ -37,8 +40,8 @@ export function makeModel(): GeomModel {
   }
 }
 
-/** Deep-clone a model. Used by anchor strategies that want to compute their
- *  plan without mutating the caller's model. */
+/** Deep-clone a model. Used by strategies that want to mutate scratch state
+ *  without touching the caller's model. */
 export function cloneModel(m: GeomModel): GeomModel {
   const cloneWorking = (w: { resolved: Array<Record<string, unknown> | number | null>; dof: number }) => ({
     resolved: w.resolved.map(r => r === null || typeof r === 'number' ? r : { ...r }),
@@ -50,8 +53,10 @@ export function cloneModel(m: GeomModel): GeomModel {
     lengths: new Map(m.lengths),
     angles: new Map(m.angles),
     lines: new Map([...m.lines].map(([k, v]) => [k, cloneWorking(v) as WorkingLine])),
+    circles: new Map([...m.circles].map(([k, v]) => [k, cloneWorking(v) as WorkingCircle])),
     shapes: new Map(m.shapes),
     onLine: new Map([...m.onLine].map(([k, v]) => [k, [...v]])),
+    onCircle: new Map([...m.onCircle].map(([k, v]) => [k, [...v]])),
     onSegment: new Map(m.onSegment),
     lineParallel: new Map([...m.lineParallel].map(([k, v]) => [k, v.map(p => ({ ...p }))])),
     linePerpendicular: new Map([...m.linePerpendicular].map(([k, v]) => [k, [...v]])),

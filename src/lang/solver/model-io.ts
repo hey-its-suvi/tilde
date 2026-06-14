@@ -5,7 +5,7 @@
 
 import {
   ConstraintSet, SolveResult, ResolvedConstraint,
-  ElementResult, Point, Line, Scalar, ConstraintError,
+  ElementResult, Point, Line, Circle, Scalar, ConstraintError,
 } from './interface.js'
 import {
   GeomModel, makeModel, touchPoint, setPointPartial, setLength, setAngle, synthesizeAxisLine,
@@ -148,6 +148,7 @@ function applyConstraint(model: GeomModel, c: ResolvedConstraint): void {
 export function extractResult(model: GeomModel, input: ConstraintSet): SolveResult {
   const points = new Map<string, ElementResult<Point>>()
   const lines = new Map<string, ElementResult<Line>>()
+  const circles = new Map<string, ElementResult<Circle>>()
   const scalars = new Map<string, ElementResult<Scalar>>()
 
   for (const [key, wp] of model.points) {
@@ -206,5 +207,19 @@ export function extractResult(model: GeomModel, input: ConstraintSet): SolveResu
     }
   }
 
-  return { points, lines, scalars, segments: input.segments }
+  for (const [name, wc] of model.circles) {
+    const cv = workingVal(wc)
+    if (cv.center === null || cv.r === null) {
+      circles.set(name, { solutions: [], dof: wc.dof })
+      continue
+    }
+    const centerWp = model.points.get(cv.center)
+    if (!centerWp || !isWorkingComplete(centerWp)) {
+      circles.set(name, { solutions: [], dof: wc.dof })
+      continue
+    }
+    circles.set(name, { solutions: [{ center: cv.center, r: cv.r }], dof: wc.dof })
+  }
+
+  return { points, lines, circles, scalars, segments: input.segments }
 }

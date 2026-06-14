@@ -3,8 +3,8 @@
 // on. Geometric primitives (Scalar, Point, Line) come from the public
 // interface and are re-exported here for convenience.
 
-import type { Scalar, Point, Line, Nullable } from './interface.js'
-export type { Scalar, Point, Line, Nullable }
+import type { Scalar, Point, Line, Circle, Nullable } from './interface.js'
+export type { Scalar, Point, Line, Circle, Nullable }
 
 // ── Working elements (mutable, solver scratchpad) ─────────────────────────────
 // `resolved` accumulates solutions as the solver runs:
@@ -23,6 +23,7 @@ export type WorkingElement<T> = {
 
 export type WorkingPoint  = WorkingElement<Point>
 export type WorkingLine   = WorkingElement<Line>
+export type WorkingCircle = WorkingElement<Circle>
 export type WorkingScalar = WorkingElement<Scalar>
 
 // ── Working element helpers ───────────────────────────────────────────────────
@@ -62,6 +63,17 @@ export function lineDofFromState(a: number | null, b: number | null, c: number |
 /** Create a working scalar — null value means unknown (dof=1). */
 export function makeWorkingScalar(value: number | null = null): WorkingScalar {
   return { resolved: [value], dof: value === null ? 1 : 0 }
+}
+
+/** Create a working circle from a nullable centre point-ref and nullable
+ *  radius. dof tracks parameters not pinned by the declaration:
+ *    no centre, no r → 3 (centre has 2, radius has 1)
+ *    centre, no r    → 1
+ *    no centre, r    → 2
+ *    centre, r       → 0 (placement of the centre is handled by point logic). */
+export function makeWorkingCircle(center: string | null = null, r: number | null = null): WorkingCircle {
+  const dof = (center === null ? 2 : 0) + (r === null ? 1 : 0)
+  return { resolved: [{ center, r }], dof }
 }
 
 // ── Resolution state ──────────────────────────────────────────────────────────

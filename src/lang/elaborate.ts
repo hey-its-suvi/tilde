@@ -49,6 +49,7 @@ export function elaborate(program: Program): ElaborationResult {
       points: ctx.points,
       segments: ctx.segments,
       lines: ctx.lines,
+      circles: ctx.circles,
       scalars: ctx.solverScalars,
       constraints: ctx.constraints,
       picks: ctx.picks,
@@ -62,6 +63,7 @@ export function elaborate(program: Program): ElaborationResult {
 class ElaborationContext {
   points = new Set<string>()
   segments = new Set<string>()
+  circles = new Set<string>()
   lines = new Set<string>()
   constraints: ResolvedConstraint[] = []
   picks = new Map<string, number>()

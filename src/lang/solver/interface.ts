@@ -23,7 +23,9 @@ export type ResolvedConstraint =
   | AngleConstraint
   | OnLineConstraint
   | OnSegmentConstraint
+  | OnCircleConstraint
   | LineEquationConstraint
+  | CircleSpecConstraint
   | ParallelConstraint
   | PerpendicularConstraint
   | ScalarEqualityConstraint
@@ -63,12 +65,27 @@ export type OnSegmentConstraint = {
   s2: string
 }
 
+export type OnCircleConstraint = {
+  kind: 'on-circle'
+  point: string
+  circle: string
+}
+
 export type LineEquationConstraint = {
   kind: 'line-equation'
   line: string
   a: number | null
   b: number | null
   c: number | null
+}
+
+export type CircleSpecConstraint = {
+  kind: 'circle-spec'
+  circle: string
+  /** Point ref (key into points) holding the centre, or null if unspecified. */
+  center: string | null
+  /** Radius value, or null if unspecified. */
+  r: number | null
 }
 
 export type ParallelConstraint = {
@@ -99,6 +116,8 @@ export type ConstraintSet = {
   segments: Set<string>
   /** All declared line names (e.g. 'l', 'm') */
   lines: Set<string>
+  /** All declared circle names (e.g. 'c') */
+  circles: Set<string>
   /** All declared scalar names (e.g. 'm', 'k') */
   scalars: Set<string>
   /** Resolved constraints between elements */
@@ -110,12 +129,21 @@ export type ConstraintSet = {
 // ─── Geometry Primitives ─────────────────────────────────────────────────────
 
 export type Scalar = number
-export type Point = { x: Scalar; y: Scalar }
-export type Line  = { a: Scalar; b: Scalar; c: Scalar }  // ax + by + c = 0
+export type Point  = { x: Scalar; y: Scalar }
+export type Line   = { a: Scalar; b: Scalar; c: Scalar }  // ax + by + c = 0
+/** A circle. `center` is a point-ref (key into model.points), not a literal
+ *  point — this lets the existing point-placement machinery handle placement
+ *  of the centre. */
+export type Circle = { center: string; r: Scalar }
 
-/** Makes every field of T nullable. Used by the AST to represent partial
- *  declarations (e.g. a bare `point p` with no coordinates). */
-export type Nullable<T> = T extends number ? T | null : { [K in keyof T]: T[K] | null }
+/** Makes every leaf of T nullable. Numbers and strings become `T | null`;
+ *  object fields recurse. Used by the solver's working types to represent
+ *  partial knowledge (e.g. a circle whose centre is known but radius isn't). */
+export type Nullable<T> = T extends number
+  ? T | null
+  : T extends string
+  ? T | null
+  : { [K in keyof T]: Nullable<T[K]> }
 
 // ─── Solver Output ───────────────────────────────────────────────────────────
 
@@ -130,6 +158,7 @@ export type ElementResult<T> = {
 export type SolveResult = {
   points: Map<string, ElementResult<Point>>
   lines: Map<string, ElementResult<Line>>
+  circles: Map<string, ElementResult<Circle>>
   scalars: Map<string, ElementResult<Scalar>>
   /** Passed through from input for the scene graph builder */
   segments: Set<string>
