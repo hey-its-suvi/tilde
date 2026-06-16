@@ -11,7 +11,7 @@ import {
   GeomModel, makeModel, touchPoint, setPointPartial, setLength, setAngle, synthesizeAxisLine,
 } from './model.js'
 import {
-  makeWorkingLine, makeWorkingScalar, workingVal, isWorkingComplete, lineDofFromState,
+  makeWorkingLine, makeWorkingCircle, makeWorkingScalar, workingVal, isWorkingComplete, lineDofFromState,
 } from './types.js'
 import { isEqual } from './geom.js'
 
@@ -29,6 +29,9 @@ export function buildModel(input: ConstraintSet): GeomModel {
   }
   for (const name of input.lines) {
     model.lines.set(name, makeWorkingLine(null, null, null))
+  }
+  for (const name of input.circles) {
+    model.circles.set(name, makeWorkingCircle(null, null))
   }
   for (const name of input.scalars) {
     model.scalars.set(name, makeWorkingScalar())
@@ -97,6 +100,23 @@ function applyConstraint(model: GeomModel, c: ResolvedConstraint): void {
     }
     case 'on-segment': {
       model.onSegment.set(c.point, { v1: c.s1, v2: c.s2 })
+      break
+    }
+    case 'on-circle': {
+      const existing = model.onCircle.get(c.point) ?? []
+      if (!existing.includes(c.circle)) {
+        model.onCircle.set(c.point, [...existing, c.circle])
+      }
+      break
+    }
+    case 'circle-spec': {
+      const wc = model.circles.get(c.circle)
+      if (!wc) throw new ConstraintError(`circle "${c.circle}" is not declared`)
+      const cv = workingVal(wc)
+      if (c.center !== null) cv.center = c.center
+      if (c.r !== null) cv.r = c.r
+      // dof recomputed from current state.
+      wc.dof = (cv.center === null ? 2 : 0) + (cv.r === null ? 1 : 0)
       break
     }
     case 'line-equation': {
@@ -218,7 +238,11 @@ export function extractResult(model: GeomModel, input: ConstraintSet): SolveResu
       circles.set(name, { solutions: [], dof: wc.dof })
       continue
     }
-    circles.set(name, { solutions: [{ center: cv.center, r: cv.r }], dof: wc.dof })
+    // A circle is at least as underconstrained as its centre point: a circle
+    // whose centre sits at a representative-chosen position cannot itself be
+    // fully determined even if its own radius is fixed.
+    const effectiveDof = wc.dof + centerWp.dof
+    circles.set(name, { solutions: [{ center: cv.center, r: cv.r }], dof: effectiveDof })
   }
 
   return { points, lines, circles, scalars, segments: input.segments }

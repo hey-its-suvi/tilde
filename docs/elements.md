@@ -130,6 +130,68 @@ line m = (1, 1, -4)
 
 ---
 
+## Circle
+
+A circle declared by its centre and radius.
+
+```
+circle c = (p, 3)           # centre p, radius 3
+circle c = ((2, 1), 4)      # centre at (2, 1), radius 4
+circle c                    # bare — centre at origin, radius 1
+```
+
+The centre may be a named point or an inline `(x, y)` tuple. The radius can be a literal number or a scalar reference.
+
+```
+scalar r = 5
+circle c = (p, r)
+```
+
+A bare circle declaration `circle c` chooses a canonical centre and radius the same way bare points and segments do — centre at origin, radius 1.
+
+`with center` and `with radius` are clearer alternatives, and either parameter can be specified independently. The `=` is optional.
+
+```
+circle c with center p
+circle c with center=(5, 3)
+circle c with radius 3
+circle c with center p and radius 3
+```
+
+The bundled form declares a sub-element and binds it in the same statement:
+
+```
+circle c with center p = (5, 3)      # same as: point p = (5, 3); circle c with center=p
+circle c with radius r = 4           # same as: scalar r = 4; circle c with radius=r
+```
+
+Use `on` to constrain a point to lie on a circle. With one circle, the point sits on the circle's locus; with two circles (or a circle and a line) the point is placed at their intersection.
+
+```
+point a = (0, 0)
+point b = (4, 0)
+circle c1 = (a, 3)
+circle c2 = (b, 5)
+point p
+p on c1
+p on c2                     # p at (0, ±3)
+```
+
+A circle is also determined uniquely by any three points known to lie on it:
+
+```
+point a = (1, 0)
+point b = (-1, 0)
+point c = (0, 1)
+point o
+circle k = (o, 1)
+a on k
+b on k
+c on k                      # o placed at (0, 0)
+```
+
+---
+
 ## Segment
 
 A segment between two vertices. The `= 5` form is shorthand for a length constraint.

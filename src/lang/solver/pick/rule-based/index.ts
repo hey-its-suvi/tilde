@@ -40,9 +40,10 @@ export class RuleBasedPick implements PickStrategy {
     // 2. Locus and 3. fallback rules. One placement at a time; the outer
     //    Solver loop re-enters propagate after each pick.
     const st = makePlacementState(scratch)
-    if (tryPlaceVertexByLocus(scratch, st))    return scratch
-    if (tryCompleteLineByDefault(scratch, st)) return scratch
-    if (tryPlaceVertexByFallback(scratch, st)) return scratch
+    if (tryPlaceVertexByLocus(scratch, st))      return scratch
+    if (tryCompleteLineByDefault(scratch, st))   return scratch
+    if (tryCompleteCircleByDefault(scratch, st)) return scratch
+    if (tryPlaceVertexByFallback(scratch, st))   return scratch
     return null
   }
 }
@@ -73,11 +74,17 @@ function runRuleBasedFixers(model: GeomModel): void {
   // If T is already fixed by exactly 1 explicit point, use it as the pivot for R.
   let anchor: string | null = null
   if (tFree) {
+    // Anonymous (underscore-prefixed) points yield T-priority to a disconnected
+    // bare line that would otherwise absorb T via canonicalisation. Without
+    // this, an anonymous circle-centre pins T at origin while the line still
+    // claims T-or-S for its position — gauge gets double-counted.
+    const lineWantsT = hasDisconnectedLineWantingPosition(model)
     for (const [k, wp] of model.points) {
-      if (wp.dof > 0 && !model.onLine.has(k) && !model.onSegment.has(k)) {
-        anchor = k
-        break
-      }
+      if (wp.dof === 0) continue
+      if (model.onLine.has(k) || model.onSegment.has(k) || model.onCircle.has(k)) continue
+      if (k.startsWith('_') && lineWantsT) continue
+      anchor = k
+      break
     }
     if (anchor !== null) {
       setPoint(model, anchor, CANONICAL_X, CANONICAL_Y, 0)
@@ -119,7 +126,7 @@ function runRuleBasedFixers(model: GeomModel): void {
     const tryFix = (ref: string): boolean => {
       if (isZero(refDist)) return false
       const refWp = model.points.get(ref)
-      if (!refWp || refWp.dof === 0 || model.onLine.has(ref) || model.onSegment.has(ref)) return false
+      if (!refWp || refWp.dof === 0 || model.onLine.has(ref) || model.onSegment.has(ref) || model.onCircle.has(ref)) return false
       const knownLen = getLength(model, anchor!, ref)
       if (sFree) {
         setLength(model, anchor!, ref, refDist)
@@ -219,6 +226,19 @@ function isLineConnected(model: GeomModel, lineName: string): boolean {
   if (par && par.length > 0) return true
   const perp = model.linePerpendicular.get(lineName)
   if (perp && perp.length > 0) return true
+  return false
+}
+
+/** True if any disconnected bare line still wants a position (c null) — those
+ *  lines absorb T via canonicalisation, so anonymous free points should yield
+ *  T-priority to them rather than consuming T themselves. */
+function hasDisconnectedLineWantingPosition(model: GeomModel): boolean {
+  for (const [name, wl] of model.lines) {
+    const lv = workingVal(wl)
+    if (lv.c !== null) continue
+    if (isLineConnected(model, name)) continue
+    return true
+  }
   return false
 }
 
@@ -414,6 +434,18 @@ function placedNeighborsWithDist(
       result.push({ x: pv.x!, y: pv.y!, dist, dof: wp.dof })
     }
   }
+  // On-circle: each circle whose centre is placed and radius is known acts as
+  // a circular locus around the centre, with dist = r.
+  for (const circleName of model.onCircle.get(v) ?? []) {
+    const wc = model.circles.get(circleName)
+    if (!wc) continue
+    const cv = workingVal(wc)
+    if (cv.center === null || cv.r === null) continue
+    if (!placed.has(cv.center)) continue
+    const wp = getPoint(model, cv.center)!
+    const pv = workingVal(wp)
+    result.push({ x: pv.x!, y: pv.y!, dist: cv.r, dof: wp.dof })
+  }
   return result
 }
 
@@ -446,5 +478,37 @@ function modelsEqual(a: GeomModel, b: GeomModel): boolean {
     if (b.lengths.get(k) !== vA) return false
   }
 
+  return true
+}
+
+// ── Default circle completion ────────────────────────────────────────────────
+// A bare circle with no radius defaults to r = 1. If the global S-freedom is
+// still available, that default *consumes* S (the circle's size is the
+// system's chosen scale, dof=0). If S is already consumed elsewhere — by a
+// length constraint or two placed points — then r=1 is a representative
+// choice with no constraint behind it, so the circle has dof=1 (wavy).
+
+function tryCompleteCircleByDefault(model: GeomModel, _st: PlacementState): boolean {
+  for (const [, wc] of model.circles) {
+    const cv = workingVal(wc)
+    if (cv.r === null) {
+      cv.r = 1
+      wc.dof = sFreeRemaining(model) ? 0 : 1
+      return true
+    }
+  }
+  return false
+}
+
+/** True if the global scale gauge is still unconsumed at this point in the
+ *  loop — used to decide whether a default radius takes dof=0 or dof=1. */
+function sFreeRemaining(model: GeomModel): boolean {
+  const noLengths = [...model.lengths.values()].every(l => l === null)
+  if (!noLengths) return false
+  let placedCount = 0
+  for (const [, wp] of model.points) {
+    if (isWorkingComplete(wp)) placedCount++
+    if (placedCount >= 2) return false
+  }
   return true
 }

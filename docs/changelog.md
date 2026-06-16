@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.3.23 — current
+## 0.3.24 — current
+
+- **Circles**: first-class element declared as `circle c = (p, 3)` (named centre + radius), `circle c = ((x, y), r)` (inline centre), or `circle c` (bare — centre at origin, radius 1).
+- **`with center` and `with radius`**: alternative property syntax — `circle c with center p and radius 3`. Each parameter can be specified independently; `=` is optional.
+- **Bundled forms for circles**: `circle c with center p = (5, 3)` declares point `p` and places it; `circle c with radius r = 4` declares scalar `r` with value 4.
+- **On-circle constraints**: `p on c` constrains a point to a circle. Combined with another locus (line or second circle), a point can be placed at the exact intersection.
+- **Three points determine a circle**: if three or more placed points lie on the same circle, the solver derives its centre and radius.
+- **Derived circle radius**: a scalar declared without a value and used as a circle's radius is back-propagated when the radius is determined by an on-circle constraint.
+
+## 0.3.23
 
 - **Partial point declarations**: `point p = (5,)` declares a point with `x = 5` and `y` unknown; `point p = (,3)` declares the symmetric `y = 3, x` unknown form. The two halves can be combined across multiple statements — `point p = (5,)` followed by `point p = (,3)` merges to a fully placed point at `(5, 3)`. The syntax mirrors the existing partial-line forms `line l = (m,)` and `line l = (,b)`. Internally a partial point is treated as a point lying on an axis-aligned line, so existing constraints work without special cases: e.g. `point p = (5,); line l = (3, 2); p on l` resolves to `p = (5, 17)` automatically.
 

@@ -3,7 +3,7 @@
 // This is solver-agnostic — it only reads the SolveResult interface.
 
 import { SolveResult, ElementResult } from './interface.js'
-import { SceneGraph, SceneLine, SceneSegment, ScenePoint, SceneScalar, Solutions } from '../../renderer/interface.js'
+import { SceneGraph, SceneLine, SceneCircle, SceneSegment, ScenePoint, SceneScalar, Solutions } from '../../renderer/interface.js'
 
 function solutionsStatus<T>(result: ElementResult<T>): Solutions {
   if (result.solutions.length > 1) return 'multiple'
@@ -15,6 +15,7 @@ export function buildSceneGraph(result: SolveResult): SceneGraph {
   const segments: SceneSegment[] = []
   const points: ScenePoint[] = []
   const lines: SceneLine[] = []
+  const circles: SceneCircle[] = []
 
   // Lines (skip anonymous elements created from inline tuples)
   for (const [name, lr] of result.lines) {
@@ -54,6 +55,17 @@ export function buildSceneGraph(result: SolveResult): SceneGraph {
     }
   }
 
+  // Circles (skip anonymous synthesised circles)
+  for (const [name, cr] of result.circles) {
+    if (name.startsWith('_') || cr.solutions.length === 0) continue
+    const s = cr.solutions[0]!
+    const centerPr = result.points.get(s.center)
+    if (!centerPr || centerPr.solutions.length === 0) continue
+    const cp = centerPr.solutions[0]!
+    const status = solutionsStatus(cr)
+    circles.push({ cx: cp.x, cy: cp.y, r: s.r, label: name, solutions: status })
+  }
+
   // Points (skip anonymous elements created from inline tuples)
   for (const [key, pr] of result.points) {
     if (key.startsWith('_')) continue
@@ -76,5 +88,5 @@ export function buildSceneGraph(result: SolveResult): SceneGraph {
     }
   }
 
-  return { segments, points, arcs: [], annotations: [], lines, scalars }
+  return { segments, points, arcs: [], annotations: [], lines, circles, scalars }
 }

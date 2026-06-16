@@ -41,6 +41,13 @@ export type SceneLine = {
   solutionIndex?: number  // set when solutions === 'multiple', 1-based
 }
 
+export type SceneCircle = {
+  cx: number; cy: number
+  r: number
+  label: string
+  solutions: Solutions
+}
+
 export type SceneScalar = {
   label: string
   value: number
@@ -52,6 +59,7 @@ export type SceneGraph = {
   arcs: SceneArc[]
   annotations: SceneAnnotation[]
   lines: SceneLine[]
+  circles: SceneCircle[]
   scalars: SceneScalar[]
 }
 
@@ -61,6 +69,7 @@ export type HoverInfo =
   | { kind: 'segment'; label: string; length: number | null; solutions: Solutions }
   | { kind: 'point';   label: string; x: number; y: number; solutions: Solutions }
   | { kind: 'line';    label: string; a: number; b: number; c: number; solutions: Solutions }
+  | { kind: 'circle';  label: string; cx: number; cy: number; r: number; solutions: Solutions }
   | { kind: 'angle';   label: string; degrees: number | null; solutions: Solutions }
   | null
 

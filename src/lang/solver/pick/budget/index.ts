@@ -97,9 +97,10 @@ export class BudgetPick implements PickStrategy {
     // Representative (arbitrary) placements — no gauge consumed.
     const scratch = cloneModel(model)
     const st = makePlacementState(scratch)
-    if (tryPlaceVertexByLocus(scratch, st))    return scratch
-    if (tryCompleteLineByDefault(scratch, st)) return scratch
-    if (tryPlaceVertexByFallback(scratch, st)) return scratch
+    if (tryPlaceVertexByLocus(scratch, st))      return scratch
+    if (tryCompleteLineByDefault(scratch, st))   return scratch
+    if (tryCompleteCircleByDefault(scratch, st)) return scratch
+    if (tryPlaceVertexByFallback(scratch, st))   return scratch
     return null
   }
 }
@@ -391,5 +392,49 @@ function placedNeighborsWithDist(
       result.push({ x: pv.x!, y: pv.y!, dist, dof: wp.dof })
     }
   }
+  // On-circle: each circle whose centre is placed and radius is known acts as
+  // a circular locus around the centre, with dist = r.
+  for (const circleName of model.onCircle.get(v) ?? []) {
+    const wc = model.circles.get(circleName)
+    if (!wc) continue
+    const cv = workingVal(wc)
+    if (cv.center === null || cv.r === null) continue
+    if (!placed.has(cv.center)) continue
+    const wp = getPoint(model, cv.center)!
+    const pv = workingVal(wp)
+    result.push({ x: pv.x!, y: pv.y!, dist: cv.r, dof: wp.dof })
+  }
   return result
+}
+
+// ── Default circle completion ────────────────────────────────────────────────
+// A bare circle with no radius defaults to r = 1. If the global S-freedom is
+// still available, that default *consumes* S (the circle's size is the
+// system's chosen scale, dof=0). If S is already consumed elsewhere — by a
+// length constraint or two placed points — then r=1 is a representative
+// choice with no constraint behind it, so the circle has dof=1 (wavy).
+
+function tryCompleteCircleByDefault(model: GeomModel, _st: PlacementState): boolean {
+  for (const [, wc] of model.circles) {
+    const cv = workingVal(wc)
+    if (cv.r === null) {
+      cv.r = 1
+      wc.dof = sFreeRemaining(model) ? 0 : 1
+      return true
+    }
+  }
+  return false
+}
+
+/** True if the global scale gauge is still unconsumed at this point in the
+ *  loop — used to decide whether a default radius takes dof=0 or dof=1. */
+function sFreeRemaining(model: GeomModel): boolean {
+  const noLengths = [...model.lengths.values()].every(l => l === null)
+  if (!noLengths) return false
+  let placedCount = 0
+  for (const [, wp] of model.points) {
+    if (isWorkingComplete(wp)) placedCount++
+    if (placedCount >= 2) return false
+  }
+  return true
 }
