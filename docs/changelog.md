@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.26 — current
+## 0.3.27 — current
+
+- **Circle hover tooltip**: hovering over a circle in the playground now shows its label, centre, and radius instead of the stale tooltip text from the previously-hovered element. The hover handler also gains a fallback branch that shows the element's label (or `(no format)`) for any kind that doesn't have a custom formatter yet, so similar bugs won't repeat as new shapes are added.
+
+## 0.3.26
 
 - **Underdetermined circles render through their on-circle points**: a bare `circle c` with one or two placed points on it (e.g. `point p = (1, 2); circle c; p on c`) used to throw because the default radius of 1 conflicted with the constraint. The circle now places its anonymous centre canonically — at the origin for a single on-circle point, at the chord midpoint for two — and lets the radius be derived from there. The circle renders as wavy (its centre is a representative choice). Three or more on-circle points continue to determine the circle exactly via the circumcentre rule.
 
