@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.25 — current
+## 0.3.26 — current
+
+- **Underdetermined circles render through their on-circle points**: a bare `circle c` with one or two placed points on it (e.g. `point p = (1, 2); circle c; p on c`) used to throw because the default radius of 1 conflicted with the constraint. The circle now places its anonymous centre canonically — at the origin for a single on-circle point, at the chord midpoint for two — and lets the radius be derived from there. The circle renders as wavy (its centre is a representative choice). Three or more on-circle points continue to determine the circle exactly via the circumcentre rule.
+
+## 0.3.25
 
 - **Multi-target `through`**: `l through p, q` and `l through p and q` (with comma or `and` separator) now work as standalone constraint statements, not just inline on a line declaration. Each target desugars to a separate on-line constraint. The same syntax also works for circles: `c through a, b, c`.
 - **`through` clause on circle declarations**: `circle k = (o, 1) through a, b, c` works inline, mirroring the existing `line l = (1,) through p, q` form. With three placed points the circumcentre rule completes the circle.

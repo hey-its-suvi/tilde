@@ -488,16 +488,67 @@ function modelsEqual(a: GeomModel, b: GeomModel): boolean {
 // length constraint or two placed points — then r=1 is a representative
 // choice with no constraint behind it, so the circle has dof=1 (wavy).
 
-function tryCompleteCircleByDefault(model: GeomModel, _st: PlacementState): boolean {
-  for (const [, wc] of model.circles) {
+function tryCompleteCircleByDefault(model: GeomModel, st: PlacementState): boolean {
+  for (const [name, wc] of model.circles) {
     const cv = workingVal(wc)
-    if (cv.r === null) {
+    if (cv.r !== null) continue
+    if (cv.center === null) continue
+
+    const centerPlaced = st.placed.has(cv.center)
+    const pts = placedOnCirclePoints(model, st, name)
+
+    // Anonymous centre + at least 1 placed point on the circle: place the
+    // centre at a sensible canonical position so propagate's "centre placed
+    // + r unknown + 1+ on-circle points" rule can derive r without
+    // verification failing.
+    //   1 point  → centre at origin            (smallest circle through p
+    //                                           with a canonical centre)
+    //   2 points → centre at midpoint of chord (smallest circle through
+    //                                           both)
+    //   3+       → defer to propagate's circumcentre rule
+    if (!centerPlaced && cv.center.startsWith('_') && pts.length >= 1) {
+      let cx: number, cy: number
+      if (pts.length === 1) {
+        cx = 0; cy = 0
+      } else if (pts.length === 2) {
+        cx = (pts[0]!.x + pts[1]!.x) / 2
+        cy = (pts[0]!.y + pts[1]!.y) / 2
+      } else {
+        continue  // 3+ points — circumcentre rule will fire in propagate.
+      }
+      // Representative placement; dof=1 so the circle reads as wavy via the
+      // centre's dof bubbling up. Matches the convention used by the
+      // isolated-fallback rule.
+      setPoint(model, cv.center, cx, cy, 1)
+      st.placed.add(cv.center)
+      return true
+    }
+
+    // No on-circle points (or centre is named-and-placed elsewhere): classic
+    // bare-circle default.
+    if (pts.length === 0) {
       cv.r = 1
       wc.dof = sFreeRemaining(model) ? 0 : 1
       return true
     }
   }
   return false
+}
+
+/** Coordinates of placed points constrained to lie on the named circle. */
+function placedOnCirclePoints(
+  model: GeomModel,
+  st: PlacementState,
+  circleName: string,
+): Array<{ x: number; y: number }> {
+  const result: Array<{ x: number; y: number }> = []
+  for (const [v, circleNames] of model.onCircle) {
+    if (!st.placed.has(v)) continue
+    if (!circleNames.includes(circleName)) continue
+    const pv = workingVal(model.points.get(v)!)
+    result.push({ x: pv.x!, y: pv.y! })
+  }
+  return result
 }
 
 /** True if the global scale gauge is still unconsumed at this point in the

@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest'
 import {
   run,
   assertCircle,
+  assertCircleStatus,
   assertPointAt,
   assertScalar,
   assertThrows,
@@ -250,42 +251,48 @@ describe('on-circle constraints', () => {
     assertScalar(scene, 'r', 5)
   })
 
-  // ── Circle `through` sugar ──────────────────────────────────────────────────
+  // ── Under-constrained: bare circle through one or two placed points ─────────
+  // Centre is anonymous; only 1 or 2 placed points pin the circle. Choose a
+  // canonical centre so the circle visibly passes through the points, and
+  // render the circle as wavy (its position is a representative choice).
 
-  it('standalone: c through p, q, r determines the circle', () => {
-    // c through a, b, c desugars to "a on c; b on c; c on c". With three
-    // placed points and an anonymous centre, the circumcentre rule fires.
+  it('bare circle through one placed point — centre at origin, wavy', () => {
+    // 3 placed points consume all gauges; only p is on c. Pick a canonical
+    // centre at origin and derive r from there.
     const scene = run([
-      'point a = (1, 0)',
-      'point b = (-1, 0)',
-      'point c = (0, 1)',
-      'point o',
-      'circle k = (o, 1)',
-      'k through a, b, c',
+      'point p = (1, 2)',
+      'point q = (2, 3)',
+      'point r = (0, 5)',
+      'circle c',
+      'p on c',
     ].join('\n'))
-    assertCircle(scene, 'k', 0, 0, 1)
+    assertCircle(scene, 'c', 0, 0, Math.sqrt(5))
+    assertCircleStatus(scene, 'c', 'infinite')
   })
 
-  it('standalone with `and`: c through p and q and r', () => {
+  it('bare circle through two placed points — centre at midpoint, wavy', () => {
+    // Smallest circle through both: centre at the chord midpoint.
     const scene = run([
-      'point a = (1, 0)',
-      'point b = (-1, 0)',
-      'point c = (0, 1)',
-      'point o',
-      'circle k = (o, 1)',
-      'k through a and b and c',
+      'point p = (1, 2)',
+      'point q = (2, 3)',
+      'point r = (0, 5)',
+      'circle c',
+      'p on c',
+      'q on c',
     ].join('\n'))
-    assertCircle(scene, 'k', 0, 0, 1)
+    assertCircle(scene, 'c', 1.5, 2.5, Math.sqrt(0.5))
+    assertCircleStatus(scene, 'c', 'infinite')
   })
 
-  it('inline trailing through on circle decl: circle k = (o, 1) through a, b, c', () => {
+  it('bare circle through one bare point — circle solid, point on the locus', () => {
+    // Centre wins T-anchor (at origin); circle takes S for r=1; the bare
+    // point is placed on the circle locus (wavy).
     const scene = run([
-      'point a = (1, 0)',
-      'point b = (-1, 0)',
-      'point c = (0, 1)',
-      'point o',
-      'circle k = (o, 1) through a, b, c',
+      'point p',
+      'circle c',
+      'p on c',
     ].join('\n'))
-    assertCircle(scene, 'k', 0, 0, 1)
+    assertCircle(scene, 'c', 0, 0, 1)
+    assertCircleStatus(scene, 'c', 'one')
   })
 })
