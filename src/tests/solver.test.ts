@@ -209,6 +209,40 @@ describe('through syntax', () => {
     assertPoint(scene, 'p', 'one')
     assertPointAt(scene, 'p', 1, 1)
   })
+
+  it('standalone multi-through: l through p, q fully determines the line', () => {
+    // Same geometry as the inline `line l through a and b` case, but written
+    // as a standalone constraint after the bare line declaration.
+    const scene = run([
+      'point a = (3, 2)',
+      'point b = (1, 4)',
+      'line l',
+      'l through a, b',
+    ].join('\n'))
+    assertLine(scene, 'l', 'one')
+    assertLineEq(scene, 'l', 2, 2, -10)
+  })
+
+  it('standalone multi-through with `and`: l through p and q', () => {
+    const scene = run([
+      'point a = (3, 2)',
+      'point b = (1, 4)',
+      'line l',
+      'l through a and b',
+    ].join('\n'))
+    assertLineEq(scene, 'l', 2, 2, -10)
+  })
+
+  it('chaining operators is rejected: l through p parallel m', () => {
+    // Reading `l through p parallel m` is ambiguous (is p parallel to m, or
+    // is l parallel to m?). Each constraint clause needs its own statement.
+    assertThrows([
+      'point p = (0, 0)',
+      'line m = (1, 1, -1)',
+      'line l',
+      'l through p parallel m',
+    ].join('\n'), '')
+  })
 })
 
 describe('bare line declarations', () => {

@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.3.24 — current
+## 0.3.25 — current
+
+- **Multi-target `through`**: `l through p, q` and `l through p and q` (with comma or `and` separator) now work as standalone constraint statements, not just inline on a line declaration. Each target desugars to a separate on-line constraint. The same syntax also works for circles: `c through a, b, c`.
+- **`through` clause on circle declarations**: `circle k = (o, 1) through a, b, c` works inline, mirroring the existing `line l = (1,) through p, q` form. With three placed points the circumcentre rule completes the circle.
+- **Chaining constraint operators is now rejected**: `l through p parallel m` used to be silently accepted in line declarations (treating it as `l through p; l parallel m`) but was actually a parse error in standalone constraint statements. The reading is ambiguous (is `p` parallel to `m`?), so it's now a parse error everywhere. Each constraint clause needs its own statement.
+- **Shared constraint-body parser**: standalone constraint statements (`l through p`), line-decl trailing clauses (`line l = (1,) through p`), and circle-decl trailing clauses now go through one shared parser. Future constraint operators added there automatically work in all three contexts.
+
+## 0.3.24
 
 - **Circles**: first-class element declared as `circle c = (p, 3)` (named centre + radius), `circle c = ((x, y), r)` (inline centre), or `circle c` (bare — centre at origin, radius 1).
 - **`with center` and `with radius`**: alternative property syntax — `circle c with center p and radius 3`. Each parameter can be specified independently; `=` is optional.

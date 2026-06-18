@@ -249,4 +249,43 @@ describe('on-circle constraints', () => {
     assertCircle(scene, 'k', 0, 0, 5)
     assertScalar(scene, 'r', 5)
   })
+
+  // ── Circle `through` sugar ──────────────────────────────────────────────────
+
+  it('standalone: c through p, q, r determines the circle', () => {
+    // c through a, b, c desugars to "a on c; b on c; c on c". With three
+    // placed points and an anonymous centre, the circumcentre rule fires.
+    const scene = run([
+      'point a = (1, 0)',
+      'point b = (-1, 0)',
+      'point c = (0, 1)',
+      'point o',
+      'circle k = (o, 1)',
+      'k through a, b, c',
+    ].join('\n'))
+    assertCircle(scene, 'k', 0, 0, 1)
+  })
+
+  it('standalone with `and`: c through p and q and r', () => {
+    const scene = run([
+      'point a = (1, 0)',
+      'point b = (-1, 0)',
+      'point c = (0, 1)',
+      'point o',
+      'circle k = (o, 1)',
+      'k through a and b and c',
+    ].join('\n'))
+    assertCircle(scene, 'k', 0, 0, 1)
+  })
+
+  it('inline trailing through on circle decl: circle k = (o, 1) through a, b, c', () => {
+    const scene = run([
+      'point a = (1, 0)',
+      'point b = (-1, 0)',
+      'point c = (0, 1)',
+      'point o',
+      'circle k = (o, 1) through a, b, c',
+    ].join('\n'))
+    assertCircle(scene, 'k', 0, 0, 1)
+  })
 })

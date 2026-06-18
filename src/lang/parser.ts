@@ -82,14 +82,14 @@ export function parse(tokens: Token[]): Program {
       const op = tokens[pos + 2]?.kind
       if (op === 'EQUALS') return [parsePointDecl()]
       if (op === 'NEWLINE' || op === 'EOF' || op === undefined) return [parsePointDecl()]
-      return [parseConstraintStmt()]  // point a on ...
+      return parseConstraintStmt()  // point a on ...
     }
     if (check('SCALAR')) return [parseScalarDecl()]
     if (check('PRINT')) return [parsePrintStmt()]
     if (check('SET')) return [parseSettingStmt()]
     if (check('PICK')) return [parsePickStmt()]
-    if (check('ANGLE')) return [parseConstraintStmt()]
-    if (check('NAME')) return [parseConstraintStmt()]
+    if (check('ANGLE')) return parseConstraintStmt()
+    if (check('NAME')) return parseConstraintStmt()
 
     throw new ParseError(`Unexpected token ${tok.kind} ("${tok.value}")`, tok.line, tok.col)
   }
@@ -194,20 +194,20 @@ export function parse(tokens: Token[]): Program {
   // ── Constraint list (after 'with') ─────────────────────────────────────────
 
   function parseConstraintList(): Constraint[] {
-    const constraints = [parseConstraint()]
+    const constraints = [...parseConstraint()]
     while (check('AND') || check('COMMA')) {
       advance()
-      constraints.push(parseConstraint())
+      constraints.push(...parseConstraint())
     }
     return constraints
   }
 
   // ── Constraint statement ───────────────────────────────────────────────────
 
-  function parseConstraintStmt(): ConstraintStmt {
-    const constraint = parseConstraint()
+  function parseConstraintStmt(): Statement[] {
+    const constraints = parseConstraint()
     eat('NEWLINE', 'EOF')
-    return { kind: 'ConstraintStmt', constraint }
+    return constraints.map(c => ({ kind: 'ConstraintStmt', constraint: c } satisfies ConstraintStmt))
   }
 
   // ── Constraint ─────────────────────────────────────────────────────────────
@@ -232,7 +232,7 @@ export function parse(tokens: Token[]): Program {
     return refs
   }
 
-  function parseConstraint(): Constraint {
+  function parseConstraint(): Constraint[] {
     // point ref on target(s)
     if (check('POINT')) {
       advance()
@@ -240,7 +240,7 @@ export function parse(tokens: Token[]): Program {
       eat('ON')
       if (check('LINE', 'SEGMENT')) advance()  // optional keyword hint — consumed, not stored
       const targets = parseRefList(parseRef())
-      return { kind: 'OnConstraint', point, targets } satisfies OnConstraint
+      return [{ kind: 'OnConstraint', point, targets } satisfies OnConstraint]
     }
 
     // angle ref = value
@@ -249,27 +249,50 @@ export function parse(tokens: Token[]): Program {
       const target = parseRef()
       eat('EQUALS')
       const value = parseMeasureValue()
-      return { kind: 'AngleConstraint', target, value } satisfies AngleConstraint
+      return [{ kind: 'AngleConstraint', target, value } satisfies AngleConstraint]
     }
 
     // Optional 'line' hint — consumed for `line l parallel m` / `line l perpendicular m` forms
     if (check('LINE')) advance()
 
-    // ref = ...  |  ref on ...  |  ref parallel/perpendicular ref
+    // ref = ...  |  ref on ...  |  ref through ...  |  ref parallel/perpendicular ref
+    // One constraint body per statement — no chaining across operators.
+    // Multi-target within a single body is fine (e.g. `l through p, q`).
     const left = parseRef()
+    const body = parseConstraintBody(left)
+    if (body === null) {
+      throw new ParseError(`Expected =, on, through, parallel, or perpendicular after reference`, peek().line, peek().col)
+    }
+    return body
+  }
 
+  // ── Constraint body ───────────────────────────────────────────────────────
+  //
+  // Everything that can follow a constraint's LHS ref. Called both from
+  // parseConstraint (the standalone constraint form, where `left` was just
+  // parsed) and from the decl-trail sugar in parseLineDecl / parseCircleDecl
+  // (where `left` is the just-declared element).
+  //
+  // Returns null if the next token doesn't start a constraint body — used by
+  // the decl-trail callers to know when to stop chaining.
+
+  function parseConstraintBody(left: Ref): Constraint[] | null {
     if (check('ON')) {
       advance()
       if (check('LINE', 'SEGMENT')) advance()  // optional keyword hint
       const targets = parseRefList(parseRef())
-      return { kind: 'OnConstraint', point: left, targets } satisfies OnConstraint
+      return [{ kind: 'OnConstraint', point: left, targets } satisfies OnConstraint]
     }
 
     if (check('THROUGH')) {
       advance()
       if (check('POINT')) advance()  // optional keyword hint
-      const point = parseRef()
-      return { kind: 'OnConstraint', point, targets: [left] } satisfies OnConstraint
+      // `through p` desugars to "p on left". Multi-targets allowed via
+      // comma / `and` separators — one OnConstraint per point.
+      const points = parseRefList(parseRef())
+      return points.map(point => ({
+        kind: 'OnConstraint', point, targets: [left],
+      } satisfies OnConstraint))
     }
 
     if (check('PARALLEL', 'PERPENDICULAR')) {
@@ -287,7 +310,7 @@ export function parse(tokens: Token[]): Program {
           at = parseRef()                 // `l perpendicular m at p` — intersection point
         }
       }
-      return { kind: 'RelationConstraint', relation: rel, left, right, at, distance } satisfies RelationConstraint
+      return [{ kind: 'RelationConstraint', relation: rel, left, right, at, distance } satisfies RelationConstraint]
     }
 
     if (check('EQUALS')) {
@@ -299,19 +322,19 @@ export function parse(tokens: Token[]): Program {
         eat('COMMA')
         const y = parseScalarExpr()
         eat('RPAREN')
-        return { kind: 'PositionConstraint', vertex: left, x, y } satisfies PositionConstraint
+        return [{ kind: 'PositionConstraint', vertex: left, x, y } satisfies PositionConstraint]
       }
       // ref = number or scalar ref → length constraint
       if (check('NUMBER') || check('NAME')) {
         const value = parseMeasureValue()
-        return { kind: 'LengthConstraint', target: left, value } satisfies LengthConstraint
+        return [{ kind: 'LengthConstraint', target: left, value } satisfies LengthConstraint]
       }
       // ref = ref → equality (length) or coincidence (vertex) — solver decides
       const right = parseRef()
-      return { kind: 'EqualityConstraint', left, right } satisfies EqualityConstraint
+      return [{ kind: 'EqualityConstraint', left, right } satisfies EqualityConstraint]
     }
 
-    throw new ParseError(`Expected =, on, parallel, or perpendicular after reference`, peek().line, peek().col)
+    return null
   }
 
   // ── Values ─────────────────────────────────────────────────────────────────
@@ -439,34 +462,16 @@ export function parse(tokens: Token[]): Program {
       { kind: 'LineDecl', name, params: { a, b, c } } satisfies LineDecl,
     ]
 
-    // `through p, q` or `through p and q` — sugar: expand to OnConstraints
-    if (check('THROUGH')) {
-      advance()
-      if (check('POINT')) advance()  // optional keyword hint
-      const lineRef: NameRef = { kind: 'NameRef', name }
-      for (const point of parseRefList(parseRef())) {
-        stmts.push({ kind: 'ConstraintStmt', constraint: { kind: 'OnConstraint', point, targets: [lineRef] } })
+    // Trailing constraint-body sugar: `through p, q`, `parallel m at p`,
+    // `perpendicular m`. At most one body per decl — multiple operators in
+    // sequence (e.g. `through p parallel m`) read ambiguously and aren't
+    // allowed. Multi-target within a single body is fine (`through p, q`).
+    const lineRef: NameRef = { kind: 'NameRef', name }
+    if (!check('EQUALS')) {
+      const body = parseConstraintBody(lineRef)
+      if (body !== null) {
+        for (const c of body) stmts.push({ kind: 'ConstraintStmt', constraint: c })
       }
-    }
-
-    // `parallel m` / `perpendicular m at p` — sugar: expand to RelationConstraint
-    if (check('PARALLEL', 'PERPENDICULAR')) {
-      const relKind = advance().kind
-      const rel = relKind === 'PARALLEL' ? 'parallel' : 'perpendicular'
-      if (check('LINE')) advance()  // optional hint
-      const right = parseRef()
-      let at: Ref | undefined
-      let distance: ScalarExpr | undefined
-      if (check('AT')) {
-        advance()
-        if (check('NUMBER') || check('MINUS')) {
-          distance = parseScalarExpr()
-        } else {
-          at = parseRef()
-        }
-      }
-      const left: NameRef = { kind: 'NameRef', name }
-      stmts.push({ kind: 'ConstraintStmt', constraint: { kind: 'RelationConstraint', relation: rel, left, right, at, distance } })
     }
 
     eat('NEWLINE', 'EOF')
@@ -564,11 +569,24 @@ export function parse(tokens: Token[]): Program {
       } while ((check('AND') || check('COMMA')) && !!advance())
     }
 
-    eat('NEWLINE', 'EOF')
-    return [
+    const stmts: Statement[] = [
       ...bundled,
       { kind: 'CircleDecl', name, params: { center, r } } satisfies CircleDecl,
     ]
+
+    // Trailing constraint-body sugar: `through p, q, r`, `parallel m at p`.
+    // At most one body — chaining operators (e.g. `through p parallel m`)
+    // would read ambiguously and isn't allowed.
+    const circleRef: NameRef = { kind: 'NameRef', name }
+    if (!check('EQUALS')) {
+      const body = parseConstraintBody(circleRef)
+      if (body !== null) {
+        for (const c of body) stmts.push({ kind: 'ConstraintStmt', constraint: c })
+      }
+    }
+
+    eat('NEWLINE', 'EOF')
+    return stmts
   }
 
   // ── Point declaration ──────────────────────────────────────────────────────
