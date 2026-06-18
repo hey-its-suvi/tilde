@@ -65,6 +65,9 @@ class ElaborationContext {
   points = new Set<string>()
   segments = new Set<string>()
   circles = new Set<string>()
+  /** Circle name → its centre point name. Used to interpret `c on l` and
+   *  `l through c` as "c's centre is on l". */
+  private circleCenters = new Map<string, string>()
   lines = new Set<string>()
   constraints: ResolvedConstraint[] = []
   picks = new Map<string, number>()
@@ -299,6 +302,7 @@ class ElaborationContext {
       centerName = `_pt${++this.anonCounter}`
       this.points.add(centerName)
     }
+    this.circleCenters.set(decl.name, centerName)
 
     // If r is an unresolved scalar ref, emit a binding so the solver can
     // back-propagate the derived radius to the scalar.
@@ -353,9 +357,18 @@ class ElaborationContext {
     }
 
     if (c.kind === 'OnConstraint') {
-      const pointName = this.resolveVertexName(c.point)
+      let pointName = this.resolveVertexName(c.point)
+      // A circle in the LHS-of-on position acts as a stand-in for its centre,
+      // so `c on l` means "c's centre is on l" and `l through c` (which
+      // desugars to the same OnConstraint) means "l passes through c's
+      // centre". Two circles can't relate this way — `c1 on c2` and
+      // `c1 through c2` are rejected by elaborateOnTarget below.
+      const lhsWasCircle = this.circles.has(pointName)
+      if (lhsWasCircle) {
+        pointName = this.circleCenters.get(pointName)!
+      }
       this.touchPoint(pointName)
-      for (const target of c.targets) this.elaborateOnTarget(target, pointName)
+      for (const target of c.targets) this.elaborateOnTarget(target, pointName, lhsWasCircle)
       return
     }
 
@@ -388,7 +401,7 @@ class ElaborationContext {
 
   // ── On-target elaboration ────────────────────────────────────────────────
 
-  private elaborateOnTarget(target: Ref, pointName: string) {
+  private elaborateOnTarget(target: Ref, pointName: string, lhsWasCircle = false) {
     if (target.kind === 'SubscriptRef' && target.indices.length === 2) {
       const v1 = vn(target.shape, target.indices[0]!)
       const v2 = vn(target.shape, target.indices[1]!)
@@ -405,6 +418,9 @@ class ElaborationContext {
         return
       }
       if (this.circles.has(name)) {
+        if (lhsWasCircle) {
+          throw new ElaborationError(`"on" / "through" between two circles isn't supported (a circle's centre can be on a line or segment, but not on another circle); got circle on circle "${name}"`)
+        }
         this.constraints.push({ kind: 'on-circle', point: pointName, circle: name })
         return
       }
@@ -532,6 +548,9 @@ class ElaborationContext {
   private touchPoint(name: string) {
     if (this.lines.has(name)) {
       throw new ElaborationError(`"${name}" is already declared as a line`)
+    }
+    if (this.circles.has(name)) {
+      throw new ElaborationError(`"${name}" is already declared as a circle`)
     }
     this.points.add(name)
   }

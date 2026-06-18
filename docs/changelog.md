@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.3.27 — current
+## 0.3.28 — current
+
+- **Circle as a point-on-locus stand-in**: `c on l` now means "c's centre is on line l", and the symmetric `l through c` means "l passes through c's centre". The same applies to segments (`c on ab`). Useful for classical compass-and-straightedge constructions where the centre's locus is constrained — inscribed circles, tangent circles, Apollonius problems. Two circles can't relate this way: `c1 on c2` and `c1 through c2` are now rejected at elaboration (previously they parsed silently with no geometric meaning).
+- **Stricter naming checks**: using a circle name in a point position (e.g. `c = (3, 4)` when `c` is a circle) is now an elaboration error rather than silently creating a phantom point.
+- **`On and through — the matrix`** doc section: the constraints docs gain a matrix listing every LHS / RHS element-type pair and what it means (or that it's rejected). The on-circle section also documents the `through` form (`circle c through p`).
+
+## 0.3.27
 
 - **Circle hover tooltip**: hovering over a circle in the playground now shows its label, centre, and radius instead of the stale tooltip text from the previously-hovered element. The hover handler also gains a fallback branch that shows the element's label (or `(no format)`) for any kind that doesn't have a custom formatter yet, so similar bugs won't repeat as new shapes are added.
 

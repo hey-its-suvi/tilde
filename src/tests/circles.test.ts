@@ -296,3 +296,79 @@ describe('on-circle constraints', () => {
     assertCircleStatus(scene, 'c', 'one')
   })
 })
+
+describe('circle as point-on-locus stand-in', () => {
+  // A circle in the LHS-of-on (or RHS-of-through) position acts as its centre
+  // point. `c on l` ≡ `c.centre on l`. `l through c` desugars to the same.
+  // Two circles can't relate this way — `c1 on c2` is rejected.
+
+  it('c on l constrains the centre to lie on l', () => {
+    // l is y = 0; circle c with named centre p; `c on l` puts p on l.
+    // Combined with p's position from elsewhere, the constraint resolves.
+    const scene = run([
+      'line l = (0, 1, 0)',                   // y = 0
+      'point p',
+      'circle c = (p, 1)',
+      'c on l',
+    ].join('\n'))
+    // p must be on l (y = 0). Its position along l comes from the anchor
+    // canonicalisation; we only check the y coordinate here.
+    const p = scene.points.find(pp => pp.label === 'p')!
+    expect(p.y).toBeCloseTo(0)
+  })
+
+  it('l through c is equivalent to c on l', () => {
+    const scene = run([
+      'line l = (0, 1, 0)',
+      'point p',
+      'circle c = (p, 1)',
+      'l through c',
+    ].join('\n'))
+    const p = scene.points.find(pp => pp.label === 'p')!
+    expect(p.y).toBeCloseTo(0)
+  })
+
+  it('multi-target through with circles: l through c1, c2 — both centres on l', () => {
+    const scene = run([
+      'line l = (0, 1, 0)',
+      'point p',
+      'point q',
+      'circle c1 = (p, 1)',
+      'circle c2 = (q, 2)',
+      'l through c1, c2',
+    ].join('\n'))
+    const p = scene.points.find(pp => pp.label === 'p')!
+    const q = scene.points.find(pp => pp.label === 'q')!
+    expect(p.y).toBeCloseTo(0)
+    expect(q.y).toBeCloseTo(0)
+  })
+
+  it('c1 on c2 is rejected (circle-on-circle not supported)', () => {
+    assertThrows([
+      'point p',
+      'point q',
+      'circle c1 = (p, 1)',
+      'circle c2 = (q, 2)',
+      'c1 on c2',
+    ].join('\n'), 'between two circles')
+  })
+
+  it('c1 through c2 is rejected', () => {
+    assertThrows([
+      'point p',
+      'point q',
+      'circle c1 = (p, 1)',
+      'circle c2 = (q, 2)',
+      'c1 through c2',
+    ].join('\n'), 'between two circles')
+  })
+
+  it('using a circle name as a point position is rejected', () => {
+    // `c = (3, 4)` is suspicious — c is already a circle, not a point.
+    assertThrows([
+      'point p',
+      'circle c = (p, 1)',
+      'c = (3, 4)',
+    ].join('\n'), 'already declared as a circle')
+  })
+})

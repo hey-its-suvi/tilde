@@ -1,6 +1,6 @@
 {
   "name": "tilde",
-  "version": "0.3.27",
+  "version": "0.3.28",
   "description": "A declarative geometric programming language",
   "type": "module",
   "scripts": {
