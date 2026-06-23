@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config'
 import { resolve } from 'path'
 
 export default defineConfig({
-  base: '/tilde/playground/',
+  base: '/playground/',
   resolve: {
     alias: {
       '@lang': resolve(__dirname, 'src/lang'),
