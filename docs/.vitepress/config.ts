@@ -4,7 +4,8 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 export default withMermaid(defineConfig({
   title: '~tilde',
   description: 'A geometric programming language for school-level geometry',
-  base: '/',
+  base: '/tilde/',
+  outDir: '../dist',
 
   // path-b-plan.md is an internal planning document, not user-facing.
   srcExclude: ['path-b-plan.md'],
@@ -12,7 +13,7 @@ export default withMermaid(defineConfig({
   vite: {
     server: {
       proxy: {
-        '/playground': {
+        '/tilde/playground': {
           target: 'http://localhost:5174',
           changeOrigin: true,
           ws: true,

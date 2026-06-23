@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"vitepress dev docs --port 5173\" \"vite --port 5174\"",
     "playground": "vite --port 5174",
-    "build": "tsc && vite build",
+    "build": "tsc && rm -rf dist && vitepress build docs && vite build --outDir dist/playground",
     "typecheck": "tsc --noEmit",
     "docs:dev": "vitepress dev docs --port 5173",
     "docs:build": "vitepress build docs",

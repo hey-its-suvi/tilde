@@ -6,6 +6,7 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitReturns": true,
+    "skipLibCheck": true,
     "paths": {
       "@lang/*": ["./src/lang/*"],
       "@renderer/*": ["./src/renderer/*"]
