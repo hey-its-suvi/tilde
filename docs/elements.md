@@ -158,11 +158,19 @@ circle c with radius 3
 circle c with center p and radius 3
 ```
 
+`with diameter` is sugar for `with radius` at half the value. Currently only literal numbers are accepted (no scalar references — there's no arithmetic on scalars yet).
+
+```
+circle c with diameter 6                  # same as: with radius 3
+circle c with center p and diameter 8     # same as: with center p and radius 4
+```
+
 The bundled form declares a sub-element and binds it in the same statement:
 
 ```
 circle c with center p = (5, 3)      # same as: point p = (5, 3); circle c with center=p
 circle c with radius r = 4           # same as: scalar r = 4; circle c with radius=r
+circle c with diameter d = 6         # declares scalar d=6 (the diameter), sets r=3
 ```
 
 Use `on` to constrain a point to lie on a circle. With one circle, the point sits on the circle's locus; with two circles (or a circle and a line) the point is placed at their intersection.

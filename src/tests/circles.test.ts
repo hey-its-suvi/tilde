@@ -125,6 +125,37 @@ describe('circle with syntax', () => {
     assertCircle(scene, 'c', 0, 0, 3)
   })
 
+  it('with diameter 6 sets radius to 3', () => {
+    const scene = run('circle c with diameter 6')
+    assertCircle(scene, 'c', 0, 0, 3)
+  })
+
+  it('with diameter=8 sets radius to 4', () => {
+    const scene = run('circle c with diameter=8')
+    assertCircle(scene, 'c', 0, 0, 4)
+  })
+
+  it('with center and diameter combined', () => {
+    const scene = run([
+      'point p = (1, 1)',
+      'circle c with center p and diameter 6',
+    ].join('\n'))
+    assertCircle(scene, 'c', 1, 1, 3)
+  })
+
+  it('bundled: with diameter d = 6 declares scalar d (the diameter) and sets r=3', () => {
+    const scene = run('circle c with diameter d = 6')
+    assertCircle(scene, 'c', 0, 0, 3)
+    assertScalar(scene, 'd', 6)
+  })
+
+  it('with diameter <scalar-ref> is rejected (literals only for now)', () => {
+    assertThrows([
+      'scalar d = 6',
+      'circle c with diameter d',
+    ].join('\n'), 'literal number')
+  })
+
   it('with center and radius combined', () => {
     const scene = run([
       'circle c with center=p and radius=4',

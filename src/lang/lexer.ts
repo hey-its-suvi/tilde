@@ -21,7 +21,7 @@ export type TokenKind =
   // Line property keywords
   | 'SLOPE' | 'INTERCEPT'
   // Circle property keywords
-  | 'CENTER' | 'RADIUS'
+  | 'CENTER' | 'RADIUS' | 'DIAMETER'
   // Names
   | 'NAME'         // any alphanumeric identifier: abc, ABC, MyShape, t1
   // Literals
@@ -77,6 +77,7 @@ const KEYWORDS: Record<string, TokenKind> = {
   intercept:        'INTERCEPT',
   center:           'CENTER',
   radius:           'RADIUS',
+  diameter:         'DIAMETER',
   line:             'LINE',
   circle:           'CIRCLE',
   scalar:           'SCALAR',

@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.28 — current
+## 0.3.29 — current
+
+- **`with diameter` syntax for circles**: `circle c with diameter 6` is sugar for `with radius 3`. Combinable with `center` (`circle c with center p and diameter 8`) and the bundled-scalar form (`circle c with diameter d = 6` declares `scalar d = 6` — the diameter — and sets the circle's radius to 3). Only literal numbers are accepted today; for scalar-referenced or solver-derived sizes use `with radius`.
+
+## 0.3.28
 
 - **Circle as a point-on-locus stand-in**: `c on l` now means "c's centre is on line l", and the symmetric `l through c` means "l passes through c's centre". The same applies to segments (`c on ab`). Useful for classical compass-and-straightedge constructions where the centre's locus is constrained — inscribed circles, tangent circles, Apollonius problems. Two circles can't relate this way: `c1 on c2` and `c1 through c2` are now rejected at elaboration (previously they parsed silently with no geometric meaning).
 - **Stricter naming checks**: using a circle name in a point position (e.g. `c = (3, 4)` when `c` is a circle) is now an elaboration error rather than silently creating a phantom point.

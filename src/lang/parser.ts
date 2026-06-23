@@ -563,8 +563,31 @@ export function parse(tokens: Token[]): Program {
             bundled.push({ kind: 'ScalarDecl', name: value.name, params: bound })
           }
           r = value
+        } else if (check('DIAMETER')) {
+          // `with diameter d` — sugar for `with radius = d/2`. Only literal
+          // numbers are accepted here (we don't have arithmetic on scalar
+          // refs); for solver-derived diameters, use `with radius` instead.
+          //
+          // Bundled: `with diameter d = 6` declares scalar `d` with value 6
+          // (the diameter) and sets the circle's internal radius to 3.
+          const diamTok = advance()
+          const hadEquals = check('EQUALS') ? (advance(), true) : false
+          const value = parseScalarExpr()
+          if (!hadEquals && typeof value !== 'number' && value.kind === 'NameRef' && check('EQUALS')) {
+            advance()
+            const bound = parseScalarExpr()
+            if (typeof bound !== 'number') {
+              throw new ParseError(`'with diameter <name> = <value>' requires a literal number`, peek().line, peek().col)
+            }
+            bundled.push({ kind: 'ScalarDecl', name: value.name, params: bound })
+            r = bound / 2
+          } else if (typeof value === 'number') {
+            r = value / 2
+          } else {
+            throw new ParseError(`'with diameter' currently requires a literal number; use 'with radius' for scalar references`, diamTok.line, diamTok.col)
+          }
         } else {
-          throw new ParseError(`Expected 'center' or 'radius' after 'with'`, peek().line, peek().col)
+          throw new ParseError(`Expected 'center', 'radius', or 'diameter' after 'with'`, peek().line, peek().col)
         }
       } while ((check('AND') || check('COMMA')) && !!advance())
     }
