@@ -41,6 +41,16 @@ This requires the solver to treat lines as potentially derived entities (see Sol
 ### `with` for subscript shape vertex binding
 Currently `triangle t with a and b and c` is not valid. Bare refs after `with` (no operator) should bind existing points to the shape's subscript vertices instead of creating new ones.
 
+### Post-declaration naming of hidden parts
+Bare declarations mint anonymous internals (e.g. `circle c` creates an anonymous centre `_ptN`). There's no way to give that centre a user-facing name later. Proposal: allow a follow-up binding statement that attaches a name to a hidden part of an already-declared shape, e.g.
+
+```
+circle c
+c center point p       # p is now the centre of c
+```
+
+Same idea could extend to other hidden internals as more shapes grow them. Useful for incremental construction where the user doesn't decide a part needs a name until later.
+
 ---
 
 ## Solver
@@ -66,6 +76,37 @@ The fixpoint loop gets a new step: after placing points, resolve any underdeterm
 
 ### Square / rectangle
 Parse but solver ignores them. Need registration and constraint logic (right angles, equal sides).
+
+### Computed geometry (incircle / circumcircle / perpendicular bisector)
+A class of constructs that aren't constraints but functions: take some existing geometry, compute a new geometry from it. Examples:
+
+- `incircle of abc` — circle inscribed in triangle `abc`
+- `circumcircle of abc` — circle through the three vertices
+- `perpendicular bisector of ab` (or `of segment s`) — line derived from a segment
+
+These resolve after their inputs are placed, similar to derived lines. Open question: surface as keywords (`incircle`, `circumcircle`) or as a more general function-style syntax.
+
+---
+
+## UI / rendering
+
+### Constraint indicators
+Visual marks that show constraints rather than just the resulting geometry:
+
+- **Right angle** — small square at the intersection of perpendicular objects
+- **Parallel lines** — matching number of perpendicular tick marks to group parallel lines together (one tick for the first parallel group, two for the second, etc.)
+- **Equal length** — tick marks on segments of equal length (same grouping idea)
+
+Should be toggleable via a setting (e.g. `set indicators off`) for users who want a cleaner diagram.
+
+### Scaffolding geometry (single-underscore names)
+For complex constructions the user often needs intermediate shapes (helper points, lines, circles) that aren't part of the final figure. Proposal:
+
+- `__name` (double underscore) — internal anonymous shapes created by the compiler (current behaviour, moved from single to double)
+- `_name` (single underscore) — user-authored scaffolding: still rendered but in a lighter style (faded stroke, smaller labels), and hideable via a setting (e.g. `set scaffolding off`)
+- no underscore — normal user geometry, rendered fully
+
+This gives users a first-class way to express "this is just construction, not the answer" without cluttering the final diagram.
 
 ---
 
