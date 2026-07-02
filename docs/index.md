@@ -3,8 +3,7 @@ layout: home
 
 hero:
   name: "~tilde"
-  text: "A geometric programming language"
-  tagline: Describe geometry the way you'd write it on a student's answer sheet.
+  text: "A geometry definition language"
   actions:
     - theme: brand
       text: Elements

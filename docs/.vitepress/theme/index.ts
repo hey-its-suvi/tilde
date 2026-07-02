@@ -1,6 +1,7 @@
 import DefaultTheme from 'vitepress/theme'
 import TildeSketch from '../components/TildeSketch.vue'
 import type { Theme } from 'vitepress'
+import './custom.css'
 
 export default {
   extends: DefaultTheme,

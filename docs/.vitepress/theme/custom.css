@@ -1,0 +1,116 @@
+/* Graph paper palette — pale blue accent, subtle grid on hero. */
+
+:root {
+  --vp-c-brand-1: #2563eb;
+  --vp-c-brand-2: #3b82f6;
+  --vp-c-brand-3: #60a5fa;
+  --vp-c-brand-soft: rgba(59, 130, 246, 0.14);
+
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-text: #ffffff;
+  --vp-button-brand-bg: #2563eb;
+  --vp-button-brand-hover-border: transparent;
+  --vp-button-brand-hover-text: #ffffff;
+  --vp-button-brand-hover-bg: #3b82f6;
+  --vp-button-brand-active-border: transparent;
+  --vp-button-brand-active-text: #ffffff;
+  --vp-button-brand-active-bg: #1d4ed8;
+
+  --vp-home-hero-name-color: #1e3a8a;
+  --vp-home-hero-name-background: none;
+
+  /* Hide the default blurred blob — we're using a grid instead. */
+  --vp-home-hero-image-background-image: none;
+  --vp-home-hero-image-filter: none;
+}
+
+.dark {
+  --vp-c-brand-1: #60a5fa;
+  --vp-c-brand-2: #3b82f6;
+  --vp-c-brand-3: #2563eb;
+  --vp-c-brand-soft: rgba(96, 165, 250, 0.16);
+
+  --vp-button-brand-bg: #3b82f6;
+  --vp-button-brand-hover-bg: #60a5fa;
+  --vp-button-brand-active-bg: #1d4ed8;
+
+  --vp-home-hero-name-color: #bfdbfe;
+}
+
+/* Graph-paper grid behind the home page — extends past the hero and fades. */
+.VPHome {
+  position: relative;
+}
+
+.VPHome::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(37, 99, 235, 0.09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(37, 99, 235, 0.09) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 90%);
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 90%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.VPHome > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dark .VPHome::before {
+  background-image:
+    linear-gradient(to right, rgba(96, 165, 250, 0.09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(96, 165, 250, 0.09) 1px, transparent 1px);
+}
+
+/* Dash-dot horizontal dividers in docs pages. */
+.vp-doc hr {
+  border: none;
+  height: 1px;
+  background-image: linear-gradient(
+    to right,
+    var(--vp-c-divider) 0 12px,
+    transparent 12px 16px,
+    var(--vp-c-divider) 16px 18px,
+    transparent 18px 22px
+  );
+  background-size: 22px 1px;
+  background-repeat: repeat-x;
+  margin: 48px 0;
+}
+
+/* When an hr sits directly before an h2, that hr already provides the gap. */
+.vp-doc hr + h2 {
+  margin-top: 0;
+}
+
+/* Drop the default solid border above h2s — we use `---` explicitly. */
+.vp-doc h2 {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 64px;
+}
+
+/* Dash-dot separators between top-level sidebar groups. */
+.VPSidebar .group + .group {
+  border-top: none;
+  background-image: linear-gradient(
+    to right,
+    var(--vp-c-divider) 0 12px,
+    transparent 12px 16px,
+    var(--vp-c-divider) 16px 18px,
+    transparent 18px 22px
+  );
+  background-size: 22px 1px;
+  background-repeat: repeat-x;
+  background-position: top left;
+}
+
+.VPSidebar .group + .group .VPSidebarItem.level-0 {
+  border-top: none;
+}
+

@@ -3,7 +3,7 @@ import { withMermaid } from 'vitepress-plugin-mermaid'
 
 export default withMermaid(defineConfig({
   title: '~tilde',
-  description: 'A geometric programming language for school-level geometry',
+  description: 'A geometry definition language',
   base: '/',
   outDir: '../dist',
 
@@ -79,7 +79,6 @@ export default withMermaid(defineConfig({
     ],
 
     socialLinks: [],
-    footer: { message: '~tilde — geometric language' },
   },
 
   mermaid: {},

@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.29 — current
+## 0.3.30 — current
+
+- **Docs site home page and styling**: retitled from "A geometric programming language" to "A geometry definition language" — Tilde is declarative, with no control flow, so "programming language" was misleading (and "geometric programming" is an unrelated term from convex optimisation). The old tagline is gone. The home page picks up a subtle graph-paper grid backdrop, and horizontal dividers in the docs (plus the sidebar group separators) render as dash-dot patterns instead of solid lines.
+
+## 0.3.29
 
 - **`with diameter` syntax for circles**: `circle c with diameter 6` is sugar for `with radius 3`. Combinable with `center` (`circle c with center p and diameter 8`) and the bundled-scalar form (`circle c with diameter d = 6` declares `scalar d = 6` — the diameter — and sets the circle's radius to 3). Only literal numbers are accepted today; for scalar-referenced or solver-derived sizes use `with radius`.
 
