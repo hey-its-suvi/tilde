@@ -1,0 +1,90 @@
+-- Constraints.
+--
+-- Each returns its subject so statements chain left to right:
+--     line l parallel m through p
+-- groups as ((line l parallel m) through p).
+--
+-- A tsx`...` body is TypeScript, evaluated at load. Slots are in scope by name.
+-- `emit` appends a Statement; the body's return value is the definition's
+-- result. Anything without a tsx body is composed from other definitions —
+-- most of the prelude, and all a user can write.
+
+-- ─── Relations between lines ────────────────────────────────────────────────
+
+define (a: Line) parallel (b: Line) => Line =
+    tsx`
+    emit({ kind: 'ConstraintStmt', constraint: {
+        kind: 'RelationConstraint', relation: 'parallel', left: a, right: b,
+    }})
+    return a
+    `
+
+define (a: Line) parallel (b: Line) at (d: Scalar) => Line =
+    tsx`
+    emit({ kind: 'ConstraintStmt', constraint: {
+        kind: 'RelationConstraint', relation: 'parallel', left: a, right: b,
+        distance: d,
+    }})
+    return a
+    `
+
+define (a: Line) perpendicular (b: Line) => Line =
+    tsx`
+    emit({ kind: 'ConstraintStmt', constraint: {
+        kind: 'RelationConstraint', relation: 'perpendicular', left: a, right: b,
+    }})
+    return a
+    `
+
+-- Composed: the `at` variant is the plain one plus two incidences.
+define (a: Line) perpendicular (b: Line) at (p: Point) => Line =
+    a perpendicular b
+    p on a
+    p on b
+
+-- ─── Incidence ──────────────────────────────────────────────────────────────
+
+define (p: Point) on (l: Line) => Point =
+    tsx`
+    emit({ kind: 'ConstraintStmt', constraint: {
+        kind: 'OnLineConstraint', point: p, line: l,
+    }})
+    return p
+    `
+
+define (p: Point) on (c: Circle) => Point =
+    tsx`
+    emit({ kind: 'ConstraintStmt', constraint: {
+        kind: 'OnCircleConstraint', point: p, circle: c,
+    }})
+    return p
+    `
+
+define (l: Line) through (p: Point) => Line =
+    p on l
+
+-- ─── Measurement ────────────────────────────────────────────────────────────
+
+define distance between (p: Point) and (q: Point) => Scalar =
+    tsx`
+    return measureDistance(p, q)
+    `
+
+-- ─── Declaring forms ────────────────────────────────────────────────────────
+-- Written out by hand rather than derived. All composed — no tsx needed.
+
+define line (n: Name) parallel (m: Line) => Line =
+    line n
+    n parallel m
+
+define line (n: Name) perpendicular (m: Line) => Line =
+    line n
+    n perpendicular m
+
+define point (n: Name) on (l: Line) => Point =
+    point n
+    n on l
+
+define point (n: Name) on (c: Circle) => Point =
+    point n
+    n on c

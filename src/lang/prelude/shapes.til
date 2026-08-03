@@ -1,0 +1,92 @@
+-- Shape declarations.
+--
+-- `point`, `line`, `circle` are not keywords. They are ordinary words in a
+-- pattern, and these definitions are what give them meaning.
+
+-- ─── Points ─────────────────────────────────────────────────────────────────
+
+define point (n: Name) => Point =
+    tsx`
+    emit({ kind: 'PointDecl', name: n, params: { x: null, y: null } })
+    return ref(n)
+    `
+
+define (p: Point) at (x: Scalar) (y: Scalar) => Point =
+    tsx`
+    emit({ kind: 'ConstraintStmt', constraint: {
+        kind: 'PositionConstraint', point: p, x, y,
+    }})
+    return p
+    `
+
+define point (n: Name) at (x: Scalar) (y: Scalar) => Point =
+    point n
+    n at x y
+
+-- ─── Lines ──────────────────────────────────────────────────────────────────
+
+define line (n: Name) => Line =
+    tsx`
+    emit({ kind: 'LineDecl', name: n, params: { a: null, b: null, c: null } })
+    return ref(n)
+    `
+
+define line (n: Name) through (p: Point) (q: Point) => Line =
+    line n
+    p on n
+    q on n
+
+-- ─── Circles ────────────────────────────────────────────────────────────────
+
+define circle (n: Name) => Circle =
+    tsx`
+    emit({ kind: 'CircleDecl', name: n, params: { center: null, r: null } })
+    return ref(n)
+    `
+
+define (c: Circle) with center (p: Point) => Circle =
+    tsx`
+    emit({ kind: 'ConstraintStmt', constraint: {
+        kind: 'CircleSpecConstraint', circle: c, center: p, r: null,
+    }})
+    return c
+    `
+
+define (c: Circle) with radius (r: Scalar) => Circle =
+    tsx`
+    emit({ kind: 'ConstraintStmt', constraint: {
+        kind: 'CircleSpecConstraint', circle: c, center: null, r,
+    }})
+    return c
+    `
+
+define circle (n: Name) with center (p: Point) => Circle =
+    circle n
+    n with center p
+
+define circle (n: Name) with radius (r: Scalar) => Circle =
+    circle n
+    n with radius r
+
+define circle (n: Name) with center (p: Point) and radius (r: Scalar) => Circle =
+    circle n with center p
+    n with radius r
+
+-- ─── Composites ─────────────────────────────────────────────────────────────
+-- A triangle is a named container: three points. The solver never sees
+-- "Triangle" — only the points and the constraints between them.
+--
+-- Note `with`, not juxtaposition: `triangle a, b, c` distributes into three
+-- separate triangles, so the multi-vertex form must be lexically distinct.
+
+define (t: Name) holds (a: Point) (b: Point) (c: Point) => Triangle =
+    tsx`
+    emit({ kind: 'ShapeDecl', shapeKind: 'triangle', name: t, named: true })
+    return ref(t)
+    `
+
+define triangle (t: Name) with (a: Name) (b: Name) (c: Name) => Triangle =
+    point a
+    point b
+    point c
+    t holds a b c

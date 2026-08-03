@@ -1,0 +1,9 @@
+-- The prelude. Not special — a program gets it by writing `import prelude`,
+-- the same way it would import anything else. Nothing auto-imports it, so
+-- dropping or replacing it later costs nothing.
+--
+-- Imports are textual: each module is included once, in order, before the
+-- importing file. Re-imports are skipped, which also breaks cycles.
+
+import shapes
+import constraints
