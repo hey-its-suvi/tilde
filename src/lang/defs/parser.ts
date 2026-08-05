@@ -14,11 +14,11 @@
 
 import { lexHeader, type Token, type TokenKind } from './lexer.js'
 import { DefinitionError } from './types.js'
-import type { Body, Definition, Pattern, PatternPart, TypeRef } from './types.js'
+import type { Body, Definition, Import, Pattern, PatternPart, TypeRef } from './types.js'
 
 export type ParsedFile = {
-  /** Module names from `import x`, unresolved. */
-  imports: string[]
+  /** `import x` / `export import x` lines, unresolved. */
+  imports: Import[]
   definitions: Definition[]
 }
 
@@ -30,7 +30,7 @@ const isIndented = (s: string) => /^[ \t]/.test(s)
 
 export function parseFile(src: string): ParsedFile {
   const lines = src.split('\n')
-  const imports: string[] = []
+  const imports: Import[] = []
   const definitions: Definition[] = []
 
   let i = 0
@@ -46,16 +46,14 @@ export function parseFile(src: string): ParsedFile {
 
     const first = raw.trim().split(/\s+/)[0]
 
-    if (first === 'import') {
-      const name = raw.trim().slice('import'.length).trim()
-      if (!name) throw new DefinitionError('import needs a module name', lineNo)
-      imports.push(name)
+    if (first === 'import' || first === 'export') {
+      imports.push(parseImport(raw.trim(), lineNo))
       i++
       continue
     }
 
     if (first !== 'define') {
-      throw new DefinitionError(`expected 'define' or 'import', got '${first}'`, lineNo)
+      throw new DefinitionError(`expected 'define', 'import' or 'export import', got '${first}'`, lineNo)
     }
 
     const { pattern, returns } = parseHeader(lexHeader(raw, lineNo), lineNo)
@@ -65,6 +63,29 @@ export function parseFile(src: string): ParsedFile {
   }
 
   return { imports, definitions }
+}
+
+/** `import x` makes x usable in this file only. `export import x` also passes it
+ *  on, which is how a barrel module like `prelude` works — imports do not
+ *  transit on their own. */
+function parseImport(line: string, lineNo: number): Import {
+  const words = line.split(/\s+/)
+
+  if (words[0] === 'export') {
+    if (words[1] !== 'import') {
+      throw new DefinitionError(`'export' must be followed by 'import', got '${words[1] ?? 'end of line'}'`, lineNo)
+    }
+    return { name: moduleName(words.slice(2), lineNo), reexport: true, line: lineNo }
+  }
+  return { name: moduleName(words.slice(1), lineNo), reexport: false, line: lineNo }
+}
+
+function moduleName(rest: string[], lineNo: number): string {
+  if (rest.length === 0) throw new DefinitionError('import needs a module name', lineNo)
+  if (rest.length > 1) {
+    throw new DefinitionError(`an import takes one module name, got '${rest.join(' ')}'`, lineNo)
+  }
+  return rest[0]!
 }
 
 /** Collect a definition's body, starting at `start`. Returns the body and the

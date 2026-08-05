@@ -22,6 +22,7 @@
 import { lexHeader } from './lexer.js'
 import { resolveStatement, NAME, form, type SymbolTable } from './resolve.js'
 import type { Match } from './match.js'
+import type { HomeMap } from './modules.js'
 import type { Definition } from './types.js'
 import { segKey } from '../solver/model.js'
 import type { ConstraintSet, ResolvedConstraint } from '../solver/interface.js'
@@ -54,7 +55,14 @@ const SOLVER_SETS = {
 /** Guards against a definition whose body reaches itself. */
 const MAX_DEPTH = 64
 
-export function runProgram(statements: readonly string[], defs: readonly Definition[]): Program {
+/** What a program needs to run: the entry module's scope, and the map telling
+ *  evaluation which scope each definition's body belongs to. */
+export type Scoped = {
+  scope: readonly Definition[]
+  homeOf: HomeMap
+}
+
+export function runProgram(statements: readonly string[], program: Scoped): Program {
   const types: SymbolTable = new Map()
   const constraints: ConstraintSet = {
     points: new Set(),
@@ -66,25 +74,30 @@ export function runProgram(statements: readonly string[], defs: readonly Definit
     picks: new Map(),
   }
 
-  const ctx: Context = { types, constraints, defs }
-  for (const statement of statements) evalStatement(statement, ctx, 0)
+  const ctx: Context = { types, constraints, homeOf: program.homeOf }
+  for (const statement of statements) evalStatement(statement, program.scope, ctx, 0)
   return { constraints, types }
 }
 
 type Context = {
   types: SymbolTable
   constraints: ConstraintSet
-  defs: readonly Definition[]
+  homeOf: HomeMap
 }
 
-function evalStatement(statement: string, ctx: Context, depth: number): Value {
+function evalStatement(
+  statement: string,
+  scope: readonly Definition[],
+  ctx: Context,
+  depth: number,
+): Value {
   if (depth > MAX_DEPTH) {
     throw new EvalError(`"${statement}" expanded more than ${MAX_DEPTH} levels deep — recursive definition?`)
   }
-  return evalMatch(resolveStatement(statement, ctx.types, ctx.defs), ctx, depth)
+  return evalMatch(resolveStatement(statement, ctx.types, scope), scope, ctx, depth)
 }
 
-function evalMatch(m: Match, ctx: Context, depth: number): Value {
+function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: number): Value {
   const env = new Map<string, Value>()
   for (const b of m.bindings) {
     // A Name slot's value is the name itself — it is being introduced, so there
@@ -92,9 +105,13 @@ function evalMatch(m: Match, ctx: Context, depth: number): Value {
     env.set(b.slot, b.token.kind === 'NUMBER' ? Number(b.token.value) : b.token.value)
   }
 
-  return m.def.body.body === 'tsx'
-    ? runTsx(m, env, ctx)
-    : runComposed(m.def.body.lines, env, ctx, depth)
+  if (m.def.body.body === 'tsx') return runTsx(m, env, ctx)
+
+  // A body expands in the scope of the module that *defined* it, not the one
+  // that called it. This is what makes imports non-transitive: a definition may
+  // use everything its own file imported, and nothing the caller did.
+  const home = ctx.homeOf.get(m.def) ?? scope
+  return runComposed(m.def.body.lines, env, home, ctx, depth)
 }
 
 /** Evaluate each body line with the slots substituted in. The body's value is
@@ -103,11 +120,12 @@ function evalMatch(m: Match, ctx: Context, depth: number): Value {
 function runComposed(
   lines: readonly string[],
   env: Map<string, Value>,
+  scope: readonly Definition[],
   ctx: Context,
   depth: number,
 ): Value {
   let last: Value = null
-  for (const line of lines) last = evalStatement(substitute(line, env), ctx, depth + 1)
+  for (const line of lines) last = evalStatement(substitute(line, env), scope, ctx, depth + 1)
   return last
 }
 

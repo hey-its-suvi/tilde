@@ -36,6 +36,26 @@ export type Definition = {
   line: number
 }
 
+/** One `import x` / `export import x` line, unresolved. */
+export type Import = {
+  /** Module name as written. */
+  name: string
+  /** `export import x` — passed on to files that import this one. Plain
+   *  `import` is private: it makes the module usable here and nowhere else. */
+  reexport: boolean
+  /** 1-based line, for error messages. */
+  line: number
+}
+
+/** A definition's surface signature: keywords and slot *types*, with slot names
+ *  dropped. Two definitions with the same signature are the same definition as
+ *  far as dispatch is concerned, whatever their slots are called. Used to let a
+ *  file's own definitions shadow the ones it imports. */
+export const signature = (pattern: Pattern): string =>
+  pattern
+    .map(p => (p.part === 'keyword' ? p.word : `«${p.type.name}${p.type.list ? '...' : ''}»`))
+    .join(' ')
+
 export class DefinitionError extends Error {
   constructor(message: string, readonly line: number) {
     super(`[line ${line}] ${message}`)

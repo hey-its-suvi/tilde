@@ -1,0 +1,110 @@
+-- The primitive surface: every definition the solver backs directly.
+--
+-- A tsx`...` body is TypeScript, run when the statement is evaluated. Slots are
+-- in scope by name, and the API is three calls: `declare(name, type)` registers
+-- a name, `constrain(c)` adds a constraint the solver understands, `segment(a, b)`
+-- records a segment. The body's return value is the definition's result.
+--
+-- These are the only definitions that reach into the solver. Everything else in
+-- the prelude composes from them, using nothing a user could not use — which is
+-- the whole point. This file is where that stops being true, so it is kept
+-- small and separate.
+--
+-- `point`, `line`, `circle` are not keywords. They are ordinary words in a
+-- pattern, and these definitions are what give them meaning.
+
+-- ─── Elements ───────────────────────────────────────────────────────────────
+
+define point (n: Name) => Point =
+    tsx`
+    return declare(n, 'Point')
+    `
+
+define line (n: Name) => Line =
+    tsx`
+    return declare(n, 'Line')
+    `
+
+define circle (n: Name) => Circle =
+    tsx`
+    return declare(n, 'Circle')
+    `
+
+-- ─── Placement ──────────────────────────────────────────────────────────────
+
+define (p: Point) at (x: Scalar) (y: Scalar) => Point =
+    tsx`
+    constrain({ kind: 'position', point: p, x, y })
+    return p
+    `
+
+define (c: Circle) with center (p: Point) => Circle =
+    tsx`
+    constrain({ kind: 'circle-spec', circle: c, center: p, r: null })
+    return c
+    `
+
+define (c: Circle) with radius (r: Scalar) => Circle =
+    tsx`
+    constrain({ kind: 'circle-spec', circle: c, center: null, r })
+    return c
+    `
+
+-- ─── Relations between lines ────────────────────────────────────────────────
+
+define (a: Line) parallel (b: Line) => Line =
+    tsx`
+    constrain({ kind: 'parallel', l1: a, l2: b })
+    return a
+    `
+
+define (a: Line) parallel (b: Line) at (d: Scalar) => Line =
+    tsx`
+    constrain({ kind: 'parallel', l1: a, l2: b, distance: d })
+    return a
+    `
+
+define (a: Line) perpendicular (b: Line) => Line =
+    tsx`
+    constrain({ kind: 'perpendicular', l1: a, l2: b })
+    return a
+    `
+
+-- ─── Incidence ──────────────────────────────────────────────────────────────
+
+define (p: Point) on (l: Line) => Point =
+    tsx`
+    constrain({ kind: 'on-line', point: p, line: l })
+    return p
+    `
+
+define (p: Point) on (c: Circle) => Point =
+    tsx`
+    constrain({ kind: 'on-circle', point: p, circle: c })
+    return p
+    `
+
+-- ─── Measurement ────────────────────────────────────────────────────────────
+-- Distance is a constraint, not a value: the solver stores a length for a pair
+-- of points, and has no way to hand a measurement back as a scalar. So this
+-- form takes the length rather than returning it, and returns nothing.
+-- `distance between p and q` as a *value* waits on the accessor work.
+
+define distance between (p: Point) and (q: Point) is (d: Scalar) =
+    tsx`
+    segment(p, q)
+    constrain({ kind: 'distance', p1: p, p2: q, value: d })
+    `
+
+-- ─── Composites ─────────────────────────────────────────────────────────────
+-- A triangle is a named container: three points and the segments between them.
+-- "Triangle" is a language-level tag only — the solver never sees it, just the
+-- points and the constraints.
+
+define (t: Name) holds (a: Point) (b: Point) (c: Point) => Triangle =
+    tsx`
+    segment(a, b)
+    segment(b, c)
+    segment(c, a)
+    return declare(t, 'Triangle')
+    `

@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { parseFile } from '../lang/defs/parser.js'
 import { resolveStatement, form, type SymbolTable } from '../lang/defs/resolve.js'
 import type { Definition } from '../lang/defs/types.js'
 
-import shapesSrc from '../lang/prelude/shapes.til?raw'
-import constraintsSrc from '../lang/prelude/constraints.til?raw'
+import { loadModule } from '../lang/defs/modules.js'
+import { PRELUDE } from '../lang/prelude/index.js'
 
-const table: Definition[] = [
-  ...parseFile(shapesSrc).definitions,
-  ...parseFile(constraintsSrc).definitions,
-]
+// Everything below runs against the real prelude, loaded the way a program
+// loads it: `import prelude`, which re-exports shapes and constraints.
+const prelude = loadModule('prelude', PRELUDE)
+const table: Definition[] = prelude.scope
 
 const symbols = (entries: Record<string, string>): SymbolTable => new Map(Object.entries(entries))
 

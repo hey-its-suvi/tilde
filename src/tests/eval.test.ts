@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { parseFile } from '../lang/defs/parser.js'
 import { runProgram } from '../lang/defs/eval.js'
 import type { Definition } from '../lang/defs/types.js'
 import type { ResolvedConstraint } from '../lang/solver/interface.js'
@@ -7,15 +6,15 @@ import { Solver } from '../lang/solver/solver.js'
 import { GeometricPropagate } from '../lang/solver/propagate/geometric/index.js'
 import { RuleBasedPick } from '../lang/solver/pick/rule-based/index.js'
 
-import shapesSrc from '../lang/prelude/shapes.til?raw'
-import constraintsSrc from '../lang/prelude/constraints.til?raw'
+import { loadModule } from '../lang/defs/modules.js'
+import { PRELUDE } from '../lang/prelude/index.js'
 
-const table: Definition[] = [
-  ...parseFile(shapesSrc).definitions,
-  ...parseFile(constraintsSrc).definitions,
-]
+// Everything below runs against the real prelude, loaded the way a program
+// loads it: `import prelude`, which re-exports shapes and constraints.
+const prelude = loadModule('prelude', PRELUDE)
+const table: Definition[] = prelude.scope
 
-const run = (...statements: string[]) => runProgram(statements, table)
+const run = (...statements: string[]) => runProgram(statements, prelude)
 
 /** Constraints of one kind, so assertions don't depend on emission order
  *  across kinds. */

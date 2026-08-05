@@ -2,8 +2,14 @@
 -- the same way it would import anything else. Nothing auto-imports it, so
 -- dropping or replacing it later costs nothing.
 --
--- Imports are textual: each module is included once, in order, before the
--- importing file. Re-imports are skipped, which also breaks cycles.
+-- `export import` rather than `import`: imports are file-scoped and do not
+-- transit, so a barrel has to pass on what it collects. Plain `import` here
+-- would make these usable inside this file and invisible to anyone importing
+-- it — which, given this file defines nothing, would export nothing at all.
+--
+-- `core` is re-exported alongside the rest: its primitives (`p at 3 5`,
+-- `l parallel m`, `p on l`) are the everyday surface, not internals.
 
-import shapes
-import constraints
+export import core
+export import shapes
+export import constraints

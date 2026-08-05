@@ -4,12 +4,9 @@ import { DefinitionError, type Pattern } from '../lang/defs/types.js'
 
 // Loaded as text through Vite, not the filesystem — the playground runs in the
 // browser and will need the prelude bundled the same way.
-import shapesSrc from '../lang/prelude/shapes.til?raw'
-import constraintsSrc from '../lang/prelude/constraints.til?raw'
-import preludeSrc from '../lang/prelude/prelude.til?raw'
+import { PRELUDE } from '../lang/prelude/index.js'
 
-const prelude = (name: string) =>
-  ({ 'shapes.til': shapesSrc, 'constraints.til': constraintsSrc, 'prelude.til': preludeSrc })[name]!
+const prelude = (name: string) => PRELUDE[name]!
 
 /** Render a pattern back to its surface form, so tests read like the source. */
 const show = (p: Pattern) =>
@@ -88,44 +85,69 @@ describe('body framing', () => {
 })
 
 describe('the prelude parses', () => {
+  // Line numbers are checked by the `line` field but not pinned here — these
+  // files are comment-heavy and the numbers would churn on every edit.
+  const importsOf = (src: string) =>
+    parseFile(src).imports.map(({ name, reexport }) => ({ name, reexport }))
+
   it('reads imports without resolving them', () => {
-    expect(parseFile(prelude('prelude.til')).imports).toEqual(['shapes', 'constraints'])
+    expect(importsOf(prelude('prelude'))).toEqual([
+      { name: 'core', reexport: true },
+      { name: 'shapes', reexport: true },
+      { name: 'constraints', reexport: true },
+    ])
   })
 
-  it('reads every definition in shapes.til', () => {
-    const { definitions } = parseFile(prelude('shapes.til'))
-    const forms = definitions.map(d => show(d.pattern))
+  it('tells a private import from a re-exported one', () => {
+    expect(importsOf(prelude('shapes'))).toEqual([{ name: 'core', reexport: false }])
+  })
+
+  it('reads every definition in core.til', () => {
+    const forms = parseFile(prelude('core')).definitions.map(d => show(d.pattern))
 
     expect(forms).toContain('point (n: Name)')
     expect(forms).toContain('(p: Point) at (x: Scalar) (y: Scalar)')
+    expect(forms).toContain('(a: Line) parallel (b: Line) at (d: Scalar)')
+    expect(forms).toContain('distance between (p: Point) and (q: Point) is (d: Scalar)')
+  })
+
+  it('reads every definition in shapes.til', () => {
+    const forms = parseFile(prelude('shapes')).definitions.map(d => show(d.pattern))
+
     expect(forms).toContain('circle (n: Name) with center (p: Point) and radius (r: Scalar)')
     expect(forms).toContain('triangle (t: Name) with (a: Name) (b: Name) (c: Name)')
   })
 
   it('reads every definition in constraints.til', () => {
-    const { definitions } = parseFile(prelude('constraints.til'))
-    const forms = definitions.map(d => show(d.pattern))
+    const forms = parseFile(prelude('constraints')).definitions.map(d => show(d.pattern))
 
-    expect(forms).toContain('(a: Line) parallel (b: Line)')
-    expect(forms).toContain('(a: Line) parallel (b: Line) at (d: Scalar)')
-    expect(forms).toContain('distance between (p: Point) and (q: Point) is (d: Scalar)')
     expect(forms).toContain('line (n: Name) parallel (m: Line)')
+    expect(forms).toContain('(l: Line) through (p: Point)')
   })
 
-  it('splits roughly evenly between tsx hatches and composed Tilde', () => {
-    const all = [...parseFile(prelude('shapes.til')).definitions, ...parseFile(prelude('constraints.til')).definitions]
-    const tsx = all.filter(d => d.body.body === 'tsx').length
-    const composed = all.filter(d => d.body.body === 'tilde').length
+  it('confines the tsx hatch to core', () => {
+    const hatched = (name: string) =>
+      parseFile(prelude(name)).definitions.filter(d => d.body.body === 'tsx').length
 
-    // Measured, not aspirational: 13 tsx to 12 composed. The earlier claim that
-    // "most of the prelude composes" was wrong — it is about half. The composed
-    // half is the ergonomic surface; the tsx half is the primitive surface.
-    expect(tsx).toBe(13)
-    expect(composed).toBe(12)
+    // The design check: every convenient form composes from primitives, using
+    // nothing a user could not use. If a hatch appears outside core, either the
+    // primitives are wrong or something took a shortcut.
+    expect(hatched('core')).toBe(13)
+    expect(hatched('shapes')).toBe(0)
+    expect(hatched('constraints')).toBe(0)
+  })
+
+  it('splits roughly evenly between primitive and composed', () => {
+    const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
+
+    // Measured, not aspirational: 13 primitive to 12 composed. The earlier claim
+    // that "most of the prelude composes" was wrong — it is about half.
+    expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(13)
+    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(12)
   })
 
   it('gives every definition a return type except the one that cannot have one', () => {
-    const all = [...parseFile(prelude('shapes.til')).definitions, ...parseFile(prelude('constraints.til')).definitions]
+    const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
     const void_ = all.filter(d => d.returns === null).map(d => show(d.pattern))
 
     // `distance` is the sole exception, and deliberately so: the solver stores
