@@ -39,8 +39,8 @@ describe('single unambiguous matches', () => {
   })
 
   it('matches a mixfix measurement', () => {
-    expect(forms('distance between a and b')).toEqual([
-      'distance between (p: Point) and (q: Point)',
+    expect(forms('distance between a and b is 5')).toEqual([
+      'distance between (p: Point) and (q: Point) is (d: Scalar)',
     ])
   })
 

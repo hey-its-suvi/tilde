@@ -4,35 +4,29 @@
 --     line l parallel m through p
 -- groups as ((line l parallel m) through p).
 --
--- A tsx`...` body is TypeScript, evaluated at load. Slots are in scope by name.
--- `emit` appends a Statement; the body's return value is the definition's
--- result. Anything without a tsx body is composed from other definitions —
--- most of the prelude, and all a user can write.
+-- A tsx`...` body is TypeScript, run when the statement is evaluated. Slots are
+-- in scope by name; `constrain` adds a constraint the solver understands, and
+-- the body's return value is the definition's result. Anything without a tsx
+-- body is composed from other definitions — most of this file, and all a user
+-- can write today.
 
 -- ─── Relations between lines ────────────────────────────────────────────────
 
 define (a: Line) parallel (b: Line) => Line =
     tsx`
-    emit({ kind: 'ConstraintStmt', constraint: {
-        kind: 'RelationConstraint', relation: 'parallel', left: a, right: b,
-    }})
+    constrain({ kind: 'parallel', l1: a, l2: b })
     return a
     `
 
 define (a: Line) parallel (b: Line) at (d: Scalar) => Line =
     tsx`
-    emit({ kind: 'ConstraintStmt', constraint: {
-        kind: 'RelationConstraint', relation: 'parallel', left: a, right: b,
-        distance: d,
-    }})
+    constrain({ kind: 'parallel', l1: a, l2: b, distance: d })
     return a
     `
 
 define (a: Line) perpendicular (b: Line) => Line =
     tsx`
-    emit({ kind: 'ConstraintStmt', constraint: {
-        kind: 'RelationConstraint', relation: 'perpendicular', left: a, right: b,
-    }})
+    constrain({ kind: 'perpendicular', l1: a, l2: b })
     return a
     `
 
@@ -46,17 +40,13 @@ define (a: Line) perpendicular (b: Line) at (p: Point) => Line =
 
 define (p: Point) on (l: Line) => Point =
     tsx`
-    emit({ kind: 'ConstraintStmt', constraint: {
-        kind: 'OnLineConstraint', point: p, line: l,
-    }})
+    constrain({ kind: 'on-line', point: p, line: l })
     return p
     `
 
 define (p: Point) on (c: Circle) => Point =
     tsx`
-    emit({ kind: 'ConstraintStmt', constraint: {
-        kind: 'OnCircleConstraint', point: p, circle: c,
-    }})
+    constrain({ kind: 'on-circle', point: p, circle: c })
     return p
     `
 
@@ -64,10 +54,15 @@ define (l: Line) through (p: Point) => Line =
     p on l
 
 -- ─── Measurement ────────────────────────────────────────────────────────────
+-- Distance is a constraint, not a value: the solver stores a length for a pair
+-- of points, and has no way to hand a measurement back as a scalar. So this
+-- form takes the length rather than returning it, and returns nothing.
+-- `distance between p and q` as a *value* waits on the accessor work.
 
-define distance between (p: Point) and (q: Point) => Scalar =
+define distance between (p: Point) and (q: Point) is (d: Scalar) =
     tsx`
-    return measureDistance(p, q)
+    segment(p, q)
+    constrain({ kind: 'distance', p1: p, p2: q, value: d })
     `
 
 -- ─── Declaring forms ────────────────────────────────────────────────────────

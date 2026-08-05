@@ -2,20 +2,20 @@
 --
 -- `point`, `line`, `circle` are not keywords. They are ordinary words in a
 -- pattern, and these definitions are what give them meaning.
+--
+-- A tsx`...` body is TypeScript, run when the statement is evaluated. Slots are
+-- in scope by name; `declare`, `constrain` and `segment` are the whole API.
 
 -- ─── Points ─────────────────────────────────────────────────────────────────
 
 define point (n: Name) => Point =
     tsx`
-    emit({ kind: 'PointDecl', name: n, params: { x: null, y: null } })
-    return ref(n)
+    return declare(n, 'Point')
     `
 
 define (p: Point) at (x: Scalar) (y: Scalar) => Point =
     tsx`
-    emit({ kind: 'ConstraintStmt', constraint: {
-        kind: 'PositionConstraint', point: p, x, y,
-    }})
+    constrain({ kind: 'position', point: p, x, y })
     return p
     `
 
@@ -27,8 +27,7 @@ define point (n: Name) at (x: Scalar) (y: Scalar) => Point =
 
 define line (n: Name) => Line =
     tsx`
-    emit({ kind: 'LineDecl', name: n, params: { a: null, b: null, c: null } })
-    return ref(n)
+    return declare(n, 'Line')
     `
 
 define line (n: Name) through (p: Point) (q: Point) => Line =
@@ -40,23 +39,18 @@ define line (n: Name) through (p: Point) (q: Point) => Line =
 
 define circle (n: Name) => Circle =
     tsx`
-    emit({ kind: 'CircleDecl', name: n, params: { center: null, r: null } })
-    return ref(n)
+    return declare(n, 'Circle')
     `
 
 define (c: Circle) with center (p: Point) => Circle =
     tsx`
-    emit({ kind: 'ConstraintStmt', constraint: {
-        kind: 'CircleSpecConstraint', circle: c, center: p, r: null,
-    }})
+    constrain({ kind: 'circle-spec', circle: c, center: p, r: null })
     return c
     `
 
 define (c: Circle) with radius (r: Scalar) => Circle =
     tsx`
-    emit({ kind: 'ConstraintStmt', constraint: {
-        kind: 'CircleSpecConstraint', circle: c, center: null, r,
-    }})
+    constrain({ kind: 'circle-spec', circle: c, center: null, r })
     return c
     `
 
@@ -73,16 +67,18 @@ define circle (n: Name) with center (p: Point) and radius (r: Scalar) => Circle 
     n with radius r
 
 -- ─── Composites ─────────────────────────────────────────────────────────────
--- A triangle is a named container: three points. The solver never sees
--- "Triangle" — only the points and the constraints between them.
+-- A triangle is a named container: three points and the segments between them.
+-- The solver never sees "Triangle" — only the points and the constraints.
 --
 -- Note `with`, not juxtaposition: `triangle a, b, c` distributes into three
 -- separate triangles, so the multi-vertex form must be lexically distinct.
 
 define (t: Name) holds (a: Point) (b: Point) (c: Point) => Triangle =
     tsx`
-    emit({ kind: 'ShapeDecl', shapeKind: 'triangle', name: t, named: true })
-    return ref(t)
+    segment(a, b)
+    segment(b, c)
+    segment(c, a)
+    return declare(t, 'Triangle')
     `
 
 define triangle (t: Name) with (a: Name) (b: Name) (c: Name) => Triangle =

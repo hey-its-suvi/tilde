@@ -1,24 +1,16 @@
 // ─── Resolution / dispatch ───────────────────────────────────────────────────
-// Turns a program's statements into a single chosen definition each, using
-// types to settle the candidate sets the matcher produces. This is the second
-// half of decision 9.
+// Picks one definition for one statement. Matching returns every definition
+// whose surface shape fits (`p on l` yields both the Line and the Circle `on`);
+// resolution settles the choice by consulting the types of the names involved.
+// This is the second half of decision 9.
 //
-// The language is declaration-before-use: a name's *type* must be known before
-// the name is used. (Its *value* is a separate matter — that stays the solver's
-// job; a line can be declared with unknown coefficients and used immediately.)
-// So a single forward pass over the statements suffices: each declaration adds
-// to the symbol table, and each use reads it.
-//
-// A name's type comes from the definition that declared it: the first `Name`
-// slot of a definition is declared with the definition's return type
-// (`point (n: Name) => Point` gives `n: Point`). Definitions with more than one
-// `Name` slot (only `triangle` today) need their bodies expanded to type the
-// extra names, which is the evaluation slice — flagged clearly until then.
-//
-// Resolution does *not* expand bodies or emit constraints. It dispatches, builds
-// the symbol table, and type-checks. Producing constraints is evaluation.
+// Resolution is per-statement and stateless apart from the symbol table handed
+// to it. Driving a whole program — and *filling* that table — belongs to
+// evaluation, because what a statement declares is decided by its body, not by
+// its signature. `triangle t with a b c` declares four names, and the only way
+// to know that is to run `point a`, `point b`, `point c`, `t holds a b c`.
 
-import { matchStatement, type Binding, type Match } from './match.js'
+import { matchStatement, type Match } from './match.js'
 import type { Definition } from './types.js'
 
 export class ResolutionError extends Error {
@@ -27,62 +19,49 @@ export class ResolutionError extends Error {
   }
 }
 
-export type ResolvedStatement = {
-  statement: string
-  def: Definition
-  bindings: Binding[]
-}
+/** A name's declared type, by name. Owned and mutated by evaluation. */
+export type SymbolTable = Map<string, string>
 
-export type ResolveResult = {
-  statements: ResolvedStatement[]
-  /** Final symbol table: name → type name. */
-  types: Map<string, string>
-}
-
-const NAME = 'Name'
+/** The magic type meaning "this slot is a declaration site" — the token here is
+ *  a name being introduced, so it is not expected to be in the table yet. */
+export const NAME = 'Name'
 
 /** Render a candidate's surface form, for error messages. */
-const form = (m: Match) =>
+export const form = (m: Match) =>
   m.def.pattern.map(p => (p.part === 'keyword' ? p.word : `(${p.name}: ${p.type.name})`)).join(' ')
 
-export function resolveProgram(
-  statements: readonly string[],
+/** The single definition `statement` means, given what is currently declared.
+ *  Throws if nothing matches, nothing fits, or more than one fits. */
+export function resolveStatement(
+  statement: string,
+  types: SymbolTable,
   defs: readonly Definition[],
-): ResolveResult {
-  const types = new Map<string, string>()
-  const resolved: ResolvedStatement[] = []
-
-  for (const statement of statements) {
-    const candidates = matchStatement(statement, defs)
-    if (candidates.length === 0) {
-      throw new ResolutionError(`no definition matches "${statement}"`)
-    }
-
-    const viable = candidates.filter(c => typesFit(c, types))
-    if (viable.length === 0) {
-      throw new ResolutionError(
-        `no definition of "${statement}" fits the argument types` +
-          ` (tried ${candidates.map(form).map(f => `\`${f}\``).join(', ')})`,
-      )
-    }
-    if (viable.length > 1) {
-      throw new ResolutionError(
-        `"${statement}" is ambiguous: ${viable.map(form).map(f => `\`${f}\``).join(', ')}`,
-      )
-    }
-
-    const chosen = viable[0]!
-    declare(chosen, types)
-    resolved.push({ statement, def: chosen.def, bindings: chosen.bindings })
+): Match {
+  const candidates = matchStatement(statement, defs)
+  if (candidates.length === 0) {
+    throw new ResolutionError(`no definition matches "${statement}"`)
   }
 
-  return { statements: resolved, types }
+  const viable = candidates.filter(c => typesFit(c, types))
+  const list = (ms: Match[]) => ms.map(form).map(f => `\`${f}\``).join(', ')
+
+  if (viable.length === 0) {
+    throw new ResolutionError(
+      `no definition of "${statement}" fits the argument types (tried ${list(candidates)})`,
+    )
+  }
+  if (viable.length > 1) {
+    throw new ResolutionError(`"${statement}" is ambiguous: ${list(viable)}`)
+  }
+
+  return viable[0]!
 }
 
-/** Every value slot must be filled by a known name of a compatible type, or by
- *  a literal the slot accepts. `Name` slots are declaration sites — checked at
- *  declare time, not here — but their token must be an identifier. */
-function typesFit(m: Match, types: Map<string, string>): boolean {
+/** Every value slot must be filled by a declared name of a compatible type, or
+ *  by a literal the slot accepts. `Name` slots are declaration sites, so their
+ *  token need only be an identifier — whether introducing it is legal is
+ *  evaluation's call, since only the body knows. */
+function typesFit(m: Match, types: SymbolTable): boolean {
   for (const b of m.bindings) {
     if (b.type.name === NAME) {
       if (b.token.kind !== 'WORD') return false
@@ -93,7 +72,6 @@ function typesFit(m: Match, types: Map<string, string>): boolean {
       if (b.type.name !== 'Scalar') return false
       continue
     }
-    // A name reference: must be declared, with a compatible type.
     const actual = types.get(b.token.value)
     if (actual === undefined) return false
     if (!compatible(actual, b.type.name)) return false
@@ -105,29 +83,4 @@ function typesFit(m: Match, types: Map<string, string>): boolean {
  *  deferred until there is a hierarchy to model. */
 function compatible(actual: string, expected: string): boolean {
   return actual === expected
-}
-
-/** Apply a resolved statement's declarations to the symbol table. */
-function declare(m: Match, types: Map<string, string>): void {
-  const nameSlots = m.bindings.filter(b => b.type.name === NAME)
-  if (nameSlots.length === 0) return
-
-  if (nameSlots.length > 1) {
-    throw new ResolutionError(
-      `\`${form(m)}\` declares ${nameSlots.length} names; typing the extra ones` +
-        ` needs body expansion (the evaluation slice), not yet implemented`,
-    )
-  }
-
-  const subject = nameSlots[0]!
-  const name = subject.token.value
-
-  if (types.has(name)) {
-    throw new ResolutionError(`"${name}" is already declared`)
-  }
-  if (m.def.returns === null) {
-    throw new ResolutionError(`a declaring form must return a type, but \`${form(m)}\` returns nothing`)
-  }
-
-  types.set(name, m.def.returns.name)
 }

@@ -108,7 +108,7 @@ describe('the prelude parses', () => {
 
     expect(forms).toContain('(a: Line) parallel (b: Line)')
     expect(forms).toContain('(a: Line) parallel (b: Line) at (d: Scalar)')
-    expect(forms).toContain('distance between (p: Point) and (q: Point)')
+    expect(forms).toContain('distance between (p: Point) and (q: Point) is (d: Scalar)')
     expect(forms).toContain('line (n: Name) parallel (m: Line)')
   })
 
@@ -124,8 +124,14 @@ describe('the prelude parses', () => {
     expect(composed).toBe(12)
   })
 
-  it('gives every definition a return type', () => {
+  it('gives every definition a return type except the one that cannot have one', () => {
     const all = [...parseFile(prelude('shapes.til')).definitions, ...parseFile(prelude('constraints.til')).definitions]
-    expect(all.filter(d => d.returns === null)).toEqual([])
+    const void_ = all.filter(d => d.returns === null).map(d => show(d.pattern))
+
+    // `distance` is the sole exception, and deliberately so: the solver stores
+    // a length for a pair of points but cannot hand a measurement back, so the
+    // form takes the length instead of returning it. Everything else returns
+    // its subject and chains (decision 4b).
+    expect(void_).toEqual(['distance between (p: Point) and (q: Point) is (d: Scalar)'])
   })
 })
