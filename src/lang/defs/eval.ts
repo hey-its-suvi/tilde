@@ -22,8 +22,8 @@
 import { lexHeader } from './lexer.js'
 import { resolveStatement, NAME, form, type SymbolTable } from './resolve.js'
 import type { Match } from './match.js'
-import type { HomeMap } from './modules.js'
-import type { Definition } from './types.js'
+import { loadModule, type HomeMap, type Loaded, type Registry } from './modules.js'
+import type { Definition, Statement } from './types.js'
 import { segKey } from '../solver/model.js'
 import type { ConstraintSet, ResolvedConstraint } from '../solver/interface.js'
 
@@ -63,6 +63,27 @@ export type Scoped = {
 }
 
 export function runProgram(statements: readonly string[], program: Scoped): Program {
+  return run([{ statements: statements.map(text => ({ text, line: 0 })), scope: program.scope }], program.homeOf)
+}
+
+/** Run a loaded module tree: every file's statements, in load order, each
+ *  against its own scope. Dependencies run before whatever imports them, so a
+ *  module is fully loaded before anything can depend on it — the same rule
+ *  Python uses for module-level code. */
+export function runModules(loaded: Loaded): Program {
+  return run(
+    loaded.order.map(m => ({ statements: m.statements, scope: m.scope, module: m.name })),
+    loaded.homeOf,
+  )
+}
+
+type Unit = {
+  statements: readonly Statement[]
+  scope: readonly Definition[]
+  module?: string
+}
+
+function run(units: readonly Unit[], homeOf: HomeMap): Program {
   const types: SymbolTable = new Map()
   const constraints: ConstraintSet = {
     points: new Set(),
@@ -74,9 +95,26 @@ export function runProgram(statements: readonly string[], program: Scoped): Prog
     picks: new Map(),
   }
 
-  const ctx: Context = { types, constraints, homeOf: program.homeOf }
-  for (const statement of statements) evalStatement(statement, program.scope, ctx, 0)
+  const ctx: Context = { types, constraints, homeOf }
+  for (const unit of units) {
+    for (const statement of unit.statements) {
+      try {
+        evalStatement(statement.text, unit.scope, ctx, 0)
+      } catch (e) {
+        throw located(e, unit.module, statement.line)
+      }
+    }
+  }
   return { constraints, types }
+}
+
+/** Prefix an error with where the statement was, when we know. Statements
+ *  handed in directly (line 0) have no source position to report. */
+function located(e: unknown, module: string | undefined, line: number): unknown {
+  if (line === 0 || !(e instanceof Error)) return e
+  const where = module === undefined ? `line ${line}` : `${module}:${line}`
+  e.message = `[${where}] ${e.message}`
+  return e
 }
 
 type Context = {
@@ -214,4 +252,12 @@ function makeApi(ctx: Context): Api {
       ctx.constraints.segments.add(segKey(a, b))
     },
   }
+}
+
+// ─── Running a program from source ───────────────────────────────────────────
+
+/** Run `source` as a program. It is loaded as a module named `main`, so it may
+ *  import, define and state things in one file exactly like any other. */
+export function runSource(source: string, registry: Registry, name = 'main'): Program {
+  return runModules(loadModule(name, { ...registry, [name]: source }))
 }

@@ -23,7 +23,7 @@
 // would export nothing. Rust spells this `pub use`, JS `export * from`.
 
 import { parseFile } from './parser.js'
-import { DefinitionError, signature, type Definition } from './types.js'
+import { DefinitionError, signature, type Definition, type Statement } from './types.js'
 
 /** Module name → source text. Supplied by the caller so the prelude, a test
  *  fixture and (later) a user's own files all load the same way. */
@@ -34,11 +34,17 @@ export type Module = {
   own: Definition[]
   exports: Definition[]
   scope: Definition[]
+  /** Program lines in this file. Any module may have them, entry or not. */
+  statements: Statement[]
 }
 
 export type Loaded = {
   /** The entry module's scope — what its statements resolve against. */
   scope: Definition[]
+  /** Modules in load order: every dependency before whatever imports it, with
+   *  the entry last. Statements run in this order, like Python's module-level
+   *  code, so a module is fully loaded before anything can depend on it. */
+  order: Module[]
   /** Definition → the scope its body expands in. Composed bodies from an
    *  imported module must resolve against that module, not the importer. */
   homeOf: HomeMap
@@ -56,8 +62,9 @@ export class ModuleError extends Error {
 export function loadModule(entry: string, registry: Registry): Loaded {
   const modules = new Map<string, Module>()
   const homeOf: HomeMap = new Map()
-  const module = load(entry, registry, modules, homeOf, [])
-  return { scope: module.scope, homeOf, modules }
+  const order: Module[] = []
+  const module = load(entry, registry, modules, homeOf, order, [])
+  return { scope: module.scope, order, homeOf, modules }
 }
 
 function load(
@@ -65,6 +72,7 @@ function load(
   registry: Registry,
   modules: Map<string, Module>,
   homeOf: HomeMap,
+  order: Module[],
   stack: string[],
 ): Module {
   const done = modules.get(name)
@@ -96,7 +104,7 @@ function load(
   const scope = [...own]
 
   for (const imp of parsed.imports) {
-    const dep = load(imp.name, registry, modules, homeOf, [...stack, name])
+    const dep = load(imp.name, registry, modules, homeOf, order, [...stack, name])
     // Own definitions shadow imported ones: a file may redefine `parallel`.
     // Two *imports* colliding stays an error, surfaced at dispatch as an
     // ambiguity — there is no principled winner between them.
@@ -106,8 +114,9 @@ function load(
     if (imp.reexport) exports.push(...dep.exports)
   }
 
-  const module: Module = { name, own, exports, scope }
+  const module: Module = { name, own, exports, scope, statements: parsed.statements }
   modules.set(name, module)
+  order.push(module)
   for (const def of own) homeOf.set(def, scope)
   return module
 }

@@ -47,6 +47,13 @@ export type Import = {
   line: number
 }
 
+/** A statement at column 0 — a line of the program rather than a definition. */
+export type Statement = {
+  text: string
+  /** 1-based line, for error messages. */
+  line: number
+}
+
 /** A definition's surface signature: keywords and slot *types*, with slot names
  *  dropped. Two definitions with the same signature are the same definition as
  *  far as dispatch is concerned, whatever their slots are called. Used to let a

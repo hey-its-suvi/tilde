@@ -14,12 +14,16 @@
 
 import { lexHeader, type Token, type TokenKind } from './lexer.js'
 import { DefinitionError } from './types.js'
-import type { Body, Definition, Import, Pattern, PatternPart, TypeRef } from './types.js'
+import type { Body, Definition, Import, Pattern, PatternPart, Statement, TypeRef } from './types.js'
 
 export type ParsedFile = {
   /** `import x` / `export import x` lines, unresolved. */
   imports: Import[]
   definitions: Definition[]
+  /** Program lines. A column-0 line that is not `define` or an import is a
+   *  statement — the layout rule already separates them, since bodies are
+   *  indented and definitions are not. */
+  statements: Statement[]
 }
 
 const isBlank = (s: string) => s.trim() === ''
@@ -32,6 +36,7 @@ export function parseFile(src: string): ParsedFile {
   const lines = src.split('\n')
   const imports: Import[] = []
   const definitions: Definition[] = []
+  const statements: Statement[] = []
 
   let i = 0
   while (i < lines.length) {
@@ -53,7 +58,9 @@ export function parseFile(src: string): ParsedFile {
     }
 
     if (first !== 'define') {
-      throw new DefinitionError(`expected 'define', 'import' or 'export import', got '${first}'`, lineNo)
+      statements.push({ text: raw.trim(), line: lineNo })
+      i++
+      continue
     }
 
     const { pattern, returns } = parseHeader(lexHeader(raw, lineNo), lineNo)
@@ -62,7 +69,7 @@ export function parseFile(src: string): ParsedFile {
     i = next
   }
 
-  return { imports, definitions }
+  return { imports, definitions, statements }
 }
 
 /** `import x` makes x usable in this file only. `export import x` also passes it
