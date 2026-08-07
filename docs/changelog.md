@@ -1,6 +1,25 @@
 # Changelog
 
-## 0.3.30 — current
+## 0.3.31 — current
+
+- **Definition syntax in the playground**: a `syntax:` picker in the header switches the editor between `classic` (unchanged, still the default) and `definitions`, a new front end where the language's own constructs are written in Tilde rather than built into the parser. In `definitions` mode a program starts with `import prelude`, and `point`, `line`, `circle`, `parallel`, `on` and the rest come from prelude files instead of the lexer — so you can write your own shapes and use them in the next line:
+
+  ```
+  import prelude
+
+  define dot (n: Name) at (x: Scalar) (y: Scalar) => Circle =
+      point n at x y
+      circle c with center n and radius 0.001
+
+  dot d at 3 4
+  ```
+
+  Each mode keeps its own saved buffer, so switching never overwrites the other.
+- **Highlighting follows meaning, not spelling**: in `definitions` mode only four words are keywords — `define`, `import`, `export`, `tsx` — because everything else is defined in the prelude and can be redefined by anyone. The rest of the colouring comes from matching each line against the definitions in scope, so the values filling slots are told apart from the words around them. The same word can be either: `line l through p q` colours `line` as a pattern word, `p on line` colours it as a value. Your own definitions feed the same table, so a shape you invent highlights like a built-in one.
+- **Optional semicolons**: a line may end with `;` anywhere a line ends — statements, imports, and the lines inside a definition. Never required, and a program written with them means exactly the same as one written without. Not allowed on a `define` line, which ends in `=` with its body still to come.
+- Known limits in `definitions` mode: scalars, `pick`, `set unit`, `set grid`, point literals like `(2, 1)`, and bracketed sub-expressions are not available yet. A definition that names something in its body (rather than taking it from a slot) can only be used once — using it twice reports that name as already declared.
+
+## 0.3.30
 
 - **Docs site home page and styling**: retitled from "A geometric programming language" to "A geometry definition language" — Tilde is declarative, with no control flow, so "programming language" was misleading (and "geometric programming" is an unrelated term from convex optimisation). The old tagline is gone. The home page picks up a subtle graph-paper grid backdrop, and horizontal dividers in the docs (plus the sidebar group separators) render as dash-dot patterns instead of solid lines.
 

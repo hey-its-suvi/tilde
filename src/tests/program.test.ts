@@ -110,3 +110,31 @@ describe('statements in an imported module', () => {
     )
   })
 })
+
+describe('semicolons are optional line terminators', () => {
+  it('accepts one on statements, imports and body lines', () => {
+    const result = solve(`
+import prelude;
+
+define dot (n: Name) at (x: Scalar) (y: Scalar) => Circle =
+    point n at x y;
+    circle c with center n and radius 1;
+
+dot d at 3 4;
+`)
+    expect(result.points.get('d')!.solutions[0]).toEqual({ x: 3, y: 4 })
+    expect(result.circles.get('c')!.solutions[0]).toEqual({ center: 'd', r: 1 })
+  })
+
+  it('treats a terminated and an unterminated program as identical', () => {
+    const bare = 'import prelude\npoint a at 1 2\nline l\n'
+    const semi = 'import prelude;\npoint a at 1 2;\nline l;\n'
+    expect(run(semi).constraints).toEqual(run(bare).constraints)
+  })
+
+  it('rejects one on a define header, where the body is still to come', () => {
+    expect(() =>
+      run('import prelude\n\ndefine twice (n: Name) => Point =;\n    point n\n'),
+    ).toThrow(/takes no ';'/)
+  })
+})

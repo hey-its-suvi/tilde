@@ -21,7 +21,9 @@ import { PickStrategy } from './pick/interface.js'
 import { RuleBasedPick } from './pick/rule-based/index.js'
 import { BudgetPick } from './pick/budget/index.js'
 import { buildSceneGraph } from './output.js'
-import { SceneGraph, RenderConfig } from '../../renderer/interface.js'
+import { runSource } from '../defs/eval.js'
+import { PRELUDE } from '../prelude/index.js'
+import { SceneGraph, RenderConfig, DEFAULT_CONFIG } from '../../renderer/interface.js'
 
 export type PickName = 'rule' | 'budget'
 
@@ -49,4 +51,19 @@ export function solve(program: Program): { scene: SceneGraph; config: RenderConf
   const result = activeSolver.solve(constraintSet)
   const scene = buildSceneGraph(result)
   return { scene, config }
+}
+
+// ─── The definition pipeline ─────────────────────────────────────────────────
+// The other front end: .til source → definitions → ConstraintSet, bypassing
+// `lexer`/`parser`/`elaborate` entirely. It meets this file at the same seam
+// (a ConstraintSet handed to the same Solver), so the pick strategy applies
+// identically and the scene graph is built the same way.
+//
+// Config is the default until `set grid` exists as a prelude definition —
+// RenderConfig is one boolean, so there is nothing else to carry across.
+
+export function solveSource(source: string): { scene: SceneGraph; config: RenderConfig } {
+  const { constraints } = runSource(source, PRELUDE)
+  const result = activeSolver.solve(constraints)
+  return { scene: buildSceneGraph(result), config: { ...DEFAULT_CONFIG } }
 }

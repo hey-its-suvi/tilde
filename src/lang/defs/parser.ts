@@ -26,6 +26,12 @@ export type ParsedFile = {
   statements: Statement[]
 }
 
+/** A trailing `;` is optional punctuation — allowed everywhere a line ends, and
+ *  required nowhere. Not on a `define` header, which ends in `=` with its body
+ *  still to come, so a terminator there would be claiming the line is finished
+ *  when it is not. */
+const dropTerminator = (s: string) => (s.endsWith(';') ? s.slice(0, -1).trimEnd() : s)
+
 const isBlank = (s: string) => s.trim() === ''
 const isComment = (s: string) => s.trimStart().startsWith('--')
 const isIndented = (s: string) => /^[ \t]/.test(s)
@@ -52,15 +58,22 @@ export function parseFile(src: string): ParsedFile {
     const first = raw.trim().split(/\s+/)[0]
 
     if (first === 'import' || first === 'export') {
-      imports.push(parseImport(raw.trim(), lineNo))
+      imports.push(parseImport(dropTerminator(raw.trim()), lineNo))
       i++
       continue
     }
 
     if (first !== 'define') {
-      statements.push({ text: raw.trim(), line: lineNo })
+      statements.push({ text: dropTerminator(raw.trim()), line: lineNo })
       i++
       continue
+    }
+
+    if (raw.trimEnd().endsWith(';')) {
+      throw new DefinitionError(
+        "a `define` line ends in '=' with its body still to come, so it takes no ';'",
+        lineNo,
+      )
     }
 
     const { pattern, returns } = parseHeader(lexHeader(raw, lineNo), lineNo)
@@ -110,7 +123,7 @@ function takeBody(lines: string[], start: number, defLine: number): { body: Body
   while (i < lines.length) {
     const line = lines[i]!
     if (isBlank(line) || !isIndented(line)) break
-    if (!isComment(line)) body.push(line.trim())
+    if (!isComment(line)) body.push(dropTerminator(line.trim()))
     i++
   }
 
