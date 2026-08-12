@@ -1,6 +1,21 @@
 # Changelog
 
-## 0.3.31 — current
+## 0.3.32 — current
+
+- **`return` says what a definition gives back**: a definition's body ends with `return`, naming which of the things it built comes back. Previously the last line's value was used, which meant the result depended on the order you happened to write the body in. Now order is free:
+
+  ```
+  define dot (n: Name) at (x: Scalar) (y: Scalar) => Circle =
+      point n at x y
+      circle c with center n and radius 1
+      return c
+  ```
+
+  A definition that states `=> Circle` must have a `return`, and one that returns must state a type — mismatches are reported rather than silently handing back the wrong kind of thing. `return` may only be the last line: it says which value comes back, it does not skip anything. It joins `define`, `import`, `export` and `tsx` as the only words that cannot be redefined.
+- **A definition can be used more than once**: names a body writes on its own account now belong to the call rather than the program. Calling `dot d at 3 4` and then `dot e at 1 1` used to fail with "c is already declared" — the `c` inside was one shared name. Each call now gets its own, keyed by the name you passed: `d_c`, `e_c`. Names that came from the call itself (`d`, `e`) are untouched. Definitions that name nothing of their own — which is all of the prelude — behave exactly as before.
+- A definition that names something of its own but takes no `Name` slot to key it by is reported rather than silently colliding.
+
+## 0.3.31
 
 - **Definition syntax in the playground**: a `syntax:` picker in the header switches the editor between `classic` (unchanged, still the default) and `definitions`, a new front end where the language's own constructs are written in Tilde rather than built into the parser. In `definitions` mode a program starts with `import prelude`, and `point`, `line`, `circle`, `parallel`, `on` and the rest come from prelude files instead of the lexer — so you can write your own shapes and use them in the next line:
 

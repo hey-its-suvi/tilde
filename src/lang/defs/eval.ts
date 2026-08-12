@@ -22,7 +22,7 @@
 import { lexHeader } from './lexer.js'
 import { resolveStatement, NAME, form, type SymbolTable } from './resolve.js'
 import type { Match } from './match.js'
-import { loadModule, type HomeMap, type Loaded, type Registry } from './modules.js'
+import { loadModule, type HomeMap, type Loaded, type LocalsMap, type Registry } from './modules.js'
 import type { Definition, Statement } from './types.js'
 import { segKey } from '../solver/model.js'
 import type { ConstraintSet, ResolvedConstraint } from '../solver/interface.js'
@@ -60,10 +60,15 @@ const MAX_DEPTH = 64
 export type Scoped = {
   scope: readonly Definition[]
   homeOf: HomeMap
+  locals: LocalsMap
 }
 
 export function runProgram(statements: readonly string[], program: Scoped): Program {
-  return run([{ statements: statements.map(text => ({ text, line: 0 })), scope: program.scope }], program.homeOf)
+  return run(
+    [{ statements: statements.map(text => ({ text, line: 0 })), scope: program.scope }],
+    program.homeOf,
+    program.locals,
+  )
 }
 
 /** Run a loaded module tree: every file's statements, in load order, each
@@ -74,6 +79,7 @@ export function runModules(loaded: Loaded): Program {
   return run(
     loaded.order.map(m => ({ statements: m.statements, scope: m.scope, module: m.name })),
     loaded.homeOf,
+    loaded.locals,
   )
 }
 
@@ -83,7 +89,7 @@ type Unit = {
   module?: string
 }
 
-function run(units: readonly Unit[], homeOf: HomeMap): Program {
+function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap): Program {
   const types: SymbolTable = new Map()
   const constraints: ConstraintSet = {
     points: new Set(),
@@ -95,7 +101,7 @@ function run(units: readonly Unit[], homeOf: HomeMap): Program {
     picks: new Map(),
   }
 
-  const ctx: Context = { types, constraints, homeOf }
+  const ctx: Context = { types, constraints, homeOf, locals }
   for (const unit of units) {
     for (const statement of unit.statements) {
       try {
@@ -121,6 +127,7 @@ type Context = {
   types: SymbolTable
   constraints: ConstraintSet
   homeOf: HomeMap
+  locals: LocalsMap
 }
 
 function evalStatement(
@@ -143,28 +150,90 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
     env.set(b.slot, b.token.kind === 'NUMBER' ? Number(b.token.value) : b.token.value)
   }
 
-  if (m.def.body.body === 'tsx') return runTsx(m, env, ctx)
+  // A name the body writes on its own account belongs to this call, not to the
+  // program. Rewriting it up front — before the body runs — is what keeps it
+  // out of the caller's namespace and lets the same definition be used twice.
+  for (const local of ctx.locals.get(m.def) ?? []) env.set(local, localKey(m, local, env))
 
-  // A body expands in the scope of the module that *defined* it, not the one
-  // that called it. This is what makes imports non-transitive: a definition may
-  // use everything its own file imported, and nothing the caller did.
-  const home = ctx.homeOf.get(m.def) ?? scope
-  return runComposed(m.def.body.lines, env, home, ctx, depth)
+  const value = m.def.body.body === 'tsx'
+    ? runTsx(m, env, ctx)
+    // A body expands in the scope of the module that *defined* it, not the one
+    // that called it. This is what makes imports non-transitive: a definition
+    // may use everything its own file imported, and nothing the caller did.
+    : runComposed(m.def.body, env, ctx.homeOf.get(m.def) ?? scope, ctx, depth)
+
+  checkReturn(m, value, ctx)
+  return value
 }
 
-/** Evaluate each body line with the slots substituted in. The body's value is
- *  the last line's, which is how a composed definition returns its subject:
- *  `point n at x y` ends with `n at x y`, whose value is the point. */
+/** Key a body-local name to this particular call, so calling the definition
+ *  twice makes two of them. The `Name` slot supplies the prefix, which keeps the
+ *  key readable and tied to something the caller actually wrote: `dot d …` gives
+ *  `d_c`.
+ *
+ *  A definition with locals and no `Name` slot has nothing to key them by. That
+ *  wants a per-call counter, which is deliberately not built yet — it can be
+ *  added without disturbing anything here, so until then it is an honest error
+ *  rather than a silent collision. */
+function localKey(m: Match, local: string, env: Map<string, Value>): string {
+  const nameSlot = m.def.pattern.find(p => p.part === 'slot' && p.type.name === NAME)
+  if (nameSlot === undefined || nameSlot.part !== 'slot') {
+    throw new EvalError(
+      `\`${form(m)}\` names \`${local}\` in its body but takes no ${NAME} slot to key it by,` +
+        ` so two calls would collide — give it a ${NAME} slot for now`,
+    )
+  }
+  return `${String(env.get(nameSlot.name))}_${local}`
+}
+
+/** Run every body line, then evaluate whatever `return` designates. Order in the
+ *  body does not decide the result — `return c` may name something built three
+ *  lines up. */
 function runComposed(
-  lines: readonly string[],
+  body: { lines: string[]; result: string | null },
   env: Map<string, Value>,
   scope: readonly Definition[],
   ctx: Context,
   depth: number,
 ): Value {
-  let last: Value = null
-  for (const line of lines) last = evalStatement(substitute(line, env), scope, ctx, depth + 1)
-  return last
+  for (const line of body.lines) evalStatement(substitute(line, env), scope, ctx, depth + 1)
+  if (body.result === null) return null
+
+  const result = substitute(body.result, env)
+  // A bare name or number is the value itself; anything longer is a statement
+  // whose value comes back, so `return circle c with radius 2` works too.
+  const tokens = lexHeader(result, 0).filter(t => t.kind !== 'EOF')
+  if (tokens.length === 1) {
+    const only = tokens[0]!
+    if (only.kind === 'NUMBER') return Number(only.value)
+    if (only.kind === 'WORD') return only.value
+  }
+  return evalStatement(result, scope, ctx, depth + 1)
+}
+
+/** What came back must be what was promised. Without this a body could be
+ *  reordered — or a `return` pointed at the wrong name — and quietly hand back
+ *  the wrong kind of thing. */
+function checkReturn(m: Match, value: Value, ctx: Context): void {
+  const declared = m.def.returns
+  if (declared === null) return
+
+  const actual =
+    typeof value === 'number' ? 'Scalar'
+    : typeof value === 'string' ? ctx.types.get(value)
+    : undefined
+
+  if (actual === undefined) {
+    throw new EvalError(
+      `\`${form(m)}\` promises ${declared.name} but its body returned nothing usable`,
+    )
+  }
+  if (actual !== declared.name) {
+    throw new EvalError(
+      `\`${form(m)}\` promises ${declared.name} but returned ${actual}` +
+        (typeof value === 'string' ? ` (\`${value}\`)` : ''),
+    )
+  }
 }
 
 /** Replace slot names in a body line with their bound values, token by token.

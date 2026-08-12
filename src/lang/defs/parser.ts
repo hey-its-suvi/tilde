@@ -32,6 +32,9 @@ export type ParsedFile = {
  *  when it is not. */
 const dropTerminator = (s: string) => (s.endsWith(';') ? s.slice(0, -1).trimEnd() : s)
 
+/** `return` as a whole word, not the start of a longer one. */
+const isReturn = (s: string) => /^return\b/.test(s)
+
 const isBlank = (s: string) => s.trim() === ''
 const isComment = (s: string) => s.trimStart().startsWith('--')
 const isIndented = (s: string) => /^[ \t]/.test(s)
@@ -78,6 +81,21 @@ export function parseFile(src: string): ParsedFile {
 
     const { pattern, returns } = parseHeader(lexHeader(raw, lineNo), lineNo)
     const { body, next } = takeBody(lines, i + 1, lineNo)
+    if (body.body === 'tilde') {
+      if (returns !== null && body.result === null) {
+        throw new DefinitionError(
+          `this returns ${returns.name}, so its body needs a \`return\` line`,
+          lineNo,
+        )
+      }
+      if (returns === null && body.result !== null) {
+        throw new DefinitionError(
+          "this body returns a value, so the definition needs a `=> Type`",
+          lineNo,
+        )
+      }
+    }
+
     definitions.push({ pattern, returns, body, line: lineNo })
     i = next
   }
@@ -128,7 +146,23 @@ function takeBody(lines: string[], start: number, defLine: number): { body: Body
   }
 
   if (body.length === 0) throw new DefinitionError('definition has no body', defLine)
-  return { body: { body: 'tilde', lines: body }, next: i }
+
+  // `return` designates which of the things built above comes back. It is not
+  // control flow — nothing is skipped, and there is nothing to skip — so it may
+  // only be the final line, where "what comes back" is the one thing left to say.
+  const returnAt = body.findIndex(isReturn)
+  if (returnAt !== -1 && returnAt !== body.length - 1) {
+    throw new DefinitionError(
+      "`return` says which value comes back, so it must be a body's last line",
+      defLine + 1 + returnAt,
+    )
+  }
+
+  if (returnAt === -1) return { body: { body: 'tilde', lines: body, result: null }, next: i }
+
+  const result = body[returnAt]!.slice('return'.length).trim()
+  if (result === '') throw new DefinitionError('`return` needs a value', defLine)
+  return { body: { body: 'tilde', lines: body.slice(0, -1), result }, next: i }
 }
 
 /** A tsx block runs from its opening `tsx\`` line to the line holding only a

@@ -29,6 +29,7 @@ import a
 define r (n: Name) => Point =
     p n
     q n
+    return n
 `,
   c: `
 import b

@@ -25,7 +25,14 @@ export type Pattern = PatternPart[]
  *  them needs the definition table this pass is building. */
 export type Body =
   | { body: 'tsx'; code: string }
-  | { body: 'tilde'; lines: string[] }
+  | {
+      body: 'tilde'
+      lines: string[]
+      /** The text after `return` on the body's last line, or null if there is
+       *  none. Held apart from `lines` because it is designation, not a
+       *  statement: it says which of the things built above comes back. */
+      result: string | null
+    }
 
 export type Definition = {
   pattern: Pattern

@@ -79,7 +79,7 @@ describe('a user definition extends what gets marked', () => {
     const extra = [
       ...loadModule('main', {
         ...PRELUDE,
-        main: 'define right triangle (t: Name) with legs (u: Scalar) (v: Scalar) => Triangle =\n    point t\n',
+        main: 'define right triangle (t: Name) with legs (u: Scalar) (v: Scalar) => Triangle =\n    point t\n    return t\n',
       }).scope,
     ]
     const cols = slotColumns('right triangle t with legs 3 4', extra)

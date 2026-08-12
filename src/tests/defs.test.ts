@@ -14,7 +14,7 @@ const show = (p: Pattern) =>
 
 describe('header parsing', () => {
   it('reads keywords and typed slots in order', () => {
-    const { definitions } = parseFile('define (a: Line) parallel (b: Line) => Line =\n    a on b\n')
+    const { definitions } = parseFile('define (a: Line) parallel (b: Line) => Line =\n    a on b\n    return a\n')
     expect(definitions).toHaveLength(1)
     expect(show(definitions[0]!.pattern)).toBe('(a: Line) parallel (b: Line)')
     expect(definitions[0]!.returns).toEqual({ name: 'Line', list: false })
@@ -45,7 +45,7 @@ describe('body framing', () => {
       'define a (x: Line) =\n    one\n    two\n\ndefine b (y: Line) =\n    three\n',
     )
     expect(definitions).toHaveLength(2)
-    expect(definitions[0]!.body).toEqual({ body: 'tilde', lines: ['one', 'two'] })
+    expect(definitions[0]!.body).toEqual({ body: 'tilde', lines: ['one', 'two'], result: null })
   })
 
   it('reports a stray blank line where it happened, not further on', () => {
@@ -61,7 +61,7 @@ describe('body framing', () => {
       'define a (x: Line) =\n    one\ndefine b (y: Line) =\n    two\n',
     )
     expect(definitions).toHaveLength(2)
-    expect(definitions[0]!.body).toEqual({ body: 'tilde', lines: ['one'] })
+    expect(definitions[0]!.body).toEqual({ body: 'tilde', lines: ['one'], result: null })
   })
 
   it('keeps blank lines inside a tsx block', () => {
