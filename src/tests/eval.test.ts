@@ -103,30 +103,32 @@ describe('composed bodies expand', () => {
 
 describe('multi-name declaration forms', () => {
   it('types every name a triangle introduces', () => {
-    // This is what resolution alone could not do: a/b/c are Points because the
-    // body says `point a` etc., not because of the return type.
-    const { types, constraints } = run('triangle t with a b c')
+    // `new Triangle t` makes the points; `call` gives each the caller's name.
+    // So the elements are keyed by the triangle and a/b/c are names for them.
+    const { types, aliases, constraints } = run('triangle t with a b c')
     expect(types.get('t')).toBe('Triangle')
-    expect(types.get('a')).toBe('Point')
-    expect(types.get('b')).toBe('Point')
-    expect(types.get('c')).toBe('Point')
-    expect([...constraints.points].sort()).toEqual(['a', 'b', 'c'])
+    expect(types.get('t.point1')).toBe('Point')
+    expect(aliases.get('a')).toBe('t.point1')
+    expect(aliases.get('c')).toBe('t.point3')
+    expect([...constraints.points].sort()).toEqual(['t.point1', 't.point2', 't.point3'])
   })
 
   it('keeps the composite out of the solver but keeps its segments', () => {
     const { constraints } = run('triangle t with a b c')
-    expect([...constraints.segments].sort()).toEqual(['a:b', 'a:c', 'b:c'])
+    expect([...constraints.segments].sort()).toEqual(['t.point1:t.point2', 't.point1:t.point3', 't.point2:t.point3'])
     // Triangle is a language-level tag; the solver has no set for it.
     expect([...constraints.lines]).toEqual([])
   })
 
   it('lets the vertices be constrained afterwards', () => {
+    // Constraining by the caller's name reaches the same element the triangle
+    // holds — `a` and `t.a` are two names for one point.
     const { constraints } = run('triangle t with a b c', 'a at 0 0', 'distance between a and b is 5')
     expect(of(constraints.constraints, 'position')).toEqual([
-      { kind: 'position', point: 'a', x: 0, y: 0 },
+      { kind: 'position', point: 't.point1', x: 0, y: 0 },
     ])
     expect(of(constraints.constraints, 'distance')).toEqual([
-      { kind: 'distance', p1: 'a', p2: 'b', value: 5 },
+      { kind: 'distance', p1: 't.point1', p2: 't.point2', value: 5 },
     ])
   })
 })

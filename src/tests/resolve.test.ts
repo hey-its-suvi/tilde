@@ -14,6 +14,7 @@ const symbols = (entries: Record<string, string>): Store => ({
   types: new Map(Object.entries(entries)),
   parts: new Map(),
   decls: prelude.types,
+  aliases: new Map(),
 })
 
 /** The surface form resolution settles on, so assertions read like the prelude

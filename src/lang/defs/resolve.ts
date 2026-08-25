@@ -29,19 +29,28 @@ export type SymbolTable = Map<string, string>
  *  language already knows how to use. */
 export type Parts = Map<string, Map<string, string>>
 
+/** Name → the element key it stands for. Almost always identity: a name *is*
+ *  its key until something gives a second name to the same element. `is` is what
+ *  makes them differ, so `a` and `t.a` can be one box under two names. */
+export type Aliases = Map<string, string>
+
 /** Everything resolution needs to know about what exists. */
 export type Store = {
   types: SymbolTable
   parts: Parts
   decls: TypeMap
+  aliases: Aliases
 }
+
+/** The element key a name stands for. */
+export const keyOf = (name: string, store: Store): string => store.aliases.get(name) ?? name
 
 /** Follow a possibly-dotted name to the element it names. `t.a` looks up `t`,
  *  finds its type's field `a`, and hands back the key that field references —
  *  so from there on it is an ordinary element like any other. */
 export function resolvePath(name: string, store: Store): { key: string; type: string } | null {
   const [head, ...fields] = name.split('.')
-  let key = head!
+  let key = keyOf(head!, store)
   let type = store.types.get(key)
   if (type === undefined) return null
 
@@ -65,9 +74,9 @@ function pathProblem(name: string, store: Store): string | null {
   const [head, ...fields] = name.split('.')
   if (fields.length === 0) return null // not a path; ordinary "not declared"
 
-  let key = head!
+  let key = keyOf(head!, store)
   let type = store.types.get(key)
-  if (type === undefined) return `"${key}" is not declared`
+  if (type === undefined) return `"${head}" is not declared`
 
   for (const field of fields) {
     const decl = store.decls.get(type)
@@ -149,8 +158,14 @@ function typesFit(m: Match, store: Store): boolean {
   return true
 }
 
-/** Type compatibility. Exact-match for now — subtyping (`Square <: Polygon`) is
- *  deferred until there is a hierarchy to model. */
+/** The top type: a slot written `(x: Any)` takes an element of any kind. Needed
+ *  by definitions that operate on a thing without caring what it is — `call`
+ *  gives a second name to anything. Use sparingly: an `Any` slot matches every
+ *  candidate, so it makes ambiguity easier to reach. */
+export const ANY = 'Any'
+
+/** Type compatibility. Exact-match apart from `Any` — real subtyping
+ *  (`Square <: Polygon`) is deferred until there is a hierarchy to model. */
 function compatible(actual: string, expected: string): boolean {
-  return actual === expected
+  return expected === ANY || actual === expected
 }

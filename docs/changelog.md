@@ -1,6 +1,33 @@
 # Changelog
 
-## 0.3.33 — current
+## 0.3.34 — current
+
+- **Shapes are made and named with three general-purpose words**, replacing the triangle-specific `holds`. `new` makes a shape of any kind, reaching down through whatever parts that kind is declared to have; `call` gives a second name to something that already exists; `segment` draws an edge between two points. A triangle is now written entirely in Tilde, with no escape into the implementation:
+
+  ```
+  define type Triangle =
+      Point point1
+      Point point2
+      Point point3
+
+  define triangle (t: Name) with (a: Name) (b: Name) (c: Name) => Triangle =
+      new Triangle t
+      call t.point1 a
+      call t.point2 b
+      call t.point3 c
+      segment a b
+      segment b c
+      segment c a
+      return t
+  ```
+
+  Anyone can write a shape this way — nothing here is reserved for the built-in ones. Corners are numbered rather than lettered so the naming carries to shapes with more of them.
+- **A name given by `call` and the thing it names are one and the same.** After `triangle t with a b c`, `a` and `t.point1` are two names for one point: constrain either and you have constrained both. It is not a copy kept in step, so you can mix the two freely.
+- **Triangle moved out of the core file**, since the solver knows nothing about it — it is three points and the edges between them, so it belongs with the other shapes.
+- **Drawings label what you wrote.** A triangle's corners are stored under the triangle, but if you called them `a`, `b` and `c`, that is what appears on the canvas, and its edges read `ab`, `bc`, `ac` as they always have.
+- A slot can be written `Any` when a definition works on a shape without caring what kind it is — `call` is the first to need it. Use it sparingly: a slot that accepts everything makes it easier to write two definitions that both match the same statement.
+
+## 0.3.33
 
 - **Types can declare what they contain**: a shape can now say what parts it is made of, and those parts can be reached by name.
 

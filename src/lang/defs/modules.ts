@@ -70,8 +70,19 @@ export type TypeMap = Map<string, TypeDecl>
  *  pattern word means knowing every pattern word in scope. */
 export type LocalsMap = Map<Definition, string[]>
 
-/** Words a body writes that are neither its slots nor anyone's pattern word. */
-function localsOf(def: Definition, scope: readonly Definition[]): string[] {
+/** Words a body writes that are neither its slots nor anyone's pattern word.
+ *
+ *  Two things that look like new names and are not:
+ *  - **a path** (`t.a`) — you can only reach a field of something that already
+ *    exists, so a dotted word never introduces anything.
+ *  - **a type name** (`Triangle` in `new Triangle t`) — it names a kind, not an
+ *    element, and lands in a `Name` slot only because a `Name` slot is "a bare
+ *    word". */
+function localsOf(
+  def: Definition,
+  scope: readonly Definition[],
+  declaredTypes: ReadonlyMap<string, TypeDecl>,
+): string[] {
   if (def.body.body !== 'tilde') return [] // a tsx body names things in TypeScript
 
   const slots = new Set(def.pattern.flatMap(p => (p.part === 'slot' ? [p.name] : [])))
@@ -89,7 +100,11 @@ function localsOf(def: Definition, scope: readonly Definition[]): string[] {
       continue // the statement will report its own problem when it runs
     }
     for (const t of tokens) {
-      if (t.kind === 'WORD' && !slots.has(t.value) && !words.has(t.value)) locals.add(t.value)
+      if (t.kind !== 'WORD') continue
+      if (slots.has(t.value) || words.has(t.value)) continue
+      if (t.value.includes('.')) continue // a path, not a new name
+      if (declaredTypes.has(t.value)) continue // a kind, not an element
+      locals.add(t.value)
     }
   }
   return [...locals]
@@ -173,7 +188,7 @@ function load(
   order.push(module)
   for (const def of own) {
     homeOf.set(def, scope)
-    locals.set(def, localsOf(def, scope))
+    locals.set(def, localsOf(def, scope, types))
   }
   return module
 }

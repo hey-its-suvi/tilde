@@ -96,25 +96,30 @@ define distance between (p: Point) and (q: Point) is (d: Scalar) =
     constrain({ kind: 'distance', p1: p, p2: q, value: d })
     `
 
--- ─── Composites ─────────────────────────────────────────────────────────────
--- A triangle is a named container: three points and the segments between them.
--- "Triangle" is a language-level tag only — the solver never sees it, just the
--- points and the constraints.
+-- ─── Making and naming ──────────────────────────────────────────────────────
+-- Generic, and the reason no shape needs its own hatch. `new` makes an element
+-- of any type, reaching down through that type's fields; `call` gives a second
+-- name to something that already exists. Between them a composite is definable
+-- in Tilde with no tsx of its own.
 --
--- A field holds a reference to a *whole* element, never a piece of one. That is
--- why `Point a` is declarable and `Scalar x` inside Point is not: a line's two
--- tangent solutions live in the line as a whole, and splitting it into three
--- scalars would turn two real answers into eight candidates.
+-- The type name sits in a `Name` slot because a `Name` slot is just "a bare
+-- word" — declaring is what a body chooses to do with it, not what the slot
+-- means. So `new Triangle t` needs no keyword.
 
-define type Triangle =
-    Point a
-    Point b
-    Point c
-
-define (t: Name) holds (a: Point) (b: Point) (c: Point) => Triangle =
+define new (ty: Name) (n: Name) =
     tsx`
-    segment(a, b)
-    segment(b, c)
-    segment(c, a)
-    return declare(t, 'Triangle', { a, b, c })
+    mint(n, ty)
+    `
+
+define call (x: Any) (n: Name) =
+    tsx`
+    alias(n, x)
+    `
+
+-- ─── Drawn edges ────────────────────────────────────────────────────────────
+-- A segment is a drawn join between two points, not a constraint.
+
+define segment (p: Point) (q: Point) =
+    tsx`
+    segment(p, q)
     `

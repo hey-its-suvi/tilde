@@ -132,7 +132,7 @@ describe('the prelude parses', () => {
     // The design check: every convenient form composes from primitives, using
     // nothing a user could not use. If a hatch appears outside core, either the
     // primitives are wrong or something took a shortcut.
-    expect(hatched('core')).toBe(13)
+    expect(hatched('core')).toBe(15)
     expect(hatched('shapes')).toBe(0)
     expect(hatched('constraints')).toBe(0)
   })
@@ -140,9 +140,9 @@ describe('the prelude parses', () => {
   it('splits roughly evenly between primitive and composed', () => {
     const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
 
-    // Measured, not aspirational: 13 primitive to 12 composed. The earlier claim
+    // Measured, not aspirational: 15 primitive to 12 composed. The earlier claim
     // that "most of the prelude composes" was wrong — it is about half.
-    expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(13)
+    expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(15)
     expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(12)
   })
 
@@ -150,10 +150,16 @@ describe('the prelude parses', () => {
     const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
     const void_ = all.filter(d => d.returns === null).map(d => show(d.pattern))
 
-    // `distance` is the sole exception, and deliberately so: the solver stores
-    // a length for a pair of points but cannot hand a measurement back, so the
-    // form takes the length instead of returning it. Everything else returns
-    // its subject and chains (decision 4b).
-    expect(void_).toEqual(['distance between (p: Point) and (q: Point) is (d: Scalar)'])
+    // Four exceptions, each for a reason. `distance` takes a length rather than
+    // returning one, because the solver stores a length for a pair of points but
+    // cannot hand a measurement back. The other three are acts rather than
+    // relations — they make, name, or draw something, and there is no subject to
+    // give back. Everything else returns its subject and chains (decision 4b).
+    expect(void_.sort()).toEqual([
+      'call (x: Any) (n: Name)',
+      'distance between (p: Point) and (q: Point) is (d: Scalar)',
+      'new (ty: Name) (n: Name)',
+      'segment (p: Point) (q: Point)',
+    ])
   })
 })

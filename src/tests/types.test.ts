@@ -73,38 +73,44 @@ describe('reaching a field', () => {
 
   it('names the same element the caller named', () => {
     // `t.a` and `a` are two spellings of one point, so constraining either works.
-    expect(at(`${tri}t.a at 0 0\nt.b at 6 0\nt.c at 3 4\n`, 'a')).toEqual({ x: 0, y: 0 })
-    expect(at(`${tri}a at 1 1\nt.b at 6 0\nt.c at 3 4\n`, 'a')).toEqual({ x: 1, y: 1 })
+    expect(at(`${tri}t.point1 at 0 0\nt.point2 at 6 0\nt.point3 at 3 4\n`, 't.point1')).toEqual({ x: 0, y: 0 })
+    expect(at(`${tri}a at 1 1\nt.point2 at 6 0\nt.point3 at 3 4\n`, 't.point1')).toEqual({ x: 1, y: 1 })
   })
 
   it('fits a slot like any other name', () => {
-    const { constraints } = run(`${tri}line l through t.a t.b\n`)
-    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 'a', line: 'l' })
-    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 'b', line: 'l' })
+    const { constraints } = run(`${tri}line l through t.point1 t.point2\n`)
+    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 't.point1', line: 'l' })
+    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 't.point2', line: 'l' })
   })
 
   it('dispatches on the field’s type, not the owner’s', () => {
-    // `t.a on l` picks the Point-on-Line form because `t.a` is a Point.
-    const { constraints } = run(`${tri}line l\nt.a on l\n`)
-    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 'a', line: 'l' })
+    // `t.point1 on l` picks the Point-on-Line form because `t.a` is a Point.
+    const { constraints } = run(`${tri}line l\nt.point1 on l\n`)
+    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 't.point1', line: 'l' })
   })
 
   it('records what each field references', () => {
     const { parts } = run(tri)
-    expect([...parts.get('t')!]).toEqual([['a', 'a'], ['b', 'b'], ['c', 'c']])
+    expect([...parts.get('t')!]).toEqual([
+      ['point1', 't.point1'],
+      ['point2', 't.point2'],
+      ['point3', 't.point3'],
+    ])
   })
 
   it('never shows the solver a composite', () => {
-    const { constraints } = run(`${tri}t.a at 0 0\n`)
-    expect(JSON.stringify(constraints.constraints)).not.toContain('"t"')
-    expect([...constraints.points].sort()).toEqual(['a', 'b', 'c'])
+    const { constraints } = run(`${tri}t.point1 at 0 0\n`)
+    expect(constraints.constraints).not.toContainEqual(
+      expect.objectContaining({ point: 't' }),
+    )
+    expect([...constraints.points].sort()).toEqual(['t.point1', 't.point2', 't.point3'])
   })
 })
 
 describe('errors name what went wrong', () => {
   it('reports an unknown field, and lists the real ones', () => {
     expect(() => run('import prelude\ntriangle t with a b c\nt.z at 0 0\n')).toThrow(
-      /Triangle has no field "z" \(it has a, b, c\)/,
+      /Triangle has no field "z" \(it has point1, point2, point3\)/,
     )
   })
 
@@ -115,7 +121,7 @@ describe('errors name what went wrong', () => {
   })
 
   it('reports an undeclared owner', () => {
-    expect(() => run('import prelude\nt.a at 0 0\n')).toThrow(/"t" is not declared/)
+    expect(() => run('import prelude\nt.point1 at 0 0\n')).toThrow(/"t" is not declared/)
   })
 
   it('rejects a field set to the wrong kind of thing', () => {

@@ -20,7 +20,7 @@
 // declaration-before-use the natural rule rather than an imposed one.
 
 import { lexHeader } from './lexer.js'
-import { resolveStatement, resolvePath, NAME, form, type Parts, type Store, type SymbolTable } from './resolve.js'
+import { resolveStatement, resolvePath, keyOf, NAME, form, type Aliases, type Parts, type Store, type SymbolTable } from './resolve.js'
 import type { Match } from './match.js'
 import { loadModule, type HomeMap, type Loaded, type LocalsMap, type Registry, type TypeMap } from './modules.js'
 import type { Definition, Statement } from './types.js'
@@ -39,9 +39,13 @@ export type Value = string | number | null
 
 export type Program = {
   constraints: ConstraintSet
+  /** Element key → its type. Keyed by *element*, so a name given by `call` is
+   *  not in here — look it up through `aliases` first. */
   types: SymbolTable
   /** Element key → its fields → the key each references. */
   parts: Parts
+  /** Name → the element key it stands for, for names given by `call`. */
+  aliases: Aliases
 }
 
 /** Types the solver stores as elements. Anything else (Triangle) is a purely
@@ -107,7 +111,8 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
   }
 
   const parts: Parts = new Map()
-  const ctx: Context = { store: { types, parts, decls }, constraints, homeOf, locals }
+  const aliases: Aliases = new Map()
+  const ctx: Context = { store: { types, parts, decls, aliases }, constraints, homeOf, locals }
   for (const unit of units) {
     for (const statement of unit.statements) {
       try {
@@ -117,7 +122,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
       }
     }
   }
-  return { constraints, types, parts }
+  return { constraints, types, parts, aliases }
 }
 
 /** Prefix an error with where the statement was, when we know. Statements
@@ -272,6 +277,8 @@ type Api = {
   declare: (name: string, type: string, parts?: Record<string, string>) => string
   constrain: (c: ResolvedConstraint) => void
   segment: (a: string, b: string) => void
+  mint: (name: string, type: string) => string
+  alias: (name: string, existing: string) => string
 }
 
 const isIdentifier = (s: string) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(s)
@@ -288,8 +295,11 @@ function runTsx(m: Match, env: Map<string, Value>, ctx: Context): Value {
     }
   }
 
-  const params = [...slots, 'declare', 'constrain', 'segment']
-  const args = [...slots.map(s => env.get(s)!), api.declare, api.constrain, api.segment]
+  const params = [...slots, 'declare', 'constrain', 'segment', 'mint', 'alias']
+  const args = [
+    ...slots.map(s => env.get(s)!),
+    api.declare, api.constrain, api.segment, api.mint, api.alias,
+  ]
 
   let body: (...a: unknown[]) => Value
   try {
@@ -345,11 +355,14 @@ function setParts(name: string, type: string, parts: Record<string, string>, ctx
 }
 
 function makeApi(ctx: Context): Api {
-  return {
+  const api: Api = {
     declare(name, type, parts) {
       const existing = ctx.store.types.get(name)
       if (existing !== undefined) {
         throw new EvalError(`"${name}" is already declared as a ${existing}`)
+      }
+      if (ctx.store.aliases.has(name)) {
+        throw new EvalError(`"${name}" is already declared`)
       }
       if (type === NAME) {
         throw new EvalError(`"${name}" cannot be declared as ${NAME} — that is a slot marker, not a type`)
@@ -370,7 +383,43 @@ function makeApi(ctx: Context): Api {
     segment(a, b) {
       ctx.constraints.segments.add(segKey(a, b))
     },
+
+    /** Make an element of `type`, and — if that type declares fields — make each
+     *  of those too, named `<name>.<field>`. The recursion stops at a type with
+     *  no declaration, which is exactly where the solver's own primitives are:
+     *  Point, Line, Circle, Scalar. So `new Triangle t` reaches down to three
+     *  real points and no further. */
+    mint(name, type) {
+      const decl = ctx.store.decls.get(type)
+      if (decl === undefined) return api.declare(name, type)
+
+      const fields: Record<string, string> = {}
+      for (const field of decl.fields) {
+        if (field.type.list) {
+          throw new EvalError(
+            `${type}.${field.name} is a list, and how many to make is not yet expressible`,
+          )
+        }
+        fields[field.name] = api.mint(`${name}.${field.name}`, field.type.name)
+      }
+      return api.declare(name, type, fields)
+    },
+
+    /** Give `name` to whatever `existing` already names. Two names, one element —
+     *  not a copy — so constraining either constrains the same thing. */
+    alias(name, existing) {
+      if (ctx.store.types.has(name) || ctx.store.aliases.has(name)) {
+        throw new EvalError(`"${name}" is already declared`)
+      }
+      const key = keyOf(existing, ctx.store)
+      if (!ctx.store.types.has(key)) {
+        throw new EvalError(`"${existing}" is not declared, so nothing can be called "${name}"`)
+      }
+      ctx.store.aliases.set(name, key)
+      return key
+    },
   }
+  return api
 }
 
 // ─── Running a program from source ───────────────────────────────────────────

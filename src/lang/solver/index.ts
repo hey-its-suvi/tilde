@@ -63,7 +63,14 @@ export function solve(program: Program): { scene: SceneGraph; config: RenderConf
 // RenderConfig is one boolean, so there is nothing else to carry across.
 
 export function solveSource(source: string): { scene: SceneGraph; config: RenderConfig } {
-  const { constraints } = runSource(source, PRELUDE)
+  const { constraints, aliases } = runSource(source, PRELUDE)
   const result = activeSolver.solve(constraints)
-  return { scene: buildSceneGraph(result), config: { ...DEFAULT_CONFIG } }
+
+  // A drawing should say what the program wrote. `triangle t with a b c` keys
+  // its vertices `t.a`, but the user asked for `a`, so names given by `call`
+  // become the labels. First one wins if something is named twice.
+  const labels = new Map<string, string>()
+  for (const [name, key] of aliases) if (!labels.has(key)) labels.set(key, name)
+
+  return { scene: buildSceneGraph(result, labels), config: { ...DEFAULT_CONFIG } }
 }

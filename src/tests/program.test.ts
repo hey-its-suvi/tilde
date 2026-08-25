@@ -62,20 +62,20 @@ line l through a b
     const result = solve(`
 import prelude
 
-define right triangle (t: Name) at (p: Name) with legs (u: Scalar) (v: Scalar) => Triangle =
-    point p at 0 0
-    point q at u 0
-    point r at 0 v
-    t holds p q r
+define right triangle (t: Name) with legs (u: Scalar) (v: Scalar) => Triangle =
+    triangle t with p q r
+    p at 0 0
+    q at u 0
+    r at 0 v
     return t
 
-right triangle t at o with legs 3 4
+right triangle t with legs 3 4
 `)
-    // `q` and `r` are the definition's own working parts, so they are keyed to
-    // this call: `t_q`, `t_r`. `o` came from a Name slot and keeps its name.
-    expect(result.points.get('o')!.solutions[0]).toEqual({ x: 0, y: 0 })
-    expect(result.points.get('t_q')!.solutions[0]).toEqual({ x: 3, y: 0 })
-    expect(result.points.get('t_r')!.solutions[0]).toEqual({ x: 0, y: 4 })
+    // The vertices belong to the triangle, so they are keyed by it — `p`, `q`
+    // and `r` are the definition's own names for them and never leave.
+    expect(result.points.get('t.point1')!.solutions[0]).toEqual({ x: 0, y: 0 })
+    expect(result.points.get('t.point2')!.solutions[0]).toEqual({ x: 3, y: 0 })
+    expect(result.points.get('t.point3')!.solutions[0]).toEqual({ x: 0, y: 4 })
   })
 
   it('reports where a bad statement is', () => {

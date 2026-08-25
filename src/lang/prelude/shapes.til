@@ -42,12 +42,38 @@ define circle (n: Name) with center (p: Point) and radius (r: Scalar) => Circle 
     return n
 
 -- ─── Composites ─────────────────────────────────────────────────────────────
+-- Triangle lives here rather than in `core` because the solver knows nothing
+-- about it: it is three points and the edges between them. Nothing below uses
+-- the tsx hatch — `new`, `call` and `segment` are all the machinery a composite
+-- needs, so a user could write this file.
+--
+-- A field holds a reference to a *whole* element, never a piece of one. `Point a`
+-- is declarable and `Scalar x` inside Point is not: a line's two tangent
+-- solutions live in the line as a whole, and splitting it into three scalars
+-- would turn two real answers into eight candidates.
+
+-- Fields are numbered rather than lettered so the naming carries to shapes with
+-- more corners: a quadrilateral's `point4` reads the same way, where `d` would
+-- have run out of alphabet and out of convention.
+
+define type Triangle =
+    Point point1
+    Point point2
+    Point point3
+
+-- `new Triangle t` makes the triangle and its three points, named t.a, t.b, t.c.
+-- `call` then hands each one the name the caller asked for, so `a` and `t.a` are
+-- two names for one point rather than two points kept in step.
+--
 -- Note `with`, not juxtaposition: `triangle a, b, c` distributes into three
 -- separate triangles, so the multi-vertex form must be lexically distinct.
 
 define triangle (t: Name) with (a: Name) (b: Name) (c: Name) => Triangle =
-    point a
-    point b
-    point c
-    t holds a b c
+    new Triangle t
+    call t.point1 a
+    call t.point2 b
+    call t.point3 c
+    segment a b
+    segment b c
+    segment c a
     return t
