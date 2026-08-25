@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveStatement, form, type SymbolTable } from '../lang/defs/resolve.js'
+import { resolveStatement, form, type Store } from '../lang/defs/resolve.js'
 import type { Definition } from '../lang/defs/types.js'
 
 import { loadModule } from '../lang/defs/modules.js'
@@ -10,7 +10,11 @@ import { PRELUDE } from '../lang/prelude/index.js'
 const prelude = loadModule('prelude', PRELUDE)
 const table: Definition[] = prelude.scope
 
-const symbols = (entries: Record<string, string>): SymbolTable => new Map(Object.entries(entries))
+const symbols = (entries: Record<string, string>): Store => ({
+  types: new Map(Object.entries(entries)),
+  parts: new Map(),
+  decls: prelude.types,
+})
 
 /** The surface form resolution settles on, so assertions read like the prelude
  *  rather than referencing definitions by index. */

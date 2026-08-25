@@ -24,7 +24,7 @@
 
 import { lexHeader } from './lexer.js'
 import { parseFile } from './parser.js'
-import { DefinitionError, signature, type Definition, type Statement } from './types.js'
+import { DefinitionError, signature, type Definition, type Statement, type TypeDecl } from './types.js'
 
 /** Module name → source text. Supplied by the caller so the prelude, a test
  *  fixture and (later) a user's own files all load the same way. */
@@ -51,10 +51,18 @@ export type Loaded = {
   homeOf: HomeMap
   /** Definition → the names its body introduces on its own account. */
   locals: LocalsMap
+  /** Every `define type` in every module loaded. */
+  types: TypeMap
   modules: Map<string, Module>
 }
 
 export type HomeMap = Map<Definition, Definition[]>
+
+/** Type name → its declaration. Global rather than per-module: a type name is
+ *  already a global tag (decision 10 — any definition may write `=> Triangle`
+ *  with nothing declared anywhere), so scoping the *declaration* while the tag
+ *  itself is global would be a distinction without a difference. */
+export type TypeMap = Map<string, TypeDecl>
 
 /** Definition → the names its body introduces that did not come from a slot.
  *  These are the definition's own working parts, and each call needs its own
@@ -97,9 +105,10 @@ export function loadModule(entry: string, registry: Registry): Loaded {
   const modules = new Map<string, Module>()
   const homeOf: HomeMap = new Map()
   const locals: LocalsMap = new Map()
+  const types: TypeMap = new Map()
   const order: Module[] = []
-  const module = load(entry, registry, modules, homeOf, locals, order, [])
-  return { scope: module.scope, order, homeOf, locals, modules }
+  const module = load(entry, registry, modules, homeOf, locals, types, order, [])
+  return { scope: module.scope, order, homeOf, locals, types, modules }
 }
 
 function load(
@@ -108,6 +117,7 @@ function load(
   modules: Map<string, Module>,
   homeOf: HomeMap,
   locals: LocalsMap,
+  types: TypeMap,
   order: Module[],
   stack: string[],
 ): Module {
@@ -127,6 +137,14 @@ function load(
   const parsed = parseFile(src)
   const own = parsed.definitions
 
+  for (const decl of parsed.types) {
+    const clash = types.get(decl.name)
+    if (clash !== undefined) {
+      throw new DefinitionError(`type ${decl.name} is already declared`, decl.line)
+    }
+    types.set(decl.name, decl)
+  }
+
   const seen = new Set<string>()
   for (const def of own) {
     const sig = signature(def.pattern)
@@ -140,7 +158,7 @@ function load(
   const scope = [...own]
 
   for (const imp of parsed.imports) {
-    const dep = load(imp.name, registry, modules, homeOf, locals, order, [...stack, name])
+    const dep = load(imp.name, registry, modules, homeOf, locals, types, order, [...stack, name])
     // Own definitions shadow imported ones: a file may redefine `parallel`.
     // Two *imports* colliding stays an error, surfaced at dispatch as an
     // ambiguity — there is no principled winner between them.

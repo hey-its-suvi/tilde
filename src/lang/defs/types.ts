@@ -54,6 +54,22 @@ export type Import = {
   line: number
 }
 
+/** One field of a type: a name and what kind of element fills it. A field holds
+ *  a *reference* to a whole element, never a piece of one — see the type-
+ *  declaration notes for why pieces cannot be reached. */
+export type Field = {
+  name: string
+  type: TypeRef
+}
+
+/** `define type Triangle = a: Point / b: Point / c: Point` */
+export type TypeDecl = {
+  name: string
+  fields: Field[]
+  /** 1-based line of the `define type` keyword, for error messages. */
+  line: number
+}
+
 /** A statement at column 0 — a line of the program rather than a definition. */
 export type Statement = {
   text: string

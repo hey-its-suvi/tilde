@@ -20,9 +20,9 @@
 // declaration-before-use the natural rule rather than an imposed one.
 
 import { lexHeader } from './lexer.js'
-import { resolveStatement, NAME, form, type SymbolTable } from './resolve.js'
+import { resolveStatement, resolvePath, NAME, form, type Parts, type Store, type SymbolTable } from './resolve.js'
 import type { Match } from './match.js'
-import { loadModule, type HomeMap, type Loaded, type LocalsMap, type Registry } from './modules.js'
+import { loadModule, type HomeMap, type Loaded, type LocalsMap, type Registry, type TypeMap } from './modules.js'
 import type { Definition, Statement } from './types.js'
 import { segKey } from '../solver/model.js'
 import type { ConstraintSet, ResolvedConstraint } from '../solver/interface.js'
@@ -40,6 +40,8 @@ export type Value = string | number | null
 export type Program = {
   constraints: ConstraintSet
   types: SymbolTable
+  /** Element key → its fields → the key each references. */
+  parts: Parts
 }
 
 /** Types the solver stores as elements. Anything else (Triangle) is a purely
@@ -61,6 +63,7 @@ export type Scoped = {
   scope: readonly Definition[]
   homeOf: HomeMap
   locals: LocalsMap
+  types: TypeMap
 }
 
 export function runProgram(statements: readonly string[], program: Scoped): Program {
@@ -68,6 +71,7 @@ export function runProgram(statements: readonly string[], program: Scoped): Prog
     [{ statements: statements.map(text => ({ text, line: 0 })), scope: program.scope }],
     program.homeOf,
     program.locals,
+    program.types,
   )
 }
 
@@ -80,6 +84,7 @@ export function runModules(loaded: Loaded): Program {
     loaded.order.map(m => ({ statements: m.statements, scope: m.scope, module: m.name })),
     loaded.homeOf,
     loaded.locals,
+    loaded.types,
   )
 }
 
@@ -89,7 +94,7 @@ type Unit = {
   module?: string
 }
 
-function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap): Program {
+function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: TypeMap): Program {
   const types: SymbolTable = new Map()
   const constraints: ConstraintSet = {
     points: new Set(),
@@ -101,7 +106,8 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap): Progra
     picks: new Map(),
   }
 
-  const ctx: Context = { types, constraints, homeOf, locals }
+  const parts: Parts = new Map()
+  const ctx: Context = { store: { types, parts, decls }, constraints, homeOf, locals }
   for (const unit of units) {
     for (const statement of unit.statements) {
       try {
@@ -111,7 +117,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap): Progra
       }
     }
   }
-  return { constraints, types }
+  return { constraints, types, parts }
 }
 
 /** Prefix an error with where the statement was, when we know. Statements
@@ -124,7 +130,7 @@ function located(e: unknown, module: string | undefined, line: number): unknown 
 }
 
 type Context = {
-  types: SymbolTable
+  store: Store
   constraints: ConstraintSet
   homeOf: HomeMap
   locals: LocalsMap
@@ -139,7 +145,7 @@ function evalStatement(
   if (depth > MAX_DEPTH) {
     throw new EvalError(`"${statement}" expanded more than ${MAX_DEPTH} levels deep — recursive definition?`)
   }
-  return evalMatch(resolveStatement(statement, ctx.types, scope), scope, ctx, depth)
+  return evalMatch(resolveStatement(statement, ctx.store, scope), scope, ctx, depth)
 }
 
 function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: number): Value {
@@ -147,7 +153,13 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   for (const b of m.bindings) {
     // A Name slot's value is the name itself — it is being introduced, so there
     // is nothing to look up. Everything else is a key or a literal.
-    env.set(b.slot, b.token.kind === 'NUMBER' ? Number(b.token.value) : b.token.value)
+    if (b.token.kind === 'NUMBER') {
+      env.set(b.slot, Number(b.token.value))
+      continue
+    }
+    // A path binds the element it points at, so a body never sees the dots.
+    const found = b.type.name === NAME ? null : resolvePath(b.token.value, ctx.store)
+    env.set(b.slot, found === null ? b.token.value : found.key)
   }
 
   // A name the body writes on its own account belongs to this call, not to the
@@ -220,7 +232,7 @@ function checkReturn(m: Match, value: Value, ctx: Context): void {
 
   const actual =
     typeof value === 'number' ? 'Scalar'
-    : typeof value === 'string' ? ctx.types.get(value)
+    : typeof value === 'string' ? ctx.store.types.get(value)
     : undefined
 
   if (actual === undefined) {
@@ -257,7 +269,7 @@ function substitute(line: string, env: Map<string, Value>): string {
  *  constraint, record a segment. Everything the prelude needs, nothing that
  *  lets a body reach into evaluation itself. */
 type Api = {
-  declare: (name: string, type: string) => string
+  declare: (name: string, type: string, parts?: Record<string, string>) => string
   constrain: (c: ResolvedConstraint) => void
   segment: (a: string, b: string) => void
 }
@@ -296,20 +308,58 @@ function runTsx(m: Match, env: Map<string, Value>, ctx: Context): Value {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
+/** Record what a new element's fields reference, checking them against the
+ *  type's declaration. Fields are set once, when the element is made — nothing
+ *  in Tilde mutates, so there is never an update to apply later. */
+function setParts(name: string, type: string, parts: Record<string, string>, ctx: Context): void {
+  const decl = ctx.store.decls.get(type)
+  if (decl === undefined) {
+    throw new EvalError(`${type} has no \`define type\`, so "${name}" cannot be given fields`)
+  }
+
+  const declared = new Set(decl.fields.map(f => f.name))
+  for (const given of Object.keys(parts)) {
+    if (!declared.has(given)) {
+      throw new EvalError(`${type} has no field "${given}" (it has ${[...declared].join(', ')})`)
+    }
+  }
+
+  const bound = new Map<string, string>()
+  for (const field of decl.fields) {
+    const target = parts[field.name]
+    if (target === undefined) {
+      throw new EvalError(`"${name}" is a ${type} but its field "${field.name}" was not set`)
+    }
+    const actual = ctx.store.types.get(target)
+    if (actual === undefined) {
+      throw new EvalError(`"${name}.${field.name}" was set to "${target}", which is not declared`)
+    }
+    if (actual !== field.type.name) {
+      throw new EvalError(
+        `"${name}.${field.name}" holds a ${field.type.name}, but "${target}" is a ${actual}`,
+      )
+    }
+    bound.set(field.name, target)
+  }
+  ctx.store.parts.set(name, bound)
+}
+
 function makeApi(ctx: Context): Api {
   return {
-    declare(name, type) {
-      const existing = ctx.types.get(name)
+    declare(name, type, parts) {
+      const existing = ctx.store.types.get(name)
       if (existing !== undefined) {
         throw new EvalError(`"${name}" is already declared as a ${existing}`)
       }
       if (type === NAME) {
         throw new EvalError(`"${name}" cannot be declared as ${NAME} — that is a slot marker, not a type`)
       }
-      ctx.types.set(name, type)
+      ctx.store.types.set(name, type)
 
       const set = SOLVER_SETS[type as keyof typeof SOLVER_SETS]
       if (set !== undefined) (ctx.constraints[set] as Set<string>).add(name)
+
+      if (parts !== undefined) setParts(name, type, parts, ctx)
       return name
     },
 

@@ -1,6 +1,23 @@
 # Changelog
 
-## 0.3.32 — current
+## 0.3.33 — current
+
+- **Types can declare what they contain**: a shape can now say what parts it is made of, and those parts can be reached by name.
+
+  ```
+  define type Triangle =
+      Point a
+      Point b
+      Point c
+  ```
+
+  Fields are written type-then-name — `Point a` — the same order a statement declares a point in (`point a`), so the two read alike. With that, `triangle t with a b c` gives you `t.a`, `t.b`, `t.c` alongside the names you chose, and they are the same points either way: `t.a at 0 0` and `a at 0 0` do the same thing.
+- **Dotted names work anywhere a name does.** `line l through t.a t.b`, `t.a on l`, `distance between t.a and t.b is 5`. The kind of thing dispatch sees is the field's kind, not the shape's, so `t.a on l` picks the point-on-line meaning without anything special.
+- **You can declare your own types**, not just use the built-in ones — a `Segment` with a `from` and a `to`, say — and reach their parts the same way.
+- A field always holds a whole shape: a point, a line, a circle. It cannot hold a *piece* of one, so there is no `Scalar x` inside a Point. This is deliberate — a line found by two tangency conditions has two possible answers, and those answers live in the line as a whole; splitting it into three separate numbers would turn two real answers into eight false ones.
+- Mistakes are reported plainly: `Triangle has no field "z" (it has a, b, c)`, `Point has no fields, so "p.a" means nothing`, and setting a field to the wrong kind of shape names both kinds.
+
+## 0.3.32
 
 - **`return` says what a definition gives back**: a definition's body ends with `return`, naming which of the things it built comes back. Previously the last line's value was used, which meant the result depended on the order you happened to write the body in. Now order is free:
 

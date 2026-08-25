@@ -79,6 +79,8 @@ const refreshTable = (source: string) => {
 type TokenState = {
   /** Slot columns for the line being tokenised. */
   slots: Set<number>
+  /** Inside a `define type` body, where each line reads `Type name`. */
+  inType: boolean
   /** Inside a tsx block — TypeScript, not Tilde, so it is not highlighted. */
   inTsx: boolean
   /** This line is a `define` header, where slots are written out explicitly. */
@@ -88,7 +90,7 @@ type TokenState = {
 }
 
 const tildeLanguage = StreamLanguage.define<TokenState>({
-  startState: () => ({ slots: new Set(), inTsx: false, isDefine: false, expect: 'none' }),
+  startState: () => ({ slots: new Set(), inTsx: false, inType: false, isDefine: false, expect: 'none' }),
 
   token(stream, state) {
     if (stream.sol()) startLine(stream.string, state)
@@ -114,6 +116,19 @@ const tildeLanguage = StreamLanguage.define<TokenState>({
 
     if (stream.match(/--.*/)) return 'comment'
 
+    // A type body is `Type name` per line: the type reads as scaffolding, the
+    // field name as a value, matching how both look everywhere else.
+    if (state.inType) {
+      if (stream.match(/[[\]]/)) return 'punctuation'
+      if (stream.match(/[a-zA-Z_][a-zA-Z0-9_]*/)) {
+        const first = state.expect !== 'type'
+        state.expect = 'type'
+        return first ? 'punctuation' : 'propertyName'
+      }
+      stream.next()
+      return null
+    }
+
     if (stream.match(/=>/) || stream.match(/:/)) {
       state.expect = 'type'
       return 'punctuation'
@@ -132,7 +147,7 @@ const tildeLanguage = StreamLanguage.define<TokenState>({
       return 'propertyName' // a literal is a value like any other
     }
 
-    if (stream.match(/[a-zA-Z_][a-zA-Z0-9_]*/)) {
+    if (stream.match(/[a-zA-Z_][a-zA-Z0-9_.]*/)) {
       const expect = state.expect
       state.expect = 'none'
 
@@ -146,6 +161,8 @@ const tildeLanguage = StreamLanguage.define<TokenState>({
     return null
   },
 })
+
+const isIndentedLine = (line: string) => /^[ \t]/.test(line)
 
 /** Decide what kind of line this is before tokenising any of it. */
 function startLine(line: string, state: TokenState) {
@@ -168,6 +185,9 @@ function startLine(line: string, state: TokenState) {
   }
 
   state.isDefine = /^define\b/.test(trimmed)
+  if (!isIndentedLine(line)) state.inType = /^define\s+type\b/.test(trimmed)
+  if (state.inType && isIndentedLine(line)) return // a field line, handled above
+
   // A `define` header writes its slots out as `(n: Type)`, so it needs no
   // alignment. Every other line is a statement, and only the table can say
   // which of its words are values.

@@ -14,12 +14,14 @@
 
 import { lexHeader, type Token, type TokenKind } from './lexer.js'
 import { DefinitionError } from './types.js'
-import type { Body, Definition, Import, Pattern, PatternPart, Statement, TypeRef } from './types.js'
+import type { Body, Definition, Field, Import, Pattern, PatternPart, Statement, TypeDecl, TypeRef } from './types.js'
 
 export type ParsedFile = {
   /** `import x` / `export import x` lines, unresolved. */
   imports: Import[]
   definitions: Definition[]
+  /** `define type` declarations. */
+  types: TypeDecl[]
   /** Program lines. A column-0 line that is not `define` or an import is a
    *  statement — the layout rule already separates them, since bodies are
    *  indented and definitions are not. */
@@ -45,6 +47,7 @@ export function parseFile(src: string): ParsedFile {
   const lines = src.split('\n')
   const imports: Import[] = []
   const definitions: Definition[] = []
+  const types: TypeDecl[] = []
   const statements: Statement[] = []
 
   let i = 0
@@ -69,6 +72,13 @@ export function parseFile(src: string): ParsedFile {
     if (first !== 'define') {
       statements.push({ text: dropTerminator(raw.trim()), line: lineNo })
       i++
+      continue
+    }
+
+    if (raw.trim().split(/\s+/)[1] === 'type') {
+      const { decl, next } = takeTypeDecl(lines, i, lineNo)
+      types.push(decl)
+      i = next
       continue
     }
 
@@ -100,7 +110,67 @@ export function parseFile(src: string): ParsedFile {
     i = next
   }
 
-  return { imports, definitions, statements }
+  return { imports, definitions, types, statements }
+}
+
+/** `define type Triangle =` followed by one field per line. A field is written
+ *  type-then-name — `Point a` — the same order a statement declares an element
+ *  in (`point a`), so the two read alike.
+ *
+ *  A field holds a reference to a *whole* element. There is deliberately no way
+ *  to declare a field as part of one (`Scalar x` inside `Point`): correlated
+ *  solutions live in whole elements, and splitting them would turn a line's two
+ *  tangent solutions into eight candidates. */
+function takeTypeDecl(lines: string[], at: number, lineNo: number): { decl: TypeDecl; next: number } {
+  const header = lines[at]!.trim()
+  const tokens = lexHeader(header, lineNo).filter(t => t.kind !== 'EOF')
+
+  // define · type · Name · =
+  if (tokens.length !== 4 || tokens[2]!.kind !== 'WORD' || tokens[3]!.kind !== 'EQUALS') {
+    throw new DefinitionError("a type declaration reads `define type Name =`", lineNo)
+  }
+  const name = tokens[2]!.value
+
+  const fields: Field[] = []
+  const seen = new Set<string>()
+  let i = at + 1
+
+  while (i < lines.length) {
+    const line = lines[i]!
+    if (isBlank(line) || !isIndented(line)) break
+    if (!isComment(line)) {
+      const field = parseField(dropTerminator(line.trim()), i + 1)
+      if (seen.has(field.name)) {
+        throw new DefinitionError(`${name} declares field '${field.name}' twice`, i + 1)
+      }
+      seen.add(field.name)
+      fields.push(field)
+    }
+    i++
+  }
+
+  if (fields.length === 0) throw new DefinitionError(`type ${name} declares no fields`, lineNo)
+  return { decl: { name, fields, line: lineNo }, next: i }
+}
+
+/** One field line: `Point a`, or `[Point] ps` for a list. */
+function parseField(line: string, lineNo: number): Field {
+  const tokens = lexHeader(line, lineNo).filter(t => t.kind !== 'EOF')
+
+  const list = tokens[0]?.kind === 'LBRACKET'
+  const typeAt = list ? 1 : 0
+  const nameAt = list ? 3 : 1
+  const expected = list ? 4 : 2
+
+  const bad = () =>
+    new DefinitionError(`a field reads \`Type name\`, got '${line}'`, lineNo)
+
+  if (tokens.length !== expected) throw bad()
+  if (tokens[typeAt]?.kind !== 'WORD') throw bad()
+  if (list && tokens[2]?.kind !== 'RBRACKET') throw bad()
+  if (tokens[nameAt]?.kind !== 'WORD') throw bad()
+
+  return { name: tokens[nameAt]!.value, type: { name: tokens[typeAt]!.value, list } }
 }
 
 /** `import x` makes x usable in this file only. `export import x` also passes it

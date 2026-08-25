@@ -10,7 +10,9 @@
 // its signature. `triangle t with a b c` declares four names, and the only way
 // to know that is to run `point a`, `point b`, `point c`, `t holds a b c`.
 
+import { lexHeader } from './lexer.js'
 import { matchStatement, type Match } from './match.js'
+import type { TypeMap } from './modules.js'
 import type { Definition } from './types.js'
 
 export class ResolutionError extends Error {
@@ -21,6 +23,67 @@ export class ResolutionError extends Error {
 
 /** A name's declared type, by name. Owned and mutated by evaluation. */
 export type SymbolTable = Map<string, string>
+
+/** Element key → its fields → the key each references. A field always points at
+ *  a whole element, so following one hands back something the rest of the
+ *  language already knows how to use. */
+export type Parts = Map<string, Map<string, string>>
+
+/** Everything resolution needs to know about what exists. */
+export type Store = {
+  types: SymbolTable
+  parts: Parts
+  decls: TypeMap
+}
+
+/** Follow a possibly-dotted name to the element it names. `t.a` looks up `t`,
+ *  finds its type's field `a`, and hands back the key that field references —
+ *  so from there on it is an ordinary element like any other. */
+export function resolvePath(name: string, store: Store): { key: string; type: string } | null {
+  const [head, ...fields] = name.split('.')
+  let key = head!
+  let type = store.types.get(key)
+  if (type === undefined) return null
+
+  for (const field of fields) {
+    const decl = store.decls.get(type)
+    if (decl === undefined) return null
+    if (!decl.fields.some(f => f.name === field)) return null
+    const next = store.parts.get(key)?.get(field)
+    if (next === undefined) return null
+    const nextType = store.types.get(next)
+    if (nextType === undefined) return null
+    key = next
+    type = nextType
+  }
+  return { key, type }
+}
+
+/** Why a dotted name did not resolve. Only called once something has failed, so
+ *  it can afford to re-walk the path and report the first thing that broke. */
+function pathProblem(name: string, store: Store): string | null {
+  const [head, ...fields] = name.split('.')
+  if (fields.length === 0) return null // not a path; ordinary "not declared"
+
+  let key = head!
+  let type = store.types.get(key)
+  if (type === undefined) return `"${key}" is not declared`
+
+  for (const field of fields) {
+    const decl = store.decls.get(type)
+    if (decl === undefined) return `${type} has no fields, so "${key}.${field}" means nothing`
+    const declared = decl.fields.find(f => f.name === field)
+    if (declared === undefined) {
+      const known = decl.fields.map(f => f.name).join(', ')
+      return `${type} has no field "${field}" (it has ${known})`
+    }
+    const next = store.parts.get(key)?.get(field)
+    if (next === undefined) return `"${key}" was made without setting its "${field}"`
+    key = next
+    type = store.types.get(next) ?? type
+  }
+  return null
+}
 
 /** The magic type meaning "this slot is a declaration site" — the token here is
  *  a name being introduced, so it is not expected to be in the table yet. */
@@ -34,15 +97,22 @@ export const form = (m: Match) =>
  *  Throws if nothing matches, nothing fits, or more than one fits. */
 export function resolveStatement(
   statement: string,
-  types: SymbolTable,
+  store: Store,
   defs: readonly Definition[],
 ): Match {
+  // A broken path deserves to say so, rather than surfacing as "nothing fits".
+  for (const token of lexHeader(statement, 0)) {
+    if (token.kind !== 'WORD' || !token.value.includes('.')) continue
+    const problem = pathProblem(token.value, store)
+    if (problem !== null) throw new ResolutionError(problem)
+  }
+
   const candidates = matchStatement(statement, defs)
   if (candidates.length === 0) {
     throw new ResolutionError(`no definition matches "${statement}"`)
   }
 
-  const viable = candidates.filter(c => typesFit(c, types))
+  const viable = candidates.filter(c => typesFit(c, store))
   const list = (ms: Match[]) => ms.map(form).map(f => `\`${f}\``).join(', ')
 
   if (viable.length === 0) {
@@ -61,7 +131,7 @@ export function resolveStatement(
  *  by a literal the slot accepts. `Name` slots are declaration sites, so their
  *  token need only be an identifier — whether introducing it is legal is
  *  evaluation's call, since only the body knows. */
-function typesFit(m: Match, types: SymbolTable): boolean {
+function typesFit(m: Match, store: Store): boolean {
   for (const b of m.bindings) {
     if (b.type.name === NAME) {
       if (b.token.kind !== 'WORD') return false
@@ -72,9 +142,9 @@ function typesFit(m: Match, types: SymbolTable): boolean {
       if (b.type.name !== 'Scalar') return false
       continue
     }
-    const actual = types.get(b.token.value)
-    if (actual === undefined) return false
-    if (!compatible(actual, b.type.name)) return false
+    const found = resolvePath(b.token.value, store)
+    if (found === null) return false
+    if (!compatible(found.type, b.type.name)) return false
   }
   return true
 }

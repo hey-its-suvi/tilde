@@ -100,11 +100,21 @@ define distance between (p: Point) and (q: Point) is (d: Scalar) =
 -- A triangle is a named container: three points and the segments between them.
 -- "Triangle" is a language-level tag only — the solver never sees it, just the
 -- points and the constraints.
+--
+-- A field holds a reference to a *whole* element, never a piece of one. That is
+-- why `Point a` is declarable and `Scalar x` inside Point is not: a line's two
+-- tangent solutions live in the line as a whole, and splitting it into three
+-- scalars would turn two real answers into eight candidates.
+
+define type Triangle =
+    Point a
+    Point b
+    Point c
 
 define (t: Name) holds (a: Point) (b: Point) (c: Point) => Triangle =
     tsx`
     segment(a, b)
     segment(b, c)
     segment(c, a)
-    return declare(t, 'Triangle')
+    return declare(t, 'Triangle', { a, b, c })
     `

@@ -35,7 +35,10 @@ const PUNCT: Record<string, TokenKind> = {
   ',': 'COMMA',
 }
 
-const isWordChar = (c: string) => /[A-Za-z0-9_]/.test(c)
+/** `.` is a word character so `t.a` is a single atom and fits a slot the way
+ *  any other name does. Numbers are lexed by an earlier branch, so `3.5` is
+ *  still a number rather than a name. */
+const isWordChar = (c: string) => /[A-Za-z0-9_.]/.test(c)
 
 /** Tokenise one header line. `line` is only used for error messages. */
 export function lexHeader(src: string, line: number): Token[] {
