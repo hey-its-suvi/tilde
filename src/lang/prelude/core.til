@@ -30,11 +30,45 @@ define circle (n: Name) => Circle =
     return declare(n, 'Circle')
     `
 
+-- ─── Scalars ────────────────────────────────────────────────────────────────
+-- A named number. Its value may be given, or left for the solver to work out
+-- from everything else — `scalar r` with nothing else says only that some number
+-- exists, which is enough to tie two shapes to the same size.
+
+define scalar (n: Name) => Scalar =
+    tsx`
+    return declare(n, 'Scalar')
+    `
+
+define scalar (n: Name) is (v: Scalar) => Scalar =
+    scalar n
+    n is v
+    return n
+
+define (s: Scalar) is (v: Scalar) => Scalar =
+    tsx`
+    constrain({ kind: 'scalar-equality', scalar: s, target: v })
+    return s
+    `
+
 -- ─── Placement ──────────────────────────────────────────────────────────────
+-- A Scalar slot takes either a number written down or a named scalar, and the
+-- two mean the same thing: this dimension is that number. A literal can go
+-- straight into the constraint; a name has to be tied to the field instead, so
+-- the solver can work in whichever direction it ends up knowing first.
 
 define (p: Point) at (x: Scalar) (y: Scalar) => Point =
     tsx`
-    constrain({ kind: 'position', point: p, x, y })
+    constrain({ kind: 'position', point: p,
+        x: typeof x === 'number' ? x : null,
+        y: typeof y === 'number' ? y : null,
+    })
+    if (typeof x === 'string') {
+        constrain({ kind: 'scalar-equality', scalar: x, target: { element: p, field: 'x' } })
+    }
+    if (typeof y === 'string') {
+        constrain({ kind: 'scalar-equality', scalar: y, target: { element: p, field: 'y' } })
+    }
     return p
     `
 
@@ -46,7 +80,12 @@ define (c: Circle) with center (p: Point) => Circle =
 
 define (c: Circle) with radius (r: Scalar) => Circle =
     tsx`
-    constrain({ kind: 'circle-spec', circle: c, center: null, r })
+    if (typeof r === 'number') {
+        constrain({ kind: 'circle-spec', circle: c, center: null, r })
+    } else {
+        constrain({ kind: 'circle-spec', circle: c, center: null, r: null })
+        constrain({ kind: 'scalar-equality', scalar: r, target: { element: c, field: 'r' } })
+    }
     return c
     `
 

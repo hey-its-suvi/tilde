@@ -17,9 +17,9 @@
 // belong to PickStrategy, not here.
 
 import type { GeomModel } from '../../model.js'
-import { cloneModel, getPoint, setPoint, getLength } from '../../model.js'
+import { cloneModel, getPoint, setPoint, getLength, synthesizeAxisLine } from '../../model.js'
 import {
-  workingVal, isWorkingComplete, makePlacementState, PlacementState,
+  workingVal, isWorkingComplete, makePlacementState, PlacementState, lineDofFromState,
 } from '../../types.js'
 import { isZero, isEqual } from '../../geom.js'
 import { lineIntersect, circleIntersectBoth, circleLineIntersectBoth } from './intersections.js'
@@ -251,12 +251,79 @@ function tryApplyLineRelation(model: GeomModel): boolean {
 }
 
 // ── Scalar bindings ──────────────────────────────────────────────────────────
-// scalar = element.field — propagate from a resolved element to its scalar.
+// scalar = element.field, and it runs both ways.
+//
+//   forward  — a resolved element fills in its scalar
+//   reverse  — a known scalar fills in the element's field
+//
+// The reverse direction is what lets a scalar *drive* a dimension rather than
+// only observe one: `circle c with radius r` for an `r` pinned down elsewhere,
+// or two shapes sharing a size. Without it the binding is recorded and silently
+// never fires, leaving the element at whatever the pick strategy chooses.
+//
+// Writing a single field is safe for correlated solutions because the write goes
+// *inside* one whole element — a line's coefficients stay together, so two
+// tangent answers never decompose into eight. An element that already has
+// multiple discrete solutions has no null fields to write into, so it is skipped
+// by the null check rather than needing a special case.
+
+/** Write `value` into one field of an element, recomputing its degrees of
+ *  freedom from the fields that are now known. Returns false if the field was
+ *  already set, so the caller knows nothing changed. */
+function fillField(model: GeomModel, element: string, field: string, value: number): boolean {
+  const wp = model.points.get(element)
+  if (wp) {
+    if (field !== 'x' && field !== 'y') return false
+    const pv = workingVal(wp) as Record<string, number | null>
+    if (pv[field] !== null) return false
+
+    pv[field] = value
+    wp.dof = (pv['x'] === null ? 1 : 0) + (pv['y'] === null ? 1 : 0)
+
+    // One known coordinate is spelled as an axis-aligned line the point lies on
+    // — the same route `point p = (5,)` takes. Writing the coordinate alone is
+    // not enough: the gauge fixer pins any point that still has freedom at the
+    // origin, and would overwrite the axis we just fixed. Being on a line is
+    // what tells it this point is no longer free to translate.
+    if (wp.dof > 0) synthesizeAxisLine(model, element, field, value)
+    return true
+  }
+
+  const wl = model.lines.get(element)
+  if (wl) {
+    const lv = workingVal(wl) as Record<string, number | null>
+    if (field !== 'a' && field !== 'b' && field !== 'c') return false
+    if (lv[field] !== null) return false
+    lv[field] = value
+    wl.dof = lineDofFromState(lv['a']!, lv['b']!, lv['c']!)
+    return true
+  }
+
+  const wc = model.circles.get(element)
+  if (wc) {
+    // Only the radius is a number; `center` holds a point reference.
+    if (field !== 'r') return false
+    const cv = workingVal(wc)
+    if (cv.r !== null) return false
+    cv.r = value
+    wc.dof = (cv.center === null ? 2 : 0) + 0
+    return true
+  }
+
+  return false
+}
 
 function tryResolveScalarBindings(model: GeomModel): boolean {
   for (const binding of model.scalarBindings) {
     const ws = model.scalars.get(binding.scalar)
-    if (!ws || ws.resolved[0] !== null) continue
+    if (!ws) continue
+
+    // Reverse: the scalar is known, so give its value to the field.
+    const known = ws.resolved[0]
+    if (known !== null && known !== undefined) {
+      if (fillField(model, binding.element, binding.field, known)) return true
+      continue
+    }
 
     const wl = model.lines.get(binding.element)
     if (wl && isWorkingComplete(wl)) {

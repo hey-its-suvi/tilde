@@ -132,7 +132,7 @@ describe('the prelude parses', () => {
     // The design check: every convenient form composes from primitives, using
     // nothing a user could not use. If a hatch appears outside core, either the
     // primitives are wrong or something took a shortcut.
-    expect(hatched('core')).toBe(15)
+    expect(hatched('core')).toBe(17)
     expect(hatched('shapes')).toBe(0)
     expect(hatched('constraints')).toBe(0)
   })
@@ -140,10 +140,10 @@ describe('the prelude parses', () => {
   it('splits roughly evenly between primitive and composed', () => {
     const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
 
-    // Measured, not aspirational: 15 primitive to 12 composed. The earlier claim
+    // Measured, not aspirational: 17 primitive to 13 composed. The earlier claim
     // that "most of the prelude composes" was wrong — it is about half.
-    expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(15)
-    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(12)
+    expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(17)
+    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(13)
   })
 
   it('gives every definition a return type except the one that cannot have one', () => {

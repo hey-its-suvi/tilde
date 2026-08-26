@@ -1,6 +1,23 @@
 # Changelog
 
-## 0.3.34 — current
+## 0.3.35 — current
+
+- **Numbers can have names.** `scalar r is 3` names a number; `scalar r` on its own says only that *some* number is there, and leaves the solver to work out which.
+
+  ```
+  scalar r is 3
+  point o at 0 0
+  circle c with center o
+  c with radius r
+  circle d with center o
+  d with radius r
+  ```
+
+  Both circles come out the same size, and if you change `3` they both follow. Neither circle was given a number of its own — `r` is what makes them agree.
+- **A named number and the shape it describes settle each other, in whichever order the answer arrives.** Give the number and the shape takes it; pin the shape some other way and the number follows. Previously only the second direction worked — a named size was quietly ignored, and the shape drifted to wherever it would have gone anyway.
+- **Anywhere a number can be written, a named one can go instead**: `point p at k j`, `point p at k 2`, `circle c with radius r`. Mixing the two in one statement is fine.
+
+## 0.3.34
 
 - **Shapes are made and named with three general-purpose words**, replacing the triangle-specific `holds`. `new` makes a shape of any kind, reaching down through whatever parts that kind is declared to have; `call` gives a second name to something that already exists; `segment` draws an edge between two points. A triangle is now written entirely in Tilde, with no escape into the implementation:
 
