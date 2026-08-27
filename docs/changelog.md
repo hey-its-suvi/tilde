@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.37 — current
+## 0.3.38 — current
+
+- **A way to see what your drawing actually pins down.** The strategy picker in the playground gains a `none` option, which places only what the constraints force and leaves everything else out. A drawing has to start somewhere, and when a shape is genuinely underdetermined something has to choose a representative — both are choices your program did not make, and this shows you where they happen. `point a at 0 0` followed by `point b` and a line through them draws only `a` under `none`: the point `b` and the line were being chosen for you.
+
+## 0.3.37
 
 - **Fixed: a definition could not reach a part of the shape it was given.** Writing `n.p at x y` inside a definition, where `n` is one of its slots, failed with *"n is not declared"*. The name and the part-of-a-name were being treated as unrelated, so the slot was never filled in. This affected `triangle` too — `triangle t with a b c` happened to work while `triangle q with a b c` did not, because the definition's own slot is called `t`.
 

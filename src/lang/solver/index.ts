@@ -20,19 +20,23 @@ import { GeometricPropagate } from './propagate/geometric/index.js'
 import { PickStrategy } from './pick/interface.js'
 import { RuleBasedPick } from './pick/rule-based/index.js'
 import { BudgetPick } from './pick/budget/index.js'
+import { NonePick } from './pick/none/index.js'
 import { buildSceneGraph } from './output.js'
 import { runSource } from '../defs/eval.js'
 import { PRELUDE } from '../prelude/index.js'
 import { SceneGraph, RenderConfig, DEFAULT_CONFIG } from '../../renderer/interface.js'
 
-export type PickName = 'rule' | 'budget'
+export type PickName = 'rule' | 'budget' | 'none'
 
 const pickFactories: Record<PickName, () => PickStrategy> = {
   'rule':   () => new RuleBasedPick(),
   'budget': () => new BudgetPick(),
+  // Diagnostic: shows only what the constraints force, leaving anything that
+  // would have been chosen for you unplaced.
+  'none':   () => new NonePick(),
 }
 
-export const PICK_NAMES: readonly PickName[] = ['rule', 'budget']
+export const PICK_NAMES: readonly PickName[] = ['rule', 'budget', 'none']
 
 let activePick: PickName = 'rule'
 let activeSolver = new Solver(new GeometricPropagate(), pickFactories[activePick]())
