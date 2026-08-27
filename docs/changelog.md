@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.36 — current
+## 0.3.37 — current
+
+- **Fixed: a definition could not reach a part of the shape it was given.** Writing `n.p at x y` inside a definition, where `n` is one of its slots, failed with *"n is not declared"*. The name and the part-of-a-name were being treated as unrelated, so the slot was never filled in. This affected `triangle` too — `triangle t with a b c` happened to work while `triangle q with a b c` did not, because the definition's own slot is called `t`.
+
+## 0.3.36
 
 - **A named number reports every possible answer, not just the first.** Where a shape has more than one possible position, a number read off it has more than one possible value — a point where a circle meets a line sits at x = 5 *or* x = −5. Previously such a number quietly reported 5, as though a choice had been made. It now reports both, stays in step with the shape answer-for-answer, and can be chosen between with `pick` like anything else.
 

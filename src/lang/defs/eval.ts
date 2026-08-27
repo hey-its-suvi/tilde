@@ -262,8 +262,21 @@ function substitute(line: string, env: Map<string, Value>): string {
     .filter(t => t.kind !== 'EOF')
     .map(t => {
       if (t.kind !== 'WORD') return t.value
+
       const bound = env.get(t.value)
-      return bound === undefined ? t.value : String(bound)
+      if (bound !== undefined) return String(bound)
+
+      // A path rooted at a slot — `n.p` where `n` is the slot — substitutes its
+      // root and keeps the rest. Without this a body could only reach a field of
+      // something it named literally, and `n.p` would look for a name spelled
+      // "n.p" that nothing ever declared.
+      const dot = t.value.indexOf('.')
+      if (dot > 0) {
+        const root = env.get(t.value.slice(0, dot))
+        if (root !== undefined) return String(root) + t.value.slice(dot)
+      }
+
+      return t.value
     })
     .join(' ')
 }

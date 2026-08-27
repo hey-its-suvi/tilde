@@ -186,3 +186,59 @@ distance between s.from and s.to is 5
     expect(result.points.get('q')!.solutions[0]).toEqual({ x: 3, y: 4 })
   })
 })
+
+describe('a body can reach a field of something in a slot', () => {
+  it('substitutes the root of a dotted path', () => {
+    // The bug this exists for: `n.p` is one token, so matching whole tokens
+    // against the slot `n` never rewrote it, and the body looked for a name
+    // spelled "n.p" that nothing had declared.
+    const result = solve(`
+import prelude
+
+define type Dot =
+    Point p
+    Scalar r
+
+define dot (n: Name) (x: Scalar) (y: Scalar) =
+    new Dot n
+    n.p at x y
+
+dot a 1 2
+dot b 4 5
+`)
+    expect(result.points.get('a.p')!.solutions[0]).toEqual({ x: 1, y: 2 })
+    expect(result.points.get('b.p')!.solutions[0]).toEqual({ x: 4, y: 5 })
+  })
+
+  it('does not depend on the caller using the slot’s own name', () => {
+    // Every earlier triangle test named it `t`, which is also the slot name —
+    // so the substitution was never actually exercised.
+    const named = (n: string) => run(`import prelude\ntriangle ${n} with a b c\n`).types
+    expect([...named('q').keys()].sort()).toEqual(['q', 'q.point1', 'q.point2', 'q.point3'])
+    expect([...named('t').keys()].sort()).toEqual(['t', 't.point1', 't.point2', 't.point3'])
+  })
+
+  it('reaches a field of a field', () => {
+    const result = solve(`
+import prelude
+
+define type Pair =
+    Point one
+    Point two
+
+define type Twin =
+    Pair left
+    Pair right
+
+define twin (n: Name) =
+    new Twin n
+    n.left.one at 0 0
+    n.right.two at 9 9
+
+twin w
+`)
+    // `new` reached all the way down, and a two-step path resolves.
+    expect(result.points.get('w.left.one')!.solutions[0]).toEqual({ x: 0, y: 0 })
+    expect(result.points.get('w.right.two')!.solutions[0]).toEqual({ x: 9, y: 9 })
+  })
+})
