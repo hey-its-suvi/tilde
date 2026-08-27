@@ -200,3 +200,54 @@ c with radius r
     expect(radius('point o at 0 0\ncircle c with center o and radius 3\n', 'c')).toBe(3)
   })
 })
+
+// ─── Multiple answers ────────────────────────────────────────────────────────
+
+describe('a scalar carries every answer, like any other element', () => {
+  /** A point where a circle meets the x-axis: two places, at x = ±5. */
+  const twoWays = (picks: [string, number][] = []) =>
+    solve(cs => {
+      cs.points.add('o')
+      cs.points.add('p')
+      cs.lines.add('l')
+      cs.circles.add('c')
+      cs.scalars.add('k')
+      cs.picks = new Map(picks)
+      cs.constraints.push(
+        { kind: 'position', point: 'o', x: 0, y: 0 },
+        { kind: 'circle-spec', circle: 'c', center: 'o', r: 5 },
+        { kind: 'line-equation', line: 'l', a: 0, b: 1, c: 0 },
+        { kind: 'on-circle', point: 'p', circle: 'c' },
+        { kind: 'on-line', point: 'p', line: 'l' },
+        bind('k', 'p', 'x'),
+      )
+    })
+
+  it('reports both when the element has both', () => {
+    // Previously this said [5] — one answer as though a choice had been made,
+    // walking straight past `pick`.
+    const r = twoWays()
+    expect(r.points.get('p')!.solutions).toEqual([{ x: 5, y: 0 }, { x: -5, y: 0 }])
+    expect(r.scalars.get('k')!.solutions).toEqual([5, -5])
+  })
+
+  it('keeps the scalar in step with the element, answer for answer', () => {
+    const r = twoWays()
+    expect(r.scalars.get('k')!.solutions).toEqual(
+      r.points.get('p')!.solutions.map(s => s.x),
+    )
+  })
+
+  it('can be picked between', () => {
+    expect(twoWays([['k', 2]]).scalars.get('k')!.solutions).toEqual([-5])
+  })
+
+  it('still reports one answer when there is only one', () => {
+    const r = solve(cs => {
+      cs.points.add('p')
+      cs.scalars.add('k')
+      cs.constraints.push({ kind: 'position', point: 'p', x: 7, y: 2 }, bind('k', 'p', 'x'))
+    })
+    expect(r.scalars.get('k')!.solutions).toEqual([7])
+  })
+})

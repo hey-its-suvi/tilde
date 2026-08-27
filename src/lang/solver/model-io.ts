@@ -220,8 +220,18 @@ export function extractResult(model: GeomModel, input: ConstraintSet): SolveResu
   }
 
   for (const [name, ws] of model.scalars) {
-    if (ws.resolved[0] !== null) {
-      scalars.set(name, { solutions: [ws.resolved[0]!], dof: ws.dof })
+    // A scalar carries multiple discrete solutions like any other element. A
+    // number read off a point where a circle meets a line is 5 *or* -5, and
+    // reporting only the first would answer as though a choice had been made.
+    if (ws.resolved.length > 1) {
+      const pick = model.solutionPicks.get(name)
+      if (pick !== undefined && pick >= 1 && pick <= ws.resolved.length) {
+        scalars.set(name, { solutions: [ws.resolved[pick - 1]!], dof: 0 })
+      } else {
+        scalars.set(name, { solutions: ws.resolved.map(v => v!), dof: 0 })
+      }
+    } else if (ws.resolved[0] !== null && ws.resolved[0] !== undefined) {
+      scalars.set(name, { solutions: [ws.resolved[0]], dof: ws.dof })
     } else {
       scalars.set(name, { solutions: [], dof: ws.dof })
     }

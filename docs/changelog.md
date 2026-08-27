@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.35 — current
+## 0.3.36 — current
+
+- **A named number reports every possible answer, not just the first.** Where a shape has more than one possible position, a number read off it has more than one possible value — a point where a circle meets a line sits at x = 5 *or* x = −5. Previously such a number quietly reported 5, as though a choice had been made. It now reports both, stays in step with the shape answer-for-answer, and can be chosen between with `pick` like anything else.
+
+## 0.3.35
 
 - **Numbers can have names.** `scalar r is 3` names a number; `scalar r` on its own says only that *some* number is there, and leaves the solver to work out which.
 

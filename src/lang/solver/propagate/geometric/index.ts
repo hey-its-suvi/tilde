@@ -20,6 +20,7 @@ import type { GeomModel } from '../../model.js'
 import { cloneModel, getPoint, setPoint, getLength, synthesizeAxisLine } from '../../model.js'
 import {
   workingVal, isWorkingComplete, makePlacementState, PlacementState, lineDofFromState,
+  type WorkingElement,
 } from '../../types.js'
 import { isZero, isEqual } from '../../geom.js'
 import { lineIntersect, circleIntersectBoth, circleLineIntersectBoth } from './intersections.js'
@@ -267,6 +268,28 @@ function tryApplyLineRelation(model: GeomModel): boolean {
 // multiple discrete solutions has no null fields to write into, so it is skipped
 // by the null check rather than needing a special case.
 
+/** One field's value in *every* solution of an element, or null if any of them
+ *  leaves it unknown.
+ *
+ *  A scalar is an element like any other — its `resolved` is a list, the same as
+ *  a point's — so a field of a two-solution point yields a two-solution scalar.
+ *  Reading only the first would report one answer as if it were the only one:
+ *  a point where a circle meets a line is at x = 5 *or* x = -5, and a scalar
+ *  bound to it must say both, or `pick` is bypassed without anyone noticing.
+ *
+ *  Entries stay in the element's order, so index i of the scalar is index i of
+ *  the element and the two remain talking about the same solution. */
+function fieldValues<T>(w: WorkingElement<T>, field: string): number[] | null {
+  if (w.resolved.length === 0) return null
+  const vals: number[] = []
+  for (const entry of w.resolved) {
+    const v = (entry as Record<string, number | null>)[field]
+    if (v === null || v === undefined) return null
+    vals.push(v)
+  }
+  return vals
+}
+
 /** Write `value` into one field of an element, recomputing its degrees of
  *  freedom from the fields that are now known. Returns false if the field was
  *  already set, so the caller knows nothing changed. */
@@ -327,35 +350,21 @@ function tryResolveScalarBindings(model: GeomModel): boolean {
 
     const wl = model.lines.get(binding.element)
     if (wl && isWorkingComplete(wl)) {
-      const lv = workingVal(wl)
-      const val = (lv as Record<string, number | null>)[binding.field]
-      if (val !== null && val !== undefined) {
-        ws.resolved[0] = val
-        ws.dof = 0
-        return true
-      }
+      const vals = fieldValues(wl, binding.field)
+      if (vals) { ws.resolved = vals; ws.dof = 0; return true }
     }
 
     const wp = model.points.get(binding.element)
     if (wp && isWorkingComplete(wp)) {
-      const pv = workingVal(wp)
-      const val = (pv as Record<string, number | null>)[binding.field]
-      if (val !== null && val !== undefined) {
-        ws.resolved[0] = val
-        ws.dof = 0
-        return true
-      }
+      const vals = fieldValues(wp, binding.field)
+      if (vals) { ws.resolved = vals; ws.dof = 0; return true }
     }
 
     const wc = model.circles.get(binding.element)
-    if (wc) {
-      const cv = workingVal(wc)
+    if (wc && binding.field === 'r') {
       // Only numeric fields on circles (radius) propagate to scalars.
-      if (binding.field === 'r' && cv.r !== null) {
-        ws.resolved[0] = cv.r
-        ws.dof = 0
-        return true
-      }
+      const vals = fieldValues(wc, 'r')
+      if (vals) { ws.resolved = vals; ws.dof = 0; return true }
     }
   }
   return false
