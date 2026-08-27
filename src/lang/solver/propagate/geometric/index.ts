@@ -20,7 +20,7 @@ import type { GeomModel } from '../../model.js'
 import { cloneModel, getPoint, setPoint, getLength, synthesizeAxisLine } from '../../model.js'
 import {
   workingVal, isWorkingComplete, makePlacementState, PlacementState, lineDofFromState,
-  type WorkingElement,
+  type WorkingElement, type Scalar,
 } from '../../types.js'
 import { isZero, isEqual } from '../../geom.js'
 import { lineIntersect, circleIntersectBoth, circleLineIntersectBoth } from './intersections.js'
@@ -40,6 +40,7 @@ export class GeometricPropagate implements PropagateStrategy {
       if (tryCompleteLineByConstraint(scratch, st))           { changed = true; continue }
       if (tryCompleteCircleByConstraint(scratch, st))         { changed = true; continue }
       if (tryResolveScalarBindings(scratch))                  { changed = true; continue }
+      if (tryNarrowScalarPairs(scratch))                      { changed = true; continue }
       break
     }
     return changed ? scratch : null
@@ -267,6 +268,53 @@ function tryApplyLineRelation(model: GeomModel): boolean {
 // tangent answers never decompose into eight. An element that already has
 // multiple discrete solutions has no null fields to write into, so it is skipped
 // by the null check rather than needing a special case.
+
+// ── Scalars that are the same number ─────────────────────────────────────────
+// Not a copy in either direction: each side is narrowed to what *both* could be.
+// So the order they become known in does not matter, and neither is privileged.
+//
+//     infinite ∩ X      = X        nothing known yet constrains nothing
+//     none     ∩ X      = none     no possible value stays no possible value
+//     {a,b}    ∩ {b,c}  = {b}
+//     {a}      ∩ {b}    = none     ← how a contradiction comes to exist
+//
+// A contradiction is a value here, not a thrown error. That is what makes the
+// absorbing case reachable at all, and it lets the rest of a drawing survive one
+// impossible number.
+
+/** A scalar's possibilities. `null` inside the list is how "nothing known" is
+ *  spelled, so a lone null is the infinite set rather than one unknown value. */
+const isUnknown = (w: WorkingElement<Scalar>) => w.resolved.length === 1 && w.resolved[0] === null
+
+function tryNarrowScalarPairs(model: GeomModel): boolean {
+  let changed = false
+
+  for (const { a, b } of model.scalarPairs) {
+    const wa = model.scalars.get(a)
+    const wb = model.scalars.get(b)
+    if (!wa || !wb) continue
+
+    // Unknown constrains nothing, so a pair only says something once one side
+    // has narrowed. Two unknowns stay two unknowns until something else moves.
+    if (isUnknown(wa) && isUnknown(wb)) continue
+
+    const merged = isUnknown(wa) ? [...wb.resolved]
+      : isUnknown(wb) ? [...wa.resolved]
+      : wa.resolved.filter(v => wb.resolved.some(w => isEqual(v as number, w as number)))
+
+    for (const w of [wa, wb]) {
+      if (sameValues(w.resolved, merged)) continue
+      w.resolved = [...merged]
+      w.dof = 0
+      changed = true
+    }
+  }
+
+  return changed
+}
+
+const sameValues = (x: readonly (number | null)[], y: readonly (number | null)[]) =>
+  x.length === y.length && x.every((v, i) => v === y[i])
 
 /** One field's value in *every* solution of an element, or null if any of them
  *  leaves it unknown.

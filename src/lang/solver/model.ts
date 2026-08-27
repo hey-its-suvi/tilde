@@ -23,6 +23,9 @@ export type GeomModel = {
   linePerpendicular:  Map<string, string[]>              // line → perpendicular partners
   scalars:      Map<string, WorkingScalar>                // named scalars
   scalarBindings: Array<{ scalar: string; element: string; field: string }>  // scalar ← element.field
+  /** Pairs of named numbers that are the same number. Narrowed by intersection
+   *  rather than copied, so neither side is privileged. */
+  scalarPairs: Array<{ a: string; b: string }>
   solutionPicks: Map<string, number>                     // vertex name → 1-based solution index
   activeUnit:   LengthUnit | null                        // null = pure abstract (no units used)
 }
@@ -34,7 +37,7 @@ export function makeModel(): GeomModel {
     lines: new Map(), circles: new Map(), shapes: new Map(),
     onLine: new Map(), onCircle: new Map(), onSegment: new Map(),
     lineParallel: new Map(), linePerpendicular: new Map(),
-    scalars: new Map(), scalarBindings: [],
+    scalars: new Map(), scalarBindings: [], scalarPairs: [],
     solutionPicks: new Map(),
     activeUnit: null,
   }
@@ -62,6 +65,7 @@ export function cloneModel(m: GeomModel): GeomModel {
     linePerpendicular: new Map([...m.linePerpendicular].map(([k, v]) => [k, [...v]])),
     scalars: new Map([...m.scalars].map(([k, v]) => [k, cloneWorking(v) as WorkingScalar])),
     scalarBindings: m.scalarBindings.map(b => ({ ...b })),
+    scalarPairs: m.scalarPairs.map(b => ({ ...b })),
     solutionPicks: new Map(m.solutionPicks),
     activeUnit: m.activeUnit,
   }

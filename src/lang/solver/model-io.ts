@@ -160,6 +160,15 @@ function applyConstraint(model: GeomModel, c: ResolvedConstraint): void {
       }
       break
     }
+    case 'scalars-equal': {
+      for (const name of [c.a, c.b]) {
+        if (!model.scalars.has(name)) {
+          throw new ConstraintError(`scalar "${name}" is not declared`)
+        }
+      }
+      model.scalarPairs.push({ a: c.a, b: c.b })
+      break
+    }
   }
 }
 
@@ -189,14 +198,14 @@ export function extractResult(model: GeomModel, input: ConstraintSet): SolveResu
       if (pv.x !== null && pv.y !== null) {
         points.set(key, { solutions: [{ x: pv.x, y: pv.y }], dof: wp.dof })
       } else {
-        points.set(key, { solutions: [], dof: wp.dof })
+        points.set(key, { solutions: undefined, dof: wp.dof })
       }
     }
   }
 
   for (const [name, wl] of model.lines) {
     if (!isWorkingComplete(wl)) {
-      lines.set(name, { solutions: [], dof: wl.dof })
+      lines.set(name, { solutions: undefined, dof: wl.dof })
       continue
     }
     if (wl.resolved.length > 1) {
@@ -223,7 +232,12 @@ export function extractResult(model: GeomModel, input: ConstraintSet): SolveResu
     // A scalar carries multiple discrete solutions like any other element. A
     // number read off a point where a circle meets a line is 5 *or* -5, and
     // reporting only the first would answer as though a choice had been made.
-    if (ws.resolved.length > 1) {
+    //
+    // Empty means *none*: over-constrained, no value it could take. Unknown is
+    // `undefined` — could still be anything. The two used to share `[]`.
+    if (ws.resolved.length === 0) {
+      scalars.set(name, { solutions: [], dof: 0 })
+    } else if (ws.resolved.length > 1) {
       const pick = model.solutionPicks.get(name)
       if (pick !== undefined && pick >= 1 && pick <= ws.resolved.length) {
         scalars.set(name, { solutions: [ws.resolved[pick - 1]!], dof: 0 })
@@ -233,19 +247,19 @@ export function extractResult(model: GeomModel, input: ConstraintSet): SolveResu
     } else if (ws.resolved[0] !== null && ws.resolved[0] !== undefined) {
       scalars.set(name, { solutions: [ws.resolved[0]], dof: ws.dof })
     } else {
-      scalars.set(name, { solutions: [], dof: ws.dof })
+      scalars.set(name, { solutions: undefined, dof: ws.dof })
     }
   }
 
   for (const [name, wc] of model.circles) {
     const cv = workingVal(wc)
     if (cv.center === null || cv.r === null) {
-      circles.set(name, { solutions: [], dof: wc.dof })
+      circles.set(name, { solutions: undefined, dof: wc.dof })
       continue
     }
     const centerWp = model.points.get(cv.center)
     if (!centerWp || !isWorkingComplete(centerWp)) {
-      circles.set(name, { solutions: [], dof: wc.dof })
+      circles.set(name, { solutions: undefined, dof: wc.dof })
       continue
     }
     // A circle is at least as underconstrained as its centre point: a circle

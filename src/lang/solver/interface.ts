@@ -29,6 +29,7 @@ export type ResolvedConstraint =
   | ParallelConstraint
   | PerpendicularConstraint
   | ScalarEqualityConstraint
+  | ScalarsEqualConstraint
 
 export type PositionConstraint = {
   kind: 'position'
@@ -107,6 +108,15 @@ export type ScalarEqualityConstraint = {
   target: number | { element: string; field: string }
 }
 
+/** Two named numbers are the same number. Not a copy in either direction —
+ *  each is narrowed to what both could be, so the order they become known in
+ *  does not matter and neither is privileged. */
+export type ScalarsEqualConstraint = {
+  kind: 'scalars-equal'
+  a: string
+  b: string
+}
+
 /** Everything the solver needs to solve a geometry problem.
  *  Produced by the elaboration layer from the AST. */
 export type ConstraintSet = {
@@ -147,10 +157,25 @@ export type Nullable<T> = T extends number
 
 // ─── Solver Output ───────────────────────────────────────────────────────────
 
-/** Result for a single element. If picked or unique, solutions has length 1.
- *  If ambiguous and unpicked, solutions has length 2+. */
+/** What an element could be — the certainty states, made representable.
+ *
+ *      undefined   infinite: nothing pins it down, so it could be anything
+ *      [a, b]      multiple: finitely many discrete answers
+ *      [a]         one
+ *      []          none: no possible answer, i.e. over-constrained
+ *
+ *  `undefined` and `[]` are opposites and were once the same value. Written as a
+ *  set they behave properly under intersection: `undefined` is the identity and
+ *  `[]` absorbs, so combining two elements known to be the same is just
+ *  intersecting what each could be.
+ *
+ *  A contradiction is a *value* rather than a thrown error, which is what makes
+ *  `[]` reachable at all — and lets the rest of a drawing survive one impossible
+ *  part. */
+export type Solutions<T> = T[] | undefined
+
 export type ElementResult<T> = {
-  solutions: T[]
+  solutions: Solutions<T>
   /** Geometric degrees of freedom remaining. 0 = fully determined. */
   dof: number
 }

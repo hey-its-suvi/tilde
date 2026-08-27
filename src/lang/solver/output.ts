@@ -5,9 +5,16 @@
 import { SolveResult, ElementResult } from './interface.js'
 import { SceneGraph, SceneLine, SceneCircle, SceneSegment, ScenePoint, SceneScalar, Solutions } from '../../renderer/interface.js'
 
+/** The answers to draw. An element that could be *anything* (`undefined`) and
+ *  one that could be *nothing* (`[]`) differ in meaning but not on the canvas —
+ *  neither gives a position to put a mark at. */
+const drawn = <T>(r: ElementResult<T>): T[] => r.solutions ?? []
+
+/** Only asked of elements that have at least one answer, so `none` never
+ *  reaches it — the renderer has no way to draw "impossible" yet. */
 function solutionsStatus<T>(result: ElementResult<T>): Solutions {
-  if (result.solutions.length > 1) return 'multiple'
-  if (result.dof > 0) return 'infinite'
+  if (drawn(result).length > 1) return 'multiple'
+  if (result.solutions === undefined || result.dof > 0) return 'infinite'
   return 'one'
 }
 
@@ -26,14 +33,15 @@ export function buildSceneGraph(result: SolveResult, labels?: Labels): SceneGrap
 
   // Lines (skip anonymous elements created from inline tuples)
   for (const [name, lr] of result.lines) {
-    if (name.startsWith('_') || lr.solutions.length === 0) continue
+    const ls = drawn(lr)
+    if (name.startsWith('_') || ls.length === 0) continue
     const status = solutionsStatus(lr)
     if (status === 'multiple') {
-      lr.solutions.forEach((s, i) => {
+      ls.forEach((s, i) => {
         lines.push({ a: s.a, b: s.b, c: s.c, label: labelFor(name, labels), solutions: 'multiple', solutionIndex: i + 1 })
       })
     } else {
-      const s = lr.solutions[0]!
+      const s = ls[0]!
       lines.push({ a: s.a, b: s.b, c: s.c, label: labelFor(name, labels), solutions: status })
     }
   }
@@ -43,20 +51,22 @@ export function buildSceneGraph(result: SolveResult, labels?: Labels): SceneGrap
     const [v1, v2] = key.split(':') as [string, string]
     const pr1 = result.points.get(v1)
     const pr2 = result.points.get(v2)
-    if (!pr1 || !pr2 || pr1.solutions.length === 0 || pr2.solutions.length === 0) continue
+    if (!pr1 || !pr2) continue
+    const ps1 = drawn(pr1), ps2 = drawn(pr2)
+    if (ps1.length === 0 || ps2.length === 0) continue
 
     const s1 = solutionsStatus(pr1)
     const s2 = solutionsStatus(pr2)
 
     if (s1 === 'multiple' || s2 === 'multiple') {
       // Emit one segment per combination of solutions for ambiguous endpoints
-      for (const p1 of pr1.solutions) {
-        for (const p2 of pr2.solutions) {
+      for (const p1 of ps1) {
+        for (const p2 of ps2) {
           segments.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, solutions: 'multiple', label: segLabel(v1, v2, labels) })
         }
       }
     } else {
-      const p1 = pr1.solutions[0]!, p2 = pr2.solutions[0]!
+      const p1 = ps1[0]!, p2 = ps2[0]!
       const segStatus: Solutions = (pr1.dof === 0 && pr2.dof === 0) ? 'one' : 'infinite'
       segments.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, solutions: segStatus, label: segLabel(v1, v2, labels) })
     }
@@ -64,25 +74,27 @@ export function buildSceneGraph(result: SolveResult, labels?: Labels): SceneGrap
 
   // Circles (skip anonymous synthesised circles)
   for (const [name, cr] of result.circles) {
-    if (name.startsWith('_') || cr.solutions.length === 0) continue
-    const s = cr.solutions[0]!
+    const cs = drawn(cr)
+    if (name.startsWith('_') || cs.length === 0) continue
+    const s = cs[0]!
     const centerPr = result.points.get(s.center)
-    if (!centerPr || centerPr.solutions.length === 0) continue
-    const cp = centerPr.solutions[0]!
+    if (!centerPr || drawn(centerPr).length === 0) continue
+    const cp = drawn(centerPr)[0]!
     const status = solutionsStatus(cr)
     circles.push({ cx: cp.x, cy: cp.y, r: s.r, label: labelFor(name, labels), solutions: status })
   }
 
   // Points (skip anonymous elements created from inline tuples)
   for (const [key, pr] of result.points) {
-    if (key.startsWith('_')) continue
+    const pts = drawn(pr)
+    if (key.startsWith('_') || pts.length === 0) continue
     const status = solutionsStatus(pr)
     if (status === 'multiple') {
-      pr.solutions.forEach((s, i) => {
+      pts.forEach((s, i) => {
         points.push({ x: s.x, y: s.y, label: labelFor(key, labels), solutions: 'multiple', solutionIndex: i + 1 })
       })
-    } else if (pr.solutions.length > 0) {
-      const s = pr.solutions[0]!
+    } else {
+      const s = pts[0]!
       points.push({ x: s.x, y: s.y, label: labelFor(key, labels), solutions: status })
     }
   }
@@ -90,9 +102,8 @@ export function buildSceneGraph(result: SolveResult, labels?: Labels): SceneGrap
   // Scalars
   const scalars: SceneScalar[] = []
   for (const [name, sr] of result.scalars) {
-    if (sr.solutions.length > 0) {
-      scalars.push({ label: labelFor(name, labels), value: sr.solutions[0]! })
-    }
+    const vs = drawn(sr)
+    if (vs.length > 0) scalars.push({ label: labelFor(name, labels), value: vs[0]! })
   }
 
   return { segments, points, arcs: [], annotations: [], lines, circles, scalars }

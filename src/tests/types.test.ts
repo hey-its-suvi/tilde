@@ -11,7 +11,7 @@ const run = (source: string) => runSource(source, PRELUDE)
 const solve = (source: string) =>
   new Solver(new GeometricPropagate(), new RuleBasedPick()).solve(run(source).constraints)
 
-const at = (source: string, name: string) => solve(source).points.get(name)!.solutions[0]
+const at = (source: string, name: string) => solve(source).points.get(name)!.solutions![0]
 
 describe('declaring a type', () => {
   it('reads fields written type-then-name, like a declaration', () => {
@@ -182,8 +182,8 @@ point q at 3 4
 segment s from p to q
 distance between s.from and s.to is 5
 `)
-    expect(result.points.get('p')!.solutions[0]).toEqual({ x: 0, y: 0 })
-    expect(result.points.get('q')!.solutions[0]).toEqual({ x: 3, y: 4 })
+    expect(result.points.get('p')!.solutions![0]).toEqual({ x: 0, y: 0 })
+    expect(result.points.get('q')!.solutions![0]).toEqual({ x: 3, y: 4 })
   })
 })
 
@@ -206,8 +206,8 @@ define dot (n: Name) (x: Scalar) (y: Scalar) =
 dot a 1 2
 dot b 4 5
 `)
-    expect(result.points.get('a.p')!.solutions[0]).toEqual({ x: 1, y: 2 })
-    expect(result.points.get('b.p')!.solutions[0]).toEqual({ x: 4, y: 5 })
+    expect(result.points.get('a.p')!.solutions![0]).toEqual({ x: 1, y: 2 })
+    expect(result.points.get('b.p')!.solutions![0]).toEqual({ x: 4, y: 5 })
   })
 
   it('does not depend on the caller using the slot’s own name', () => {
@@ -238,7 +238,7 @@ define twin (n: Name) =
 twin w
 `)
     // `new` reached all the way down, and a two-step path resolves.
-    expect(result.points.get('w.left.one')!.solutions[0]).toEqual({ x: 0, y: 0 })
-    expect(result.points.get('w.right.two')!.solutions[0]).toEqual({ x: 9, y: 9 })
+    expect(result.points.get('w.left.one')!.solutions![0]).toEqual({ x: 0, y: 0 })
+    expect(result.points.get('w.right.two')!.solutions![0]).toEqual({ x: 9, y: 9 })
   })
 })

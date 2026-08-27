@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.3.38 — current
+## 0.3.39 — current
+
+- **Two named numbers can be made the same number**: `scalar h; h is w` says `h` and `w` are one number, and it does not matter which becomes known first. Neither is copied into the other — each is narrowed to what both could be, so the answer arrives from whichever direction it happens to come.
+- **"Nothing known" and "no possible answer" are now different answers.** They used to be indistinguishable, both reported as an empty list. A shape nothing pins down could be *anything*; one that has been asked for the impossible could be *nothing*. Telling them apart is what lets two numbers be combined properly: the first constrains nothing, the second rules out everything.
+- **An impossible number no longer stops the drawing.** `scalar a is 7` followed by `scalar b is 3` and `a is b` marks both as having no possible answer and leaves the rest of the figure alone, rather than abandoning the whole thing.
+
+## 0.3.38
 
 - **A way to see what your drawing actually pins down.** The strategy picker in the playground gains a `none` option, which places only what the constraints force and leaves everything else out. A drawing has to start somewhere, and when a shape is genuinely underdetermined something has to choose a representative — both are choices your program did not make, and this shows you where they happen. `point a at 0 0` followed by `point b` and a line through them draws only `a` under `none`: the point `b` and the line were being chosen for you.
 

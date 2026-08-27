@@ -45,9 +45,17 @@ define scalar (n: Name) is (v: Scalar) => Scalar =
     n is v
     return n
 
+-- `is` takes a number written down or another named number. Two names are made
+-- the *same* number rather than one copied into the other: each is narrowed to
+-- what both could be, so it does not matter which becomes known first.
+
 define (s: Scalar) is (v: Scalar) => Scalar =
     tsx`
-    constrain({ kind: 'scalar-equality', scalar: s, target: v })
+    if (typeof v === 'number') {
+        constrain({ kind: 'scalar-equality', scalar: s, target: v })
+    } else {
+        constrain({ kind: 'scalars-equal', a: s, b: v })
+    }
     return s
     `
 

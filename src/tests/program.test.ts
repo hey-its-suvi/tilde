@@ -52,7 +52,7 @@ point b at 6 0
 point c at 3 4
 line l through a b
 `)
-    expect(result.points.get('c')!.solutions[0]).toEqual({ x: 3, y: 4 })
+    expect(result.points.get('c')!.solutions![0]).toEqual({ x: 3, y: 4 })
     expect(result.lines.get('l')!.dof).toBe(0)
   })
 
@@ -73,9 +73,9 @@ right triangle t with legs 3 4
 `)
     // The vertices belong to the triangle, so they are keyed by it — `p`, `q`
     // and `r` are the definition's own names for them and never leave.
-    expect(result.points.get('t.point1')!.solutions[0]).toEqual({ x: 0, y: 0 })
-    expect(result.points.get('t.point2')!.solutions[0]).toEqual({ x: 3, y: 0 })
-    expect(result.points.get('t.point3')!.solutions[0]).toEqual({ x: 0, y: 4 })
+    expect(result.points.get('t.point1')!.solutions![0]).toEqual({ x: 0, y: 0 })
+    expect(result.points.get('t.point2')!.solutions![0]).toEqual({ x: 3, y: 0 })
+    expect(result.points.get('t.point3')!.solutions![0]).toEqual({ x: 0, y: 4 })
   })
 
   it('reports where a bad statement is', () => {
@@ -128,8 +128,8 @@ define dot (n: Name) at (x: Scalar) (y: Scalar) => Circle =
 
 dot d at 3 4;
 `)
-    expect(result.points.get('d')!.solutions[0]).toEqual({ x: 3, y: 4 })
-    expect(result.circles.get('d_c')!.solutions[0]).toEqual({ center: 'd', r: 1 })
+    expect(result.points.get('d')!.solutions![0]).toEqual({ x: 3, y: 4 })
+    expect(result.circles.get('d_c')!.solutions![0]).toEqual({ center: 'd', r: 1 })
   })
 
   it('treats a terminated and an unterminated program as identical', () => {
@@ -165,8 +165,8 @@ dot d at 3 4
     circle c with center n and radius 1
     n at x y
     return c`))
-    expect(result.points.get('d')!.solutions[0]).toEqual({ x: 3, y: 4 })
-    expect(result.circles.get('d_c')!.solutions[0]).toEqual({ center: 'd', r: 1 })
+    expect(result.points.get('d')!.solutions![0]).toEqual({ x: 3, y: 4 })
+    expect(result.circles.get('d_c')!.solutions![0]).toEqual({ center: 'd', r: 1 })
   })
 
   it('catches a return that does not match the signature', () => {
@@ -178,7 +178,7 @@ dot d at 3 4
   it('accepts a whole statement, not just a name', () => {
     const result = solve(dot(`    point n at x y
     return circle c with center n and radius 2`))
-    expect(result.circles.get('d_c')!.solutions[0]).toEqual({ center: 'd', r: 2 })
+    expect(result.circles.get('d_c')!.solutions![0]).toEqual({ center: 'd', r: 2 })
   })
 
   it('requires a return when the signature promises one', () => {
@@ -214,8 +214,8 @@ dot e at 1 1
   it('lets the same definition be used more than once', () => {
     // `c` is written literally in the body, so each call gets its own.
     const result = solve(dot)
-    expect(result.circles.get('d_c')!.solutions[0]).toEqual({ center: 'd', r: 1 })
-    expect(result.circles.get('e_c')!.solutions[0]).toEqual({ center: 'e', r: 1 })
+    expect(result.circles.get('d_c')!.solutions![0]).toEqual({ center: 'd', r: 1 })
+    expect(result.circles.get('e_c')!.solutions![0]).toEqual({ center: 'e', r: 1 })
   })
 
   it('gives each call its own copy, under a key naming the call', () => {

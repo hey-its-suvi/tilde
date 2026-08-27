@@ -182,15 +182,15 @@ describe('the solver accepts what evaluation produces', () => {
     )
     const result = new Solver(new GeometricPropagate(), new RuleBasedPick()).solve(constraints)
 
-    expect(result.points.get('c')!.solutions[0]).toEqual({ x: 3, y: 4 })
+    expect(result.points.get('c')!.solutions![0]).toEqual({ x: 3, y: 4 })
     expect(result.points.get('c')!.dof).toBe(0)
     // l is pinned by two known points, giving the x-axis: ax + by + c = 0 with
     // a = c = 0 and b free to scale.
     const l = result.lines.get('l')!
     expect(l.dof).toBe(0)
-    expect(l.solutions[0]!.a).toBeCloseTo(0)
-    expect(l.solutions[0]!.c).toBeCloseTo(0)
-    expect(Math.abs(l.solutions[0]!.b)).toBeGreaterThan(0)
+    expect(l.solutions![0]!.a).toBeCloseTo(0)
+    expect(l.solutions![0]!.c).toBeCloseTo(0)
+    expect(Math.abs(l.solutions![0]!.b)).toBeGreaterThan(0)
   })
 
   it('leaves a line underdetermined when nothing pins it', () => {
