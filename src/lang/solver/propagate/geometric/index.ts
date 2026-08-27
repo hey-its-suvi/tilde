@@ -20,7 +20,7 @@ import type { GeomModel } from '../../model.js'
 import { cloneModel, getPoint, setPoint, getLength, synthesizeAxisLine } from '../../model.js'
 import {
   workingVal, isWorkingComplete, makePlacementState, PlacementState, lineDofFromState,
-  type WorkingElement, type Scalar,
+  type WorkingElement, intersectScalars,
 } from '../../types.js'
 import { isZero, isEqual } from '../../geom.js'
 import { lineIntersect, circleIntersectBoth, circleLineIntersectBoth } from './intersections.js'
@@ -282,10 +282,6 @@ function tryApplyLineRelation(model: GeomModel): boolean {
 // absorbing case reachable at all, and it lets the rest of a drawing survive one
 // impossible number.
 
-/** A scalar's possibilities. `null` inside the list is how "nothing known" is
- *  spelled, so a lone null is the infinite set rather than one unknown value. */
-const isUnknown = (w: WorkingElement<Scalar>) => w.resolved.length === 1 && w.resolved[0] === null
-
 function tryNarrowScalarPairs(model: GeomModel): boolean {
   let changed = false
 
@@ -294,18 +290,11 @@ function tryNarrowScalarPairs(model: GeomModel): boolean {
     const wb = model.scalars.get(b)
     if (!wa || !wb) continue
 
-    // Unknown constrains nothing, so a pair only says something once one side
-    // has narrowed. Two unknowns stay two unknowns until something else moves.
-    if (isUnknown(wa) && isUnknown(wb)) continue
-
-    const merged = isUnknown(wa) ? [...wb.resolved]
-      : isUnknown(wb) ? [...wa.resolved]
-      : wa.resolved.filter(v => wb.resolved.some(w => isEqual(v as number, w as number)))
-
+    const merged = intersectScalars(wa.values, wb.values)
     for (const w of [wa, wb]) {
-      if (sameValues(w.resolved, merged)) continue
-      w.resolved = [...merged]
-      w.dof = 0
+      if (sameValues(w.values, merged)) continue
+      w.values = merged && [...merged]
+      w.dof = merged === undefined ? 1 : 0
       changed = true
     }
   }
@@ -313,15 +302,17 @@ function tryNarrowScalarPairs(model: GeomModel): boolean {
   return changed
 }
 
-const sameValues = (x: readonly (number | null)[], y: readonly (number | null)[]) =>
-  x.length === y.length && x.every((v, i) => v === y[i])
+const sameValues = (x: number[] | undefined, y: number[] | undefined) =>
+  x === undefined || y === undefined
+    ? x === y
+    : x.length === y.length && x.every((v, i) => v === y[i])
+
 
 /** One field's value in *every* solution of an element, or null if any of them
  *  leaves it unknown.
  *
- *  A scalar is an element like any other — its `resolved` is a list, the same as
- *  a point's — so a field of a two-solution point yields a two-solution scalar.
- *  Reading only the first would report one answer as if it were the only one:
+ *  A field of a two-solution point yields a two-solution scalar. Reading only
+ *  the first would report one answer as if it were the only one:
  *  a point where a circle meets a line is at x = 5 *or* x = -5, and a scalar
  *  bound to it must say both, or `pick` is bypassed without anyone noticing.
  *
@@ -389,30 +380,33 @@ function tryResolveScalarBindings(model: GeomModel): boolean {
     const ws = model.scalars.get(binding.scalar)
     if (!ws) continue
 
-    // Reverse: the scalar is known, so give its value to the field.
-    const known = ws.resolved[0]
-    if (known !== null && known !== undefined) {
-      if (fillField(model, binding.element, binding.field, known)) return true
+    // Reverse: the scalar is known, so give its value to the field. Only when
+    // it has settled on exactly one — several answers cannot be written into a
+    // single field, and none means there is nothing to write.
+    if (ws.values !== undefined) {
+      if (ws.values.length === 1) {
+        if (fillField(model, binding.element, binding.field, ws.values[0]!)) return true
+      }
       continue
     }
 
     const wl = model.lines.get(binding.element)
     if (wl && isWorkingComplete(wl)) {
       const vals = fieldValues(wl, binding.field)
-      if (vals) { ws.resolved = vals; ws.dof = 0; return true }
+      if (vals) { ws.values = vals; ws.dof = 0; return true }
     }
 
     const wp = model.points.get(binding.element)
     if (wp && isWorkingComplete(wp)) {
       const vals = fieldValues(wp, binding.field)
-      if (vals) { ws.resolved = vals; ws.dof = 0; return true }
+      if (vals) { ws.values = vals; ws.dof = 0; return true }
     }
 
     const wc = model.circles.get(binding.element)
     if (wc && binding.field === 'r') {
       // Only numeric fields on circles (radius) propagate to scalars.
       const vals = fieldValues(wc, 'r')
-      if (vals) { ws.resolved = vals; ws.dof = 0; return true }
+      if (vals) { ws.values = vals; ws.dof = 0; return true }
     }
   }
   return false

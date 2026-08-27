@@ -63,7 +63,7 @@ export function cloneModel(m: GeomModel): GeomModel {
     onSegment: new Map(m.onSegment),
     lineParallel: new Map([...m.lineParallel].map(([k, v]) => [k, v.map(p => ({ ...p }))])),
     linePerpendicular: new Map([...m.linePerpendicular].map(([k, v]) => [k, [...v]])),
-    scalars: new Map([...m.scalars].map(([k, v]) => [k, cloneWorking(v) as WorkingScalar])),
+    scalars: new Map([...m.scalars].map(([k, v]) => [k, { values: v.values && [...v.values], dof: v.dof }])),
     scalarBindings: m.scalarBindings.map(b => ({ ...b })),
     scalarPairs: m.scalarPairs.map(b => ({ ...b })),
     solutionPicks: new Map(m.solutionPicks),

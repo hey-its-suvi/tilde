@@ -153,7 +153,7 @@ function applyConstraint(model: GeomModel, c: ResolvedConstraint): void {
       const ws = model.scalars.get(c.scalar)
       if (!ws) throw new ConstraintError(`scalar "${c.scalar}" is not declared`)
       if (typeof c.target === 'number') {
-        ws.resolved[0] = c.target
+        ws.values = [c.target]
         ws.dof = 0
       } else {
         model.scalarBindings.push({ scalar: c.scalar, element: c.target.element, field: c.target.field })
@@ -235,19 +235,14 @@ export function extractResult(model: GeomModel, input: ConstraintSet): SolveResu
     //
     // Empty means *none*: over-constrained, no value it could take. Unknown is
     // `undefined` — could still be anything. The two used to share `[]`.
-    if (ws.resolved.length === 0) {
-      scalars.set(name, { solutions: [], dof: 0 })
-    } else if (ws.resolved.length > 1) {
-      const pick = model.solutionPicks.get(name)
-      if (pick !== undefined && pick >= 1 && pick <= ws.resolved.length) {
-        scalars.set(name, { solutions: [ws.resolved[pick - 1]!], dof: 0 })
-      } else {
-        scalars.set(name, { solutions: ws.resolved.map(v => v!), dof: 0 })
-      }
-    } else if (ws.resolved[0] !== null && ws.resolved[0] !== undefined) {
-      scalars.set(name, { solutions: [ws.resolved[0]], dof: ws.dof })
+    // The working form and the reported form are now the same shape, so this
+    // only has to apply a pick.
+    const pick = model.solutionPicks.get(name)
+    if (ws.values !== undefined && ws.values.length > 1
+        && pick !== undefined && pick >= 1 && pick <= ws.values.length) {
+      scalars.set(name, { solutions: [ws.values[pick - 1]!], dof: 0 })
     } else {
-      scalars.set(name, { solutions: undefined, dof: ws.dof })
+      scalars.set(name, { solutions: ws.values && [...ws.values], dof: ws.dof })
     }
   }
 

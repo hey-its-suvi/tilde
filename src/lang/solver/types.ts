@@ -24,7 +24,27 @@ export type WorkingElement<T> = {
 export type WorkingPoint  = WorkingElement<Point>
 export type WorkingLine   = WorkingElement<Line>
 export type WorkingCircle = WorkingElement<Circle>
-export type WorkingScalar = WorkingElement<Scalar>
+
+/** A scalar is atomic — it has no parts to be half-known — so it says what it
+ *  could be as a set rather than as a partially-filled value:
+ *
+ *      undefined   infinite: any number
+ *      [a, b]      multiple
+ *      [a]         one
+ *      []          none: no possible value
+ *
+ *  The other elements still spell "unknown" as a null *inside* a value, because
+ *  a point really can be half-known — `x = 5`, `y` not yet — which is a state a
+ *  set of whole values cannot express. They will likely come across once that is
+ *  worked out; scalars go first because they have no such complication.
+ *
+ *  Hand-rolled rather than `WorkingElement<Scalar>`: reusing it forced "unknown"
+ *  to be spelled `[null]`, which made `[null]`, `[]` and `[null, 5]` all
+ *  constructible while only two meant anything. */
+export type WorkingScalar = {
+  values: number[] | undefined
+  dof: number
+}
 
 // ── Working element helpers ───────────────────────────────────────────────────
 
@@ -60,9 +80,20 @@ export function lineDofFromState(a: number | null, b: number | null, c: number |
   return (directionKnown ? 0 : 1) + (positionKnown ? 0 : 1)
 }
 
-/** Create a working scalar — null value means unknown (dof=1). */
+/** Create a working scalar. No value means unknown — any number, dof 1. */
 export function makeWorkingScalar(value: number | null = null): WorkingScalar {
-  return { resolved: [value], dof: value === null ? 1 : 0 }
+  return value === null ? { values: undefined, dof: 1 } : { values: [value], dof: 0 }
+}
+
+/** What both could be. `undefined` constrains nothing and `[]` rules out
+ *  everything, so this is total: every pair of states has an answer. */
+export function intersectScalars(
+  a: number[] | undefined,
+  b: number[] | undefined,
+): number[] | undefined {
+  if (a === undefined) return b === undefined ? undefined : [...b]
+  if (b === undefined) return [...a]
+  return a.filter(v => b.some(w => Math.abs(v - w) < 1e-9))
 }
 
 /** Create a working circle from a nullable centre point-ref and nullable
