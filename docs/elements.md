@@ -21,6 +21,13 @@ point p = (k, 0)
 scalar k = 5            # p is placed at (5, 0)
 ```
 
+Giving a scalar two different values is a contradiction rather than a correction — the second does not replace the first. The scalar is left with no value it could take, and anything depending on it goes undrawn.
+
+```
+scalar m = 2
+m = 3                   # m cannot be both, so it has no value
+```
+
 A scalar declared without a value is determined by the solver from geometric constraints.
 
 ```
