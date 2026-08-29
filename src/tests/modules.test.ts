@@ -12,12 +12,12 @@ const sigs = (entry: string, registry: Registry) =>
 // but cannot write q itself.
 const abc: Registry = {
   a: `
-define p (n: Name) => Point =
+define p (n: Name) => Point:
     tsx\`
     return declare(n, 'Point')
     \`
 
-define q (x: Point) => Point =
+define q (x: Point) => Point:
     tsx\`
     constrain({ kind: 'position', point: x, x: 1, y: 1 })
     return x
@@ -26,7 +26,7 @@ define q (x: Point) => Point =
   b: `
 import a
 
-define r (n: Name) => Point =
+define r (n: Name) => Point:
     p n
     q n
     return n
@@ -80,14 +80,14 @@ describe('re-export', () => {
     expect(scope).toContain('point «Name»')          // core
     expect(scope).toContain('triangle «Name» with «Name» «Name» «Name»') // shapes
     expect(scope).toContain('line «Name» parallel «Line»')               // constraints
-    expect(scope).toHaveLength(30)
+    expect(scope).toHaveLength(34)
   })
 })
 
 describe('shadowing', () => {
   const shadowed: Registry = {
     base: `
-define greet (n: Name) => Point =
+define greet (n: Name) => Point:
     tsx\`
     return declare(n, 'Point')
     \`
@@ -95,7 +95,7 @@ define greet (n: Name) => Point =
     user: `
 import base
 
-define greet (n: Name) => Line =
+define greet (n: Name) => Line:
     tsx\`
     return declare(n, 'Line')
     \`
@@ -138,12 +138,12 @@ describe('errors', () => {
   it('rejects a file defining the same signature twice', () => {
     const dup: Registry = {
       d: `
-define twice (n: Name) => Point =
+define twice (n: Name) => Point:
     tsx\`
     return declare(n, 'Point')
     \`
 
-define twice (m: Name) => Line =
+define twice (m: Name) => Line:
     tsx\`
     return declare(m, 'Line')
     \`

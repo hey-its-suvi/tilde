@@ -13,7 +13,7 @@ import core
 
 -- ─── Relations between lines ────────────────────────────────────────────────
 
-define (a: Line) perpendicular (b: Line) at (p: Point) => Line =
+define (a: Line) perpendicular (b: Line) at (p: Point) => Line:
     a perpendicular b
     p on a
     p on b
@@ -21,28 +21,28 @@ define (a: Line) perpendicular (b: Line) at (p: Point) => Line =
 
 -- ─── Incidence ──────────────────────────────────────────────────────────────
 
-define (l: Line) through (p: Point) => Line =
+define (l: Line) through (p: Point) => Line:
     p on l
     return l
 
 -- ─── Declaring forms ────────────────────────────────────────────────────────
 
-define line (n: Name) parallel (m: Line) => Line =
+define line (n: Name) parallel (m: Line) => Line:
     line n
     n parallel m
     return n
 
-define line (n: Name) perpendicular (m: Line) => Line =
+define line (n: Name) perpendicular (m: Line) => Line:
     line n
     n perpendicular m
     return n
 
-define point (n: Name) on (l: Line) => Point =
+define point (n: Name) on (l: Line) => Point:
     point n
     n on l
     return n
 
-define point (n: Name) on (c: Circle) => Point =
+define point (n: Name) on (c: Circle) => Point:
     point n
     n on c
     return n

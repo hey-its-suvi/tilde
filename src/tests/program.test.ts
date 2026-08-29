@@ -19,7 +19,7 @@ describe('a file holds definitions and statements together', () => {
     const parsed = parseFile(`
 import prelude
 
-define chord (n: Name) of (c: Circle) from (p: Point) to (q: Point) => Line =
+define chord (n: Name) of (c: Circle) from (p: Point) to (q: Point) => Line:
     line n through p q
     p on c
     q on c
@@ -62,7 +62,7 @@ line l through a b
     const result = solve(`
 import prelude
 
-define right triangle (t: Name) with legs (u: Scalar) (v: Scalar) => Triangle =
+define right triangle (t: Name) with legs (u: Scalar) (v: Scalar) => Triangle:
     triangle t with p q r
     p at 0 0
     q at u 0
@@ -121,7 +121,7 @@ describe('semicolons are optional line terminators', () => {
     const result = solve(`
 import prelude;
 
-define dot (n: Name) at (x: Scalar) (y: Scalar) => Circle =
+define dot (n: Name) at (x: Scalar) (y: Scalar) => Circle:
     point n at x y;
     circle c with center n and radius 1;
     return c;
@@ -149,7 +149,7 @@ describe('return says what comes back', () => {
   const dot = (bodyLines: string) => `
 import prelude
 
-define dot (n: Name) at (x: Scalar) (y: Scalar) => Circle =
+define dot (n: Name) at (x: Scalar) (y: Scalar) => Circle:
 ${bodyLines}
 
 dot d at 3 4
@@ -189,7 +189,7 @@ dot d at 3 4
 
   it('requires a signature when the body returns', () => {
     expect(() =>
-      run('import prelude\n\ndefine mark (n: Name) =\n    point n\n    return n\n'),
+      run('import prelude\n\ndefine mark (n: Name):\n    point n\n    return n\n'),
     ).toThrow(/needs a `=> Type`/)
   })
 
@@ -203,7 +203,7 @@ describe('a body\'s own names belong to the call, not the program', () => {
   const dot = `
 import prelude
 
-define dot (n: Name) at (x: Scalar) (y: Scalar) =
+define dot (n: Name) at (x: Scalar) (y: Scalar):
     point n at x y
     circle c with center n and radius 1
 
@@ -246,7 +246,7 @@ dot e at 1 1
 
   it('defers a definition with locals but no Name slot to key them by', () => {
     expect(() =>
-      run('import prelude\n\ndefine grid =\n    point origin at 0 0\n\ngrid\n'),
+      run('import prelude\n\ndefine grid:\n    point origin at 0 0\n\ngrid\n'),
     ).toThrow(/takes no Name slot to key it by/)
   })
 })

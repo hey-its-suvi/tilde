@@ -57,7 +57,9 @@ function matchPattern(def: Definition, tokens: Token[]): Binding[] | null {
     if (token === undefined) return null // pattern longer than the statement
 
     if (part.part === 'keyword') {
-      if (token.kind !== 'WORD' || token.value !== part.word) return null
+      // Matched by what it reads as, not by token kind — a pattern word may be
+      // punctuation, so `=` matches an EQUALS the way `on` matches a WORD.
+      if (token.value !== part.word) return null
     } else {
       if (!isAtom(token)) return null
       bindings.push({ slot: part.name, type: part.type, token })

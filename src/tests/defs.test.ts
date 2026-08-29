@@ -14,35 +14,48 @@ const show = (p: Pattern) =>
 
 describe('header parsing', () => {
   it('reads keywords and typed slots in order', () => {
-    const { definitions } = parseFile('define (a: Line) parallel (b: Line) => Line =\n    a on b\n    return a\n')
+    const { definitions } = parseFile('define (a: Line) parallel (b: Line) => Line:\n    a on b\n    return a\n')
     expect(definitions).toHaveLength(1)
     expect(show(definitions[0]!.pattern)).toBe('(a: Line) parallel (b: Line)')
     expect(definitions[0]!.returns).toEqual({ name: 'Line', list: false })
   })
 
   it('treats a missing arrow as returning nothing', () => {
-    const { definitions } = parseFile('define nothing (a: Line) =\n    a on b\n')
+    const { definitions } = parseFile('define nothing (a: Line):\n    a on b\n')
     expect(definitions[0]!.returns).toBeNull()
   })
 
   it('reads list slots', () => {
-    const { definitions } = parseFile('define centroid of (ps: [Point]) => Point =\n    tsx`\n    x\n    `\n')
+    const { definitions } = parseFile('define centroid of (ps: [Point]) => Point:\n    tsx`\n    x\n    `\n')
     expect(show(definitions[0]!.pattern)).toBe('centroid of (ps: [Point])')
   })
 
-  it('rejects anything after =', () => {
-    expect(() => parseFile('define (a: Line) foo => Line = a on b\n')).toThrow(/nothing may follow/)
+  it('rejects anything after the terminator', () => {
+    // The body goes on the next line, so a header ends at its colon.
+    expect(() => parseFile('define (a: Line) foo => Line: a on b\n')).toThrow(
+      /a define line ends in ':'/,
+    )
+  })
+
+  it('lets `=` be an ordinary pattern word', () => {
+    // Freed by moving the terminator to `:` — `=` has no built-in meaning, it is
+    // a character a pattern may use, and means whatever its definition does.
+    const { definitions } = parseFile(
+      'define point (n: Name) = (x: Scalar) (y: Scalar) => Point:\n    point n\n    n at x y\n    return n\n',
+    )
+    expect(show(definitions[0]!.pattern)).toBe('point (n: Name) = (x: Scalar) (y: Scalar)')
+    expect(definitions[0]!.returns).toEqual({ name: 'Point', list: false })
   })
 
   it('rejects duplicate slot names', () => {
-    expect(() => parseFile('define (a: Line) x (a: Line) =\n    a on a\n')).toThrow(/duplicate slot name/)
+    expect(() => parseFile('define (a: Line) x (a: Line):\n    a on a\n')).toThrow(/duplicate slot name/)
   })
 })
 
 describe('body framing', () => {
   it('ends a body at a blank line', () => {
     const { definitions } = parseFile(
-      'define a (x: Line) =\n    one\n    two\n\ndefine b (y: Line) =\n    three\n',
+      'define a (x: Line):\n    one\n    two\n\ndefine b (y: Line):\n    three\n',
     )
     expect(definitions).toHaveLength(2)
     expect(definitions[0]!.body).toEqual({ body: 'tilde', lines: ['one', 'two'], result: null })
@@ -51,14 +64,14 @@ describe('body framing', () => {
   it('reports a stray blank line where it happened, not further on', () => {
     // A blank line mid-body truncates it, leaving orphaned statements. The
     // error names those rather than cascading into the next definition.
-    expect(() => parseFile('define a (x: Line) =\n    one\n\n    two\n')).toThrow(
+    expect(() => parseFile('define a (x: Line):\n    one\n\n    two\n')).toThrow(
       /indented line outside a definition body/,
     )
   })
 
   it('ends a body at the next column-0 line', () => {
     const { definitions } = parseFile(
-      'define a (x: Line) =\n    one\ndefine b (y: Line) =\n    two\n',
+      'define a (x: Line):\n    one\ndefine b (y: Line):\n    two\n',
     )
     expect(definitions).toHaveLength(2)
     expect(definitions[0]!.body).toEqual({ body: 'tilde', lines: ['one'], result: null })
@@ -66,17 +79,17 @@ describe('body framing', () => {
 
   it('keeps blank lines inside a tsx block', () => {
     const { definitions } = parseFile(
-      'define a (x: Line) =\n    tsx`\n    first\n\n    second\n    `\n',
+      'define a (x: Line):\n    tsx`\n    first\n\n    second\n    `\n',
     )
     expect(definitions[0]!.body).toEqual({ body: 'tsx', code: '    first\n\n    second' })
   })
 
   it('rejects a definition with no body', () => {
-    expect(() => parseFile('define a (x: Line) =\n\ndefine b (y: Line) =\n    z\n')).toThrow(/no body/)
+    expect(() => parseFile('define a (x: Line):\n\ndefine b (y: Line):\n    z\n')).toThrow(/no body/)
   })
 
   it('rejects an unterminated tsx block', () => {
-    expect(() => parseFile('define a (x: Line) =\n    tsx`\n    code\n')).toThrow(/unterminated/)
+    expect(() => parseFile('define a (x: Line):\n    tsx`\n    code\n')).toThrow(/unterminated/)
   })
 
   it('reports a stray indented line rather than cascading', () => {
@@ -140,10 +153,11 @@ describe('the prelude parses', () => {
   it('splits roughly evenly between primitive and composed', () => {
     const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
 
-    // Measured, not aspirational: 17 primitive to 13 composed. The earlier claim
-    // that "most of the prelude composes" was wrong — it is about half.
+    // Measured, not aspirational: 17 primitive to 17 composed. The earlier claim
+    // that "most of the prelude composes" was wrong — it is an even split, and
+    // the composed half has been growing as convenience forms are added.
     expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(17)
-    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(13)
+    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(17)
   })
 
   it('gives every definition a return type except the one that cannot have one', () => {

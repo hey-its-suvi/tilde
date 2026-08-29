@@ -11,14 +11,22 @@ import core
 
 -- ─── Points ─────────────────────────────────────────────────────────────────
 
-define point (n: Name) at (x: Scalar) (y: Scalar) => Point =
+define point (n: Name) at (x: Scalar) (y: Scalar) => Point:
     point n
     n at x y
     return n
 
+define (p: Point) = (x: Scalar) (y: Scalar) => Point:
+    p at x y
+    return p
+
+define point (n: Name) = (x: Scalar) (y: Scalar) => Point:
+    point n at x y
+    return n
+
 -- ─── Lines ──────────────────────────────────────────────────────────────────
 
-define line (n: Name) through (p: Point) (q: Point) => Line =
+define line (n: Name) through (p: Point) (q: Point) => Line:
     line n
     p on n
     q on n
@@ -26,17 +34,17 @@ define line (n: Name) through (p: Point) (q: Point) => Line =
 
 -- ─── Circles ────────────────────────────────────────────────────────────────
 
-define circle (n: Name) with center (p: Point) => Circle =
+define circle (n: Name) with center (p: Point) => Circle:
     circle n
     n with center p
     return n
 
-define circle (n: Name) with radius (r: Scalar) => Circle =
+define circle (n: Name) with radius (r: Scalar) => Circle:
     circle n
     n with radius r
     return n
 
-define circle (n: Name) with center (p: Point) and radius (r: Scalar) => Circle =
+define circle (n: Name) with center (p: Point) and radius (r: Scalar) => Circle:
     circle n with center p
     n with radius r
     return n
@@ -56,7 +64,7 @@ define circle (n: Name) with center (p: Point) and radius (r: Scalar) => Circle 
 -- more corners: a quadrilateral's `point4` reads the same way, where `d` would
 -- have run out of alphabet and out of convention.
 
-define type Triangle =
+define type Triangle:
     Point point1
     Point point2
     Point point3
@@ -68,7 +76,7 @@ define type Triangle =
 -- Note `with`, not juxtaposition: `triangle a, b, c` distributes into three
 -- separate triangles, so the multi-vertex form must be lexically distinct.
 
-define triangle (t: Name) with (a: Name) (b: Name) (c: Name) => Triangle =
+define triangle (t: Name) with (a: Name) (b: Name) (c: Name) => Triangle:
     new Triangle t
     call t.point1 a
     call t.point2 b

@@ -15,17 +15,17 @@
 
 -- ─── Elements ───────────────────────────────────────────────────────────────
 
-define point (n: Name) => Point =
+define point (n: Name) => Point:
     tsx`
     return declare(n, 'Point')
     `
 
-define line (n: Name) => Line =
+define line (n: Name) => Line:
     tsx`
     return declare(n, 'Line')
     `
 
-define circle (n: Name) => Circle =
+define circle (n: Name) => Circle:
     tsx`
     return declare(n, 'Circle')
     `
@@ -35,12 +35,12 @@ define circle (n: Name) => Circle =
 -- from everything else — `scalar r` with nothing else says only that some number
 -- exists, which is enough to tie two shapes to the same size.
 
-define scalar (n: Name) => Scalar =
+define scalar (n: Name) => Scalar:
     tsx`
     return declare(n, 'Scalar')
     `
 
-define scalar (n: Name) is (v: Scalar) => Scalar =
+define scalar (n: Name) is (v: Scalar) => Scalar:
     scalar n
     n is v
     return n
@@ -49,7 +49,7 @@ define scalar (n: Name) is (v: Scalar) => Scalar =
 -- the *same* number rather than one copied into the other: each is narrowed to
 -- what both could be, so it does not matter which becomes known first.
 
-define (s: Scalar) is (v: Scalar) => Scalar =
+define (s: Scalar) is (v: Scalar) => Scalar:
     tsx`
     if (typeof v === 'number') {
         constrain({ kind: 'scalar-equality', scalar: s, target: v })
@@ -59,13 +59,31 @@ define (s: Scalar) is (v: Scalar) => Scalar =
     return s
     `
 
+-- ─── Equality ───────────────────────────────────────────────────────────────
+-- `=` has no built-in meaning. It is a character a pattern may use, like `at`
+-- or `on`, and means whatever the definitions using it do. Here it reads as
+-- equality — which is what it means in mathematics, and there is no assignment
+-- in Tilde for it to be confused with.
+--
+-- So `r = 2` followed by `r = 3` is not a change of mind. It says the number is
+-- both, which it cannot be, and leaves it with no possible value.
+
+define (s: Scalar) = (v: Scalar) => Scalar:
+    s is v
+    return s
+
+define scalar (n: Name) = (v: Scalar) => Scalar:
+    scalar n
+    n is v
+    return n
+
 -- ─── Placement ──────────────────────────────────────────────────────────────
 -- A Scalar slot takes either a number written down or a named scalar, and the
 -- two mean the same thing: this dimension is that number. A literal can go
 -- straight into the constraint; a name has to be tied to the field instead, so
 -- the solver can work in whichever direction it ends up knowing first.
 
-define (p: Point) at (x: Scalar) (y: Scalar) => Point =
+define (p: Point) at (x: Scalar) (y: Scalar) => Point:
     tsx`
     constrain({ kind: 'position', point: p,
         x: typeof x === 'number' ? x : null,
@@ -80,13 +98,13 @@ define (p: Point) at (x: Scalar) (y: Scalar) => Point =
     return p
     `
 
-define (c: Circle) with center (p: Point) => Circle =
+define (c: Circle) with center (p: Point) => Circle:
     tsx`
     constrain({ kind: 'circle-spec', circle: c, center: p, r: null })
     return c
     `
 
-define (c: Circle) with radius (r: Scalar) => Circle =
+define (c: Circle) with radius (r: Scalar) => Circle:
     tsx`
     if (typeof r === 'number') {
         constrain({ kind: 'circle-spec', circle: c, center: null, r })
@@ -99,19 +117,19 @@ define (c: Circle) with radius (r: Scalar) => Circle =
 
 -- ─── Relations between lines ────────────────────────────────────────────────
 
-define (a: Line) parallel (b: Line) => Line =
+define (a: Line) parallel (b: Line) => Line:
     tsx`
     constrain({ kind: 'parallel', l1: a, l2: b })
     return a
     `
 
-define (a: Line) parallel (b: Line) at (d: Scalar) => Line =
+define (a: Line) parallel (b: Line) at (d: Scalar) => Line:
     tsx`
     constrain({ kind: 'parallel', l1: a, l2: b, distance: d })
     return a
     `
 
-define (a: Line) perpendicular (b: Line) => Line =
+define (a: Line) perpendicular (b: Line) => Line:
     tsx`
     constrain({ kind: 'perpendicular', l1: a, l2: b })
     return a
@@ -119,13 +137,13 @@ define (a: Line) perpendicular (b: Line) => Line =
 
 -- ─── Incidence ──────────────────────────────────────────────────────────────
 
-define (p: Point) on (l: Line) => Point =
+define (p: Point) on (l: Line) => Point:
     tsx`
     constrain({ kind: 'on-line', point: p, line: l })
     return p
     `
 
-define (p: Point) on (c: Circle) => Point =
+define (p: Point) on (c: Circle) => Point:
     tsx`
     constrain({ kind: 'on-circle', point: p, circle: c })
     return p
@@ -137,7 +155,7 @@ define (p: Point) on (c: Circle) => Point =
 -- form takes the length rather than returning it, and returns nothing.
 -- `distance between p and q` as a *value* waits on the accessor work.
 
-define distance between (p: Point) and (q: Point) is (d: Scalar) =
+define distance between (p: Point) and (q: Point) is (d: Scalar):
     tsx`
     segment(p, q)
     constrain({ kind: 'distance', p1: p, p2: q, value: d })
@@ -153,12 +171,12 @@ define distance between (p: Point) and (q: Point) is (d: Scalar) =
 -- word" — declaring is what a body chooses to do with it, not what the slot
 -- means. So `new Triangle t` needs no keyword.
 
-define new (ty: Name) (n: Name) =
+define new (ty: Name) (n: Name):
     tsx`
     mint(n, ty)
     `
 
-define call (x: Any) (n: Name) =
+define call (x: Any) (n: Name):
     tsx`
     alias(n, x)
     `
@@ -166,7 +184,7 @@ define call (x: Any) (n: Name) =
 -- ─── Drawn edges ────────────────────────────────────────────────────────────
 -- A segment is a drawn join between two points, not a constraint.
 
-define segment (p: Point) (q: Point) =
+define segment (p: Point) (q: Point):
     tsx`
     segment(p, q)
     `

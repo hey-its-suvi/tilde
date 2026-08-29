@@ -1,6 +1,18 @@
 # Changelog
 
-## 0.3.39 — current
+## 0.3.40 — current
+
+- **`=` can be written where it reads naturally**: `point p = 3 5`, `scalar r = 2`, `a = 0 0`. It is not a built-in operator — it is a character a definition may use in its pattern, like `at` or `on`, and it means whatever that definition does. `at` still works exactly as before, and a program can give `=` its own meaning for its own shapes.
+- **`=` reads as equality, never as assignment.** `r = 2` followed by `r = 3` does not change `r` to 3 — it says the number is both, which it cannot be, so `r` is left with no possible value. This was also a real bug: giving a number two different values used to keep the second one silently.
+- **A definition's line now ends with `:` instead of `=`**, which is what frees `=` for use inside patterns:
+
+  ```
+  define point (n: Name) = (x: Scalar) (y: Scalar) => Point:
+      point n at x y
+      return n
+  ```
+
+## 0.3.39
 
 - **Two named numbers can be made the same number**: `scalar h; h is w` says `h` and `w` are one number, and it does not matter which becomes known first. Neither is copied into the other — each is narrowed to what both could be, so the answer arrives from whichever direction it happens to come.
 - **"Nothing known" and "no possible answer" are now different answers.** They used to be indistinguishable, both reported as an empty list. A shape nothing pins down could be *anything*; one that has been asked for the impossible could be *nothing*. Telling them apart is what lets two numbers be combined properly: the first constrains nothing, the second rules out everything.

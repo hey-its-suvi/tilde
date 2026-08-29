@@ -29,7 +29,7 @@ export type ParsedFile = {
 }
 
 /** A trailing `;` is optional punctuation — allowed everywhere a line ends, and
- *  required nowhere. Not on a `define` header, which ends in `=` with its body
+ *  required nowhere. Not on a `define` header, which ends in `:` with its body
  *  still to come, so a terminator there would be claiming the line is finished
  *  when it is not. */
 const dropTerminator = (s: string) => (s.endsWith(';') ? s.slice(0, -1).trimEnd() : s)
@@ -75,18 +75,21 @@ export function parseFile(src: string): ParsedFile {
       continue
     }
 
-    if (raw.trim().split(/\s+/)[1] === 'type') {
+    if (raw.trimEnd().endsWith(';')) {
+      throw new DefinitionError(
+        "a `define` line ends in ':' with its body still to come, so it takes no ';'",
+        lineNo,
+      )
+    }
+
+    // By token rather than by splitting on spaces: `define type:` has no space
+    // before the colon, and would otherwise slip past as an ordinary definition
+    // whose pattern is the word `type`.
+    if (lexHeader(raw, lineNo)[1]?.value === 'type') {
       const { decl, next } = takeTypeDecl(lines, i, lineNo)
       types.push(decl)
       i = next
       continue
-    }
-
-    if (raw.trimEnd().endsWith(';')) {
-      throw new DefinitionError(
-        "a `define` line ends in '=' with its body still to come, so it takes no ';'",
-        lineNo,
-      )
     }
 
     const { pattern, returns } = parseHeader(lexHeader(raw, lineNo), lineNo)
@@ -125,9 +128,9 @@ function takeTypeDecl(lines: string[], at: number, lineNo: number): { decl: Type
   const header = lines[at]!.trim()
   const tokens = lexHeader(header, lineNo).filter(t => t.kind !== 'EOF')
 
-  // define · type · Name · =
-  if (tokens.length !== 4 || tokens[2]!.kind !== 'WORD' || tokens[3]!.kind !== 'EQUALS') {
-    throw new DefinitionError("a type declaration reads `define type Name =`", lineNo)
+  // define · type · Name · :
+  if (tokens.length !== 4 || tokens[2]!.kind !== 'WORD' || tokens[3]!.kind !== 'COLON') {
+    throw new DefinitionError("a type declaration reads `define type Name:`", lineNo)
   }
   const name = tokens[2]!.value
 
@@ -270,23 +273,45 @@ function parseHeader(tokens: Token[], line: number): { pattern: Pattern; returns
     throw new DefinitionError(`expected 'define', got '${keyword.value}'`, line)
   }
 
+  // A header ends with `:`, and nothing follows it — so the terminator is simply
+  // the last token, with no scanning rule to remember. That leaves `=` free to
+  // be an ordinary pattern word:
+  //
+  //     define point (n: Name) = (x: Scalar) (y: Scalar) => Point:
+  //
+  // The colons inside slots are never confused with it, since they sit before
+  // the end of the line.
+  const end = tokens.length - 2 // the token before EOF
+  if (end < 0 || tokens[end]!.kind !== 'COLON') {
+    throw new DefinitionError("a define line ends in ':'", line)
+  }
+
+  const arrow = lastIndexOf('ARROW', end)
+  const patternEnd = arrow === -1 ? end : arrow
+
   const pattern: Pattern = []
   const slotNames = new Set<string>()
 
-  while (!at('ARROW') && !at('EQUALS') && !at('EOF')) {
-    pattern.push(parsePart())
-  }
+  while (i < patternEnd) pattern.push(parsePart())
 
   if (pattern.length === 0) throw new DefinitionError('definition has an empty pattern', line)
 
-  const returns = at('ARROW') ? (i++, parseType()) : null
-
-  take('EQUALS', "'='")
-  if (!at('EOF')) {
-    throw new DefinitionError(`nothing may follow '=' on a define line, found '${peek().value}'`, line)
+  let returns: TypeRef | null = null
+  if (arrow !== -1) {
+    i++ // past the arrow
+    returns = parseType()
+    if (i !== end) {
+      throw new DefinitionError(`expected ':' after the return type, got '${peek().value}'`, line)
+    }
   }
 
   return { pattern, returns }
+
+  /** The last token of `kind` before `before`, or -1. */
+  function lastIndexOf(kind: TokenKind, before = tokens.length): number {
+    for (let j = before - 1; j >= 0; j--) if (tokens[j]!.kind === kind) return j
+    return -1
+  }
 
   function parsePart(): PatternPart {
     if (at('LPAREN')) {
@@ -302,7 +327,13 @@ function parseHeader(tokens: Token[], line: number): { pattern: Pattern; returns
       return { part: 'slot', name, type }
     }
 
-    const word = take('WORD', 'a keyword or slot')
+    // A pattern word is usually a word, but punctuation counts too — that is
+    // what lets `=` be an ordinary part of a pattern rather than a reserved
+    // operator. Its meaning is whatever the definitions using it do.
+    const word = tokens[i++]!
+    if (word.kind === 'EOF') {
+      throw new DefinitionError('expected a keyword or slot, got end of line', line)
+    }
     return { part: 'keyword', word: word.value }
   }
 

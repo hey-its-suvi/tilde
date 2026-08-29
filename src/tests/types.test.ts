@@ -15,7 +15,7 @@ const at = (source: string, name: string) => solve(source).points.get(name)!.sol
 
 describe('declaring a type', () => {
   it('reads fields written type-then-name, like a declaration', () => {
-    const { types } = parseFile('define type Triangle =\n    Point a\n    Point b\n    Point c\n')
+    const { types } = parseFile('define type Triangle:\n    Point a\n    Point b\n    Point c\n')
     expect(types).toEqual([
       {
         name: 'Triangle',
@@ -30,31 +30,31 @@ describe('declaring a type', () => {
   })
 
   it('reads a list field', () => {
-    const { types } = parseFile('define type Polygon =\n    [Point] vertices\n')
+    const { types } = parseFile('define type Polygon:\n    [Point] vertices\n')
     expect(types[0]!.fields[0]).toEqual({ name: 'vertices', type: { name: 'Point', list: true } })
   })
 
   it('tells a type declaration apart from a definition', () => {
-    const src = 'define type Pair =\n    Point a\n    Point b\n\ndefine twin (n: Name) => Point =\n    point n\n    return n\n'
+    const src = 'define type Pair:\n    Point a\n    Point b\n\ndefine twin (n: Name) => Point:\n    point n\n    return n\n'
     const parsed = parseFile(src)
     expect(parsed.types).toHaveLength(1)
     expect(parsed.definitions).toHaveLength(1)
   })
 
   it('rejects a malformed header', () => {
-    expect(() => parseFile('define type =\n    Point a\n')).toThrow(/reads `define type Name =`/)
+    expect(() => parseFile('define type:\n    Point a\n')).toThrow(/reads `define type Name:`/)
   })
 
   it('rejects a field written the other way round', () => {
-    expect(() => parseFile('define type T =\n    a: Point\n')).toThrow(/a field reads `Type name`/)
+    expect(() => parseFile('define type T:\n    a: Point\n')).toThrow(/a field reads `Type name`/)
   })
 
   it('rejects a type with no fields', () => {
-    expect(() => parseFile('define type T =\n\npoint p\n')).toThrow(/declares no fields/)
+    expect(() => parseFile('define type T:\n\npoint p\n')).toThrow(/declares no fields/)
   })
 
   it('rejects a repeated field', () => {
-    expect(() => parseFile('define type T =\n    Point a\n    Point a\n')).toThrow(
+    expect(() => parseFile('define type T:\n    Point a\n    Point a\n')).toThrow(
       /declares field 'a' twice/,
     )
   })
@@ -62,7 +62,7 @@ describe('declaring a type', () => {
   it('rejects declaring the same type twice', () => {
     const registry: Registry = {
       ...PRELUDE,
-      main: 'import prelude\ndefine type Triangle =\n    Point a\n',
+      main: 'import prelude\ndefine type Triangle:\n    Point a\n',
     }
     expect(() => loadModule('main', registry)).toThrow(/type Triangle is already declared/)
   })
@@ -127,11 +127,11 @@ describe('errors name what went wrong', () => {
   it('rejects a field set to the wrong kind of thing', () => {
     const src = `import prelude
 
-define type Pair =
+define type Pair:
     Point a
     Point b
 
-define pair (n: Name) of (x: Point) (y: Line) => Pair =
+define pair (n: Name) of (x: Point) (y: Line) => Pair:
     tsx\`
     return declare(n, 'Pair', { a: x, b: y })
     \`
@@ -146,11 +146,11 @@ pair q of p l
   it('rejects a field left unset', () => {
     const src = `import prelude
 
-define type Pair =
+define type Pair:
     Point a
     Point b
 
-define half (n: Name) of (x: Point) => Pair =
+define half (n: Name) of (x: Point) => Pair:
     tsx\`
     return declare(n, 'Pair', { a: x })
     \`
@@ -167,11 +167,11 @@ describe('a user declares their own type', () => {
     const result = solve(`
 import prelude
 
-define type Segment =
+define type Segment:
     Point from
     Point to
 
-define segment (n: Name) from (p: Point) to (q: Point) => Segment =
+define segment (n: Name) from (p: Point) to (q: Point) => Segment:
     tsx\`
     segment(p, q)
     return declare(n, 'Segment', { from: p, to: q })
@@ -195,11 +195,11 @@ describe('a body can reach a field of something in a slot', () => {
     const result = solve(`
 import prelude
 
-define type Dot =
+define type Dot:
     Point p
     Scalar r
 
-define dot (n: Name) (x: Scalar) (y: Scalar) =
+define dot (n: Name) (x: Scalar) (y: Scalar):
     new Dot n
     n.p at x y
 
@@ -222,15 +222,15 @@ dot b 4 5
     const result = solve(`
 import prelude
 
-define type Pair =
+define type Pair:
     Point one
     Point two
 
-define type Twin =
+define type Twin:
     Pair left
     Pair right
 
-define twin (n: Name) =
+define twin (n: Name):
     new Twin n
     n.left.one at 0 0
     n.right.two at 9 9
@@ -240,5 +240,52 @@ twin w
     // `new` reached all the way down, and a two-step path resolves.
     expect(result.points.get('w.left.one')!.solutions![0]).toEqual({ x: 0, y: 0 })
     expect(result.points.get('w.right.two')!.solutions![0]).toEqual({ x: 9, y: 9 })
+  })
+})
+
+describe('`=` is a pattern word, not an operator', () => {
+  const point = (source: string, name: string) =>
+    solve(`import prelude\n${source}`).points.get(name)!.solutions![0]
+
+  it('declares and places a point', () => {
+    expect(point('point p = 3 5\n', 'p')).toEqual({ x: 3, y: 5 })
+  })
+
+  it('constrains a point that already exists', () => {
+    expect(point('triangle t with a b c\na = 0 0\nb = 6 0\nc = 3 4\n', 't.point1'))
+      .toEqual({ x: 0, y: 0 })
+  })
+
+  it('reads as equality, not assignment', () => {
+    // Saying it twice with different values is a contradiction, not a change of
+    // mind — the number cannot be both, so it has no possible value.
+    const r = solve('import prelude\nscalar r = 2\nr = 3\n').scalars.get('r')!
+    expect(r.solutions).toEqual([])
+  })
+
+  it('is content when repeated with the same value', () => {
+    const r = solve('import prelude\nscalar r = 2\nr = 2\n').scalars.get('r')!
+    expect(r.solutions).toEqual([2])
+  })
+
+  it('means only what its definitions say', () => {
+    // Nothing built in gives `=` a meaning: a program can define its own and it
+    // dispatches by slot type like any other pattern.
+    const result = solve(`
+import prelude
+
+define (c: Circle) = (r: Scalar) => Circle:
+    c with radius r
+    return c
+
+point o = 0 0
+circle k with center o
+k = 4
+`)
+    expect(result.circles.get('k')!.solutions![0]!.r).toBe(4)
+  })
+
+  it('leaves `at` working alongside it', () => {
+    expect(point('point p at 1 2\n', 'p')).toEqual({ x: 1, y: 2 })
   })
 })

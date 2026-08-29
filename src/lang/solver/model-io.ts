@@ -12,6 +12,7 @@ import {
 } from './model.js'
 import {
   makeWorkingLine, makeWorkingCircle, makeWorkingScalar, workingVal, isWorkingComplete, lineDofFromState,
+  intersectScalars,
 } from './types.js'
 import { isEqual } from './geom.js'
 
@@ -153,7 +154,9 @@ function applyConstraint(model: GeomModel, c: ResolvedConstraint): void {
       const ws = model.scalars.get(c.scalar)
       if (!ws) throw new ConstraintError(`scalar "${c.scalar}" is not declared`)
       if (typeof c.target === 'number') {
-        ws.values = [c.target]
+        // Narrowed, not assigned. Two different values for one number is a
+        // contradiction — `none` — rather than the second quietly winning.
+        ws.values = intersectScalars(ws.values, [c.target])
         ws.dof = 0
       } else {
         model.scalarBindings.push({ scalar: c.scalar, element: c.target.element, field: c.target.field })
