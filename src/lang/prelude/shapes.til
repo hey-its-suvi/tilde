@@ -20,6 +20,10 @@ define (p: Point) = (x: Scalar) (y: Scalar) => Point:
     p at x y
     return p
 
+define point (n: Name) = ( (x: Scalar) , (y: Scalar) ) => Point:
+    point n at x y
+    return n
+
 define point (n: Name) = (x: Scalar) (y: Scalar) => Point:
     point n at x y
     return n

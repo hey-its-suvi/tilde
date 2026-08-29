@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.42 — current
+## 0.3.43 — current
+
+- **A point can be written as a pair**: `point p = (3, 4)`, matching how the classic syntax spells it. Brackets and commas are now ordinary parts of a pattern, like `at` or `=`, rather than punctuation reserved by the language — so a definition can use them wherever they read well.
+- Not yet: a pair used as a *value*, so `circle c with center (0, 0)` still needs a named point. That waits on statements being able to contain other statements.
+
+## 0.3.42
 
 - **Roadmap additions**: a true/false type with a third "not known yet" value; the ability to *ask* whether something holds as well as assert it, using the same words for both (`is a parallel b`); and arithmetic, with a note on what makes solving it harder than writing it.
 

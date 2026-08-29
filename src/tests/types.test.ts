@@ -289,3 +289,27 @@ k = 4
     expect(point('point p at 1 2\n', 'p')).toEqual({ x: 1, y: 2 })
   })
 })
+
+describe('brackets and commas are pattern words too', () => {
+  it('places a point written as a pair', () => {
+    const at = (src: string) => solve(`import prelude\n${src}`).points.get('p')!.solutions![0]
+    expect(at('point p = (3, 4)\n')).toEqual({ x: 3, y: 4 })
+    expect(at('point p = (3,4)\n')).toEqual({ x: 3, y: 4 })
+  })
+
+  it('leaves the other spellings alone', () => {
+    const at = (src: string) => solve(`import prelude\n${src}`).points.get('p')!.solutions![0]
+    expect(at('point p = 3 4\n')).toEqual({ x: 3, y: 4 })
+    expect(at('point p at 3 4\n')).toEqual({ x: 3, y: 4 })
+  })
+
+  it('still reads a slot as a slot', () => {
+    // `(x: Scalar)` is a slot; a bare `(` is a word. Two tokens of lookahead
+    // separate them, so a pattern can hold both.
+    const { definitions } = parseFile(
+      'define f (n: Name) = ( (x: Scalar) , (y: Scalar) ) => Point:\n    point n at x y\n    return n\n',
+    )
+    const parts = definitions[0]!.pattern.map(p => (p.part === 'keyword' ? p.word : `<${p.name}>`))
+    expect(parts).toEqual(['f', '<n>', '=', '(', '<x>', ',', '<y>', ')'])
+  })
+})
