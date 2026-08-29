@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.40 — current
+## 0.3.41 — current
+
+- **A Limitations page**, listing what Tilde does not do yet and — more usefully — what it does *quietly*: constraints that are read and then ignored, answers chosen for you where your program was silent, and contradictions that leave a shape out rather than saying so. The aim is that you can tell a bug from a gap.
+- **The Roadmap covers the definition syntax** now, and two entries claiming work was unfinished have been removed because it since got done.
+
+## 0.3.40
 
 - **`=` can be written where it reads naturally**: `point p = 3 5`, `scalar r = 2`, `a = 0 0`. It is not a built-in operator — it is a character a definition may use in its pattern, like `at` or `on`, and it means whatever that definition does. `at` still works exactly as before, and a program can give `=` its own meaning for its own shapes.
 - **`=` reads as equality, never as assignment.** `r = 2` followed by `r = 3` does not change `r` to 3 — it says the number is both, which it cannot be, so `r` is left with no possible value. This was also a real bug: giving a number two different values used to keep the second one silently.

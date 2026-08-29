@@ -72,6 +72,7 @@ export default withMermaid(defineConfig({
       {
         text: 'Meta',
         items: [
+          { text: 'Limitations', link: '/limitations' },
           { text: 'Roadmap', link: '/roadmap' },
           { text: 'Changelog', link: '/changelog' },
         ],

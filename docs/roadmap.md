@@ -4,6 +4,55 @@ Ideas and planned work, roughly grouped by theme. Not ordered by priority.
 
 ---
 
+## Definition syntax
+
+The newer way of writing Tilde, where the language's own constructs are ordinary
+definitions rather than built into the parser. Reachable in the playground under
+`syntax: definitions`; the classic syntax is still the default.
+
+### Reaching inside a point, line or circle
+`t.point1` reaches a triangle's corner, because a corner is a whole point. There
+is no way to reach a *part* of a point, line or circle — no `p.x`, no `l.slope`.
+The obstacle is that a shape found two ways over has two possible answers, and
+those answers belong to the shape as a whole; splitting a line into three
+separate numbers would turn two real answers into eight false ones. Needs
+possible answers to be tracked for the whole drawing at once rather than shape by
+shape.
+
+### Two shapes that are the same shape
+Two numbers can be made the same number. Two points cannot. Saying `p = q` for
+points needs them to become one thing rather than one copying the other, so that
+they are still the same when neither is known yet. Sketched: keep both names,
+point them at one shape, and narrow to what both could be.
+
+### Arithmetic
+`2 * r` is not expressible. This is what stands between the language and things
+like `scale`, which needs to say one size is twice another rather than equal to
+it.
+
+### Bracketed sub-expressions
+`l parallel (m rotated 60)`. Statements are currently one line of words and
+values with no way to nest.
+
+### Settings and picking
+`pick`, `set unit` and `set grid` work in the classic syntax and have no
+definition-syntax equivalent yet.
+
+### Point literals
+`(2, 1)` as a value. Coordinates must currently be written as separate numbers:
+`point p at 2 1`.
+
+### Naming a definition's own working parts
+A definition that names something of its own — a helper circle, say — needs to
+take a name for the thing it is building, so each use can be told apart. One
+that takes no name reports this rather than letting two uses collide.
+
+### Retiring the classic front end
+Both syntaxes run side by side today. The older one is still what `solve()` uses
+and what the docs describe.
+
+---
+
 ## Language
 
 ### N-gon syntax
@@ -58,9 +107,6 @@ Same idea could extend to other hidden internals as more shapes grow them. Usefu
 ### Angle constraints
 Angle constraints parse correctly but are not yet wired into placement. The solver needs to use angle information when placing vertices — currently only length (circle) and line constraints drive placement.
 
-### Parallel / perpendicular constraints
-Parse but do nothing. Need solver support: a parallel constraint defines a directional locus; combined with a length or position it can fully place a vertex.
-
 ### Equal length constraint (`ab = cd`)
 Parses as `EqualityConstraint` but solver ignores it. When one length is known the other should be inferred, and both segments should participate in the constraint graph.
 
@@ -111,16 +157,6 @@ This gives users a first-class way to express "this is just construction, not th
 ---
 
 ## Infrastructure
-
-### Test suite
-As the constraint space grows, regressions are increasingly hard to spot by eye. Need a programmatic test suite covering:
-- Basic shapes and constraints
-- Subscript mode shapes
-- Edge cases: overdetermined, underdetermined, contradictory constraints
-- Unit handling
-- Pick / multiple solutions
-
-The `print` statement (currently parsed but not fully wired) is needed to make constraint values inspectable in tests.
 
 ### `print` statement
 Partially implemented in the parser. Needs solver support to read back computed values (lengths, angles, vertex positions) — essential for testing and debugging.
