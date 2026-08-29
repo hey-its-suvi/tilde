@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.41 — current
+## 0.3.42 — current
+
+- **Roadmap additions**: a true/false type with a third "not known yet" value; the ability to *ask* whether something holds as well as assert it, using the same words for both (`is a parallel b`); and arithmetic, with a note on what makes solving it harder than writing it.
+
+## 0.3.41
 
 - **A Limitations page**, listing what Tilde does not do yet and — more usefully — what it does *quietly*: constraints that are read and then ignored, answers chosen for you where your program was silent, and contradictions that leave a shape out rather than saying so. The aim is that you can tell a bug from a gap.
 - **The Roadmap covers the definition syntax** now, and two entries claiming work was unfinished have been removed because it since got done.

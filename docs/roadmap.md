@@ -25,10 +25,65 @@ points needs them to become one thing rather than one copying the other, so that
 they are still the same when neither is known yet. Sketched: keep both names,
 point them at one shape, and narrow to what both could be.
 
+### True and false
+
+A `Boolean` type, so a definition can answer a question rather than assert
+something. Three values rather than two: **true**, **false**, and **not known
+yet** — a drawing part-way through solving may not have settled whether two lines
+are parallel.
+
+That fits what numbers already do. A number holds the values it could still take:
+nothing known yet, exactly one, several, or none at all. A Boolean is the same
+idea over a domain of two, so "not known" is just *both still possible* and a
+contradiction is *neither*. No new machinery, only a smaller domain.
+
+### Asking as well as asserting
+
+Today `l parallel m` makes two lines parallel, and there is no way to ask whether
+they already are. The proposal is to write both, with the same words:
+
+```
+define (a: Line) parallel (b: Line) => Line:        # makes it so
+define (a: Line) parallel (b: Line) => Boolean:     # says whether it is so
+define is (v: Boolean) => Boolean:
+```
+
+so `is a parallel b` reads as `is (a parallel b)` — the inner one answers, the
+outer one checks the answer.
+
+This replaces a convention with something composable. The rule so far has been
+that a question is a *separate definition* whose name happens to start with `is`,
+unrelated to the thing it asks about. Under this, `is` is an ordinary definition
+taking a Boolean, and any relation can offer an asking form alongside its
+asserting one.
+
+Two things make it harder than it looks:
+
+- **It is overloading by *answer*, not by arguments.** Both definitions above
+  take two lines; only what they hand back differs. Choosing between them means
+  knowing what the surrounding statement expects — `is` wants a Boolean, so the
+  inner one must be the Boolean form. Working that out means carrying an
+  expectation inward, where today a statement is settled purely by the kinds of
+  things named in it. Two definitions that differ only in their answer are also
+  currently rejected as duplicates.
+- **It needs nesting first.** `is a parallel b` only means anything once a
+  statement can contain another statement — see *Bracketed sub-expressions*
+  above, and the left-to-right grouping rule it depends on.
+
 ### Arithmetic
 `2 * r` is not expressible. This is what stands between the language and things
-like `scale`, which needs to say one size is twice another rather than equal to
+like `scale`, which needs to say one size is *twice* another rather than equal to
 it.
+
+Two halves, and they can be taken separately. Writing the expression is the small
+one. Solving it is the large one: a size given as `2 * r` has to work backwards
+as readily as forwards, since which end becomes known first is not decided in
+advance. Numbers already carry the values they could still take, so an arithmetic
+layer would have to work over those sets rather than over single values.
+
+Handing the second half to an existing solver — numeric or symbolic — rather than
+writing one is a reasonable answer, and probably the right one. The shape of the
+language does not depend on which.
 
 ### Bracketed sub-expressions
 `l parallel (m rotated 60)`. Statements are currently one line of words and
