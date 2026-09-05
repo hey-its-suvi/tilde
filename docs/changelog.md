@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.42 — current
+## 0.3.43 — current
+
+- The pair syntax from 0.3.43 (`point p = (3, 4)`) has been withdrawn. It worked by treating brackets and commas as ordinary words in a pattern, which meant every place a pair could appear needed its own definition. Brackets are better used for grouping — so that `(3, 4)` is *a point* wherever one is expected, written once — and that is being designed rather than approximated.
+
+## 0.3.42
 
 - **Roadmap additions**: a true/false type with a third "not known yet" value; the ability to *ask* whether something holds as well as assert it, using the same words for both (`is a parallel b`); and arithmetic, with a note on what makes solving it harder than writing it.
 
