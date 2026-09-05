@@ -314,14 +314,7 @@ function parseHeader(tokens: Token[], line: number): { pattern: Pattern; returns
   }
 
   function parsePart(): PatternPart {
-    // A slot is `(name: Type)`. Any *other* bracket is an ordinary pattern word,
-    // which is what lets a pattern contain literal brackets and commas:
-    //     define point (n: Name) = ( (x: Scalar) , (y: Scalar) ):
-    const isSlot = at('LPAREN')
-      && tokens[i + 1]?.kind === 'WORD'
-      && tokens[i + 2]?.kind === 'COLON'
-
-    if (isSlot) {
+    if (at('LPAREN')) {
       i++
       const name = take('WORD', 'a slot name').value
       take('COLON', "':'")
