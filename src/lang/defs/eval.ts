@@ -19,7 +19,8 @@
 // against the table as it stands at that point. This is what makes
 // declaration-before-use the natural rule rather than an imposed one.
 
-import { lexHeader } from './lexer.js'
+import { lexHeader, type Token } from './lexer.js'
+import { groupTokens, render, type Node } from './tree.js'
 import { resolveStatement, resolvePath, keyOf, NAME, form, type Aliases, type Parts, type Store, type SymbolTable } from './resolve.js'
 import type { Match } from './match.js'
 import { loadModule, type HomeMap, type Loaded, type LocalsMap, type Registry, type TypeMap } from './modules.js'
@@ -112,7 +113,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
 
   const parts: Parts = new Map()
   const aliases: Aliases = new Map()
-  const ctx: Context = { store: { types, parts, decls, aliases }, constraints, homeOf, locals }
+  const ctx: Context = { store: { types, parts, decls, aliases }, constraints, homeOf, locals, calls: 0 }
   for (const unit of units) {
     for (const statement of unit.statements) {
       try {
@@ -139,6 +140,8 @@ type Context = {
   constraints: ConstraintSet
   homeOf: HomeMap
   locals: LocalsMap
+  /** How many anonymous calls have been keyed so far. */
+  calls: number
 }
 
 function evalStatement(
@@ -150,7 +153,46 @@ function evalStatement(
   if (depth > MAX_DEPTH) {
     throw new EvalError(`"${statement}" expanded more than ${MAX_DEPTH} levels deep — recursive definition?`)
   }
+
+  const tokens = lexHeader(statement, 0)
+  if (tokens.some(t => t.kind === 'LPAREN' || t.kind === 'RPAREN')) {
+    statement = render(settleGroups(groupTokens(tokens), statement, scope, ctx, depth))
+  }
   return evalMatch(resolveStatement(statement, ctx.store, scope), scope, ctx, depth)
+}
+
+/** Replace every bracketed group with the value it produces, innermost first.
+ *
+ *  For now a group is worked out from the inside alone, so it must mean exactly
+ *  one thing — the ordinary rule for any statement. Later the slot a group sits
+ *  in will be allowed to decide between readings; that walks this same tree,
+ *  carrying the expected type down before a group is settled rather than after. */
+function settleGroups(
+  nodes: readonly Node[],
+  whole: string,
+  scope: readonly Definition[],
+  ctx: Context,
+  depth: number,
+): Node[] {
+  return nodes.map(node => {
+    if (node.kind === 'token') return node
+
+    const settled = settleGroups(node.children, whole, scope, ctx, depth)
+    // Brackets only group: around a single name or number they change nothing.
+    if (settled.length === 1) return settled[0]!
+
+    const inner = render(settled)
+    const value = evalStatement(inner, scope, ctx, depth + 1)
+    if (value === null) {
+      throw new EvalError(
+        `\`(${inner})\` in "${whole}" produces nothing, so it cannot stand where a value is expected`,
+      )
+    }
+    const token: Token = typeof value === 'number'
+      ? { kind: 'NUMBER', value: String(value), col: node.col }
+      : { kind: 'WORD', value, col: node.col }
+    return { kind: 'token', token }
+  })
 }
 
 function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: number): Value {
@@ -170,7 +212,11 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   // A name the body writes on its own account belongs to this call, not to the
   // program. Rewriting it up front — before the body runs — is what keeps it
   // out of the caller's namespace and lets the same definition be used twice.
-  for (const local of ctx.locals.get(m.def) ?? []) env.set(local, localKey(m, local, env))
+  const locals = ctx.locals.get(m.def) ?? []
+  if (locals.length > 0) {
+    const prefix = callPrefix(m, env, ctx)
+    for (const local of locals) env.set(local, `${prefix}_${local}`)
+  }
 
   const value = m.def.body.body === 'tsx'
     ? runTsx(m, env, ctx)
@@ -183,24 +229,20 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   return value
 }
 
-/** Key a body-local name to this particular call, so calling the definition
- *  twice makes two of them. The `Name` slot supplies the prefix, which keeps the
- *  key readable and tied to something the caller actually wrote: `dot d …` gives
- *  `d_c`.
+/** What a call's own names are keyed by, so calling a definition twice makes two
+ *  of each. The `Name` slot supplies it when there is one, which keeps keys
+ *  readable and tied to something the caller wrote: `dot d …` gives `d_c`.
  *
- *  A definition with locals and no `Name` slot has nothing to key them by. That
- *  wants a per-call counter, which is deliberately not built yet — it can be
- *  added without disturbing anything here, so until then it is an honest error
- *  rather than a silent collision. */
-function localKey(m: Match, local: string, env: Map<string, Value>): string {
+ *  A definition with no `Name` slot — `(x: Scalar) , (y: Scalar) => Point`, which
+ *  makes a point nobody named — gets a counter instead: `_1`, `_2`. The leading
+ *  underscore is what the renderer already treats as "not drawn unless named",
+ *  so anonymous intermediates stay out of the picture until something calls them
+ *  by a name. One number per call, shared by all of that call's locals. */
+function callPrefix(m: Match, env: Map<string, Value>, ctx: Context): string {
   const nameSlot = m.def.pattern.find(p => p.part === 'slot' && p.type.name === NAME)
-  if (nameSlot === undefined || nameSlot.part !== 'slot') {
-    throw new EvalError(
-      `\`${form(m)}\` names \`${local}\` in its body but takes no ${NAME} slot to key it by,` +
-        ` so two calls would collide — give it a ${NAME} slot for now`,
-    )
-  }
-  return `${String(env.get(nameSlot.name))}_${local}`
+  if (nameSlot !== undefined && nameSlot.part === 'slot') return String(env.get(nameSlot.name))
+  ctx.calls += 1
+  return `_${ctx.calls}`
 }
 
 /** Run every body line, then evaluate whatever `return` designates. Order in the
@@ -237,7 +279,9 @@ function checkReturn(m: Match, value: Value, ctx: Context): void {
 
   const actual =
     typeof value === 'number' ? 'Scalar'
-    : typeof value === 'string' ? ctx.store.types.get(value)
+    // Through the alias: a name given by `call` has no entry of its own, only the
+    // element it stands for does.
+    : typeof value === 'string' ? ctx.store.types.get(keyOf(value, ctx.store))
     : undefined
 
   if (actual === undefined) {

@@ -34,7 +34,7 @@ export function buildSceneGraph(result: SolveResult, labels?: Labels): SceneGrap
   // Lines (skip anonymous elements created from inline tuples)
   for (const [name, lr] of result.lines) {
     const ls = drawn(lr)
-    if (name.startsWith('_') || ls.length === 0) continue
+    if (labelFor(name, labels).startsWith('_') || ls.length === 0) continue
     const status = solutionsStatus(lr)
     if (status === 'multiple') {
       ls.forEach((s, i) => {
@@ -75,7 +75,7 @@ export function buildSceneGraph(result: SolveResult, labels?: Labels): SceneGrap
   // Circles (skip anonymous synthesised circles)
   for (const [name, cr] of result.circles) {
     const cs = drawn(cr)
-    if (name.startsWith('_') || cs.length === 0) continue
+    if (labelFor(name, labels).startsWith('_') || cs.length === 0) continue
     const s = cs[0]!
     const centerPr = result.points.get(s.center)
     if (!centerPr || drawn(centerPr).length === 0) continue
@@ -87,7 +87,7 @@ export function buildSceneGraph(result: SolveResult, labels?: Labels): SceneGrap
   // Points (skip anonymous elements created from inline tuples)
   for (const [key, pr] of result.points) {
     const pts = drawn(pr)
-    if (key.startsWith('_') || pts.length === 0) continue
+    if (labelFor(key, labels).startsWith('_') || pts.length === 0) continue
     const status = solutionsStatus(pr)
     if (status === 'multiple') {
       pts.forEach((s, i) => {

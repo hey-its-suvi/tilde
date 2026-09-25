@@ -81,11 +81,14 @@ between them. Two gaps:
 The newer syntax — the playground's `syntax: definitions` — is younger than the
 classic one and does less.
 
-**Not available at all:** `pick`, `set unit`, `set grid`, point literals like
-`(2, 1)`, and arithmetic of any kind (`2 * r`).
+**Not available at all:** `pick`, `set unit`, `set grid`, and arithmetic of any
+kind (`2 * r`).
 
-**Statements are one line of words and values.** There is no way to nest one
-inside another, so `l parallel (m rotated 60)` cannot be written.
+**Brackets are worked out from the inside alone.** `line l through (1,2) (3,4)`
+works, because each group can only mean one thing. A group that could mean two —
+a pair of numbers read as a point *or* as a line in slope-intercept form — cannot
+yet be settled by the slot it sits in, so only one of those readings can be
+defined at a time.
 
 **You can reach a shape's parts but not a shape's numbers.** `t.point1` gives you
 a triangle's corner, because a corner is a whole point. There is no `p.x` — see
@@ -93,11 +96,6 @@ the roadmap for why that is harder than it looks.
 
 **Two numbers can be made the same number; two points cannot.** `r = w` works.
 `p = q` for points does not.
-
-**A definition that names something of its own must take a name.** If it builds a
-helper shape and gives it a name, it needs a name for the thing it is building
-too, so that using it twice makes two of them rather than a collision. A
-definition that takes no name reports this instead of quietly colliding.
 
 **A definition's helpers are still reachable.** They are given names based on
 what you called the thing, and nothing stops you using those names from outside.

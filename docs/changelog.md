@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.3.43 — current
+## 0.3.44 — current
+
+- **Brackets group.** `line l through (1,2) (3,4)` and `circle c with center (0,0) and radius 2` work: a bracketed group is worked out first and its result fills the slot it sits in, wherever that is. Groups can sit inside groups, and brackets around a single name or number change nothing.
+- **`point p = (3, 4)`**, and a pair of numbers anywhere a point is expected. A pair is an ordinary definition in the prelude rather than something built into the language, and brackets are required when it is used — not because the definition says so, but because a slot takes one word, one number or one bracketed group.
+- **A definition that makes something of its own no longer needs to be given a name.** Each use gets its own copy either way; previously one with nothing to name it by was refused.
+- Mismatched brackets are reported where they are — a bracket never closed, one that closes nothing, or an empty pair.
+
+## 0.3.43
 
 - The pair syntax from 0.3.43 (`point p = (3, 4)`) has been withdrawn. It worked by treating brackets and commas as ordinary words in a pattern, which meant every place a pair could appear needed its own definition. Brackets are better used for grouping — so that `(3, 4)` is *a point* wherever one is expected, written once — and that is being designed rather than approximated.
 

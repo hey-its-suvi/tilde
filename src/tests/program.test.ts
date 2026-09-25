@@ -244,9 +244,10 @@ dot e at 1 1
     expect([...types.keys()].sort()).toEqual(['a', 'b', 'l'])
   })
 
-  it('defers a definition with locals but no Name slot to key them by', () => {
-    expect(() =>
-      run('import prelude\n\ndefine grid:\n    point origin at 0 0\n\ngrid\n'),
-    ).toThrow(/takes no Name slot to key it by/)
+  it('keys a definition with no Name slot by call instead', () => {
+    // Nothing names the call, so a counter does: `_1_origin`, `_2_origin`. Two
+    // uses make two points rather than colliding.
+    const { types } = run('import prelude\n\ndefine grid:\n    point origin at 0 0\n\ngrid\ngrid\n')
+    expect([...types.keys()].sort()).toEqual(['_1_origin', '_2_origin'])
   })
 })

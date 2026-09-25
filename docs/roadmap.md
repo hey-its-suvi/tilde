@@ -66,9 +66,9 @@ Two things make it harder than it looks:
   expectation inward, where today a statement is settled purely by the kinds of
   things named in it. Two definitions that differ only in their answer are also
   currently rejected as duplicates.
-- **It needs nesting first.** `is a parallel b` only means anything once a
-  statement can contain another statement — see *Bracketed sub-expressions*
-  above, and the left-to-right grouping rule it depends on.
+- **It needs the slot to decide.** Brackets now nest, but a group is worked out
+  from the inside alone. `is (a parallel b)` needs the outer `is` to say which
+  `parallel` it wants — see *Letting the slot decide* below.
 
 ### Arithmetic
 `2 * r` is not expressible. This is what stands between the language and things
@@ -85,22 +85,23 @@ Handing the second half to an existing solver — numeric or symbolic — rather
 writing one is a reasonable answer, and probably the right one. The shape of the
 language does not depend on which.
 
-### Bracketed sub-expressions
-`l parallel (m rotated 60)`. Statements are currently one line of words and
-values with no way to nest.
+### Letting the slot decide
+Brackets nest: `line l through (1,2) (3,4)` works, and groups can sit inside
+groups. But each group is worked out on its own, before the statement around it,
+so it has to mean exactly one thing. A pair of numbers can reasonably mean two —
+a point `(x, y)` or a line in slope-intercept form `(m, k)` — and only the slot
+it sits in knows which.
+
+The planned approach: each group reports the kinds of thing it *could* produce,
+the surrounding statement picks the definition whose slot accepts one of them,
+and that choice is passed back down to settle the group. The same step is what
+lets `is a parallel b` choose between the asserting and asking forms of
+`parallel`. Needs definitions that differ only in what they return to stop being
+rejected as duplicates, and groups to be settled before any of them run.
 
 ### Settings and picking
 `pick`, `set unit` and `set grid` work in the classic syntax and have no
 definition-syntax equivalent yet.
-
-### Point literals
-`(2, 1)` as a value. Coordinates must currently be written as separate numbers:
-`point p at 2 1`.
-
-### Naming a definition's own working parts
-A definition that names something of its own — a helper circle, say — needs to
-take a name for the thing it is building, so each use can be told apart. One
-that takes no name reports this rather than letting two uses collide.
 
 ### Retiring the classic front end
 Both syntaxes run side by side today. The older one is still what `solve()` uses

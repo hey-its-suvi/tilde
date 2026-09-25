@@ -24,6 +24,23 @@ define point (n: Name) = (x: Scalar) (y: Scalar) => Point:
     point n at x y
     return n
 
+-- A pair of numbers is a point. Written bare here; used in brackets, since a slot
+-- takes one word, one number, or one bracketed group — so `line l through (1,2)
+-- (3,4)` works and nothing new is needed to make the brackets mandatory.
+--
+-- The point it makes has no name, so it is keyed by call (`_1_q`) and stays
+-- undrawn unless something names it.
+
+define (x: Scalar) , (y: Scalar) => Point:
+    point q at x y
+    return q
+
+-- `point p = (3, 4)`: the group makes an unnamed point, and `call` gives it yours.
+
+define point (n: Name) = (q: Point) => Point:
+    call q n
+    return q
+
 -- ─── Lines ──────────────────────────────────────────────────────────────────
 
 define line (n: Name) through (p: Point) (q: Point) => Line:
