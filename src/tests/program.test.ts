@@ -245,9 +245,9 @@ dot e at 1 1
   })
 
   it('keys a definition with no Name slot by call instead', () => {
-    // Nothing names the call, so a counter does: `_1_origin`, `_2_origin`. Two
+    // Nothing names the call, so a counter does: `_origin_1`, `_origin_2`. Two
     // uses make two points rather than colliding.
     const { types } = run('import prelude\n\ndefine grid:\n    point origin at 0 0\n\ngrid\ngrid\n')
-    expect([...types.keys()].sort()).toEqual(['_1_origin', '_2_origin'])
+    expect([...types.keys()].sort()).toEqual(['_origin_1', '_origin_2'])
   })
 })

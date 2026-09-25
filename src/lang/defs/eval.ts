@@ -214,8 +214,8 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   // out of the caller's namespace and lets the same definition be used twice.
   const locals = ctx.locals.get(m.def) ?? []
   if (locals.length > 0) {
-    const prefix = callPrefix(m, env, ctx)
-    for (const local of locals) env.set(local, `${prefix}_${local}`)
+    const key = localKeyer(m, env, ctx)
+    for (const local of locals) env.set(local, key(local))
   }
 
   const value = m.def.body.body === 'tsx'
@@ -229,20 +229,24 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   return value
 }
 
-/** What a call's own names are keyed by, so calling a definition twice makes two
- *  of each. The `Name` slot supplies it when there is one, which keeps keys
- *  readable and tied to something the caller wrote: `dot d …` gives `d_c`.
+/** How a call's own names are keyed, so calling a definition twice makes two of
+ *  each. The `Name` slot supplies the prefix when there is one, which keeps keys
+ *  readable and tied to something the caller wrote: `dot d …` gives `d_ring`.
  *
  *  A definition with no `Name` slot — `(x: Scalar) , (y: Scalar) => Point`, which
- *  makes a point nobody named — gets a counter instead: `_1`, `_2`. The leading
- *  underscore is what the renderer already treats as "not drawn unless named",
- *  so anonymous intermediates stay out of the picture until something calls them
- *  by a name. One number per call, shared by all of that call's locals. */
-function callPrefix(m: Match, env: Map<string, Value>, ctx: Context): string {
+ *  makes a point nobody named — is numbered instead: `_pt_1`, `_pt_2`. The name
+ *  comes first so a key reads as "the pt from the first such call". The leading
+ *  underscore is what the renderer treats as "not drawn unless named". One number
+ *  per call, shared by all of that call's locals. */
+function localKeyer(m: Match, env: Map<string, Value>, ctx: Context): (local: string) => string {
   const nameSlot = m.def.pattern.find(p => p.part === 'slot' && p.type.name === NAME)
-  if (nameSlot !== undefined && nameSlot.part === 'slot') return String(env.get(nameSlot.name))
+  if (nameSlot !== undefined && nameSlot.part === 'slot') {
+    const prefix = String(env.get(nameSlot.name))
+    return local => `${prefix}_${local}`
+  }
   ctx.calls += 1
-  return `_${ctx.calls}`
+  const n = ctx.calls
+  return local => `_${local}_${n}`
 }
 
 /** Run every body line, then evaluate whatever `return` designates. Order in the
