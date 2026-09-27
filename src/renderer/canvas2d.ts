@@ -126,6 +126,8 @@ export class Canvas2DRenderer implements Renderer {
     ctx.scale(scale, -scale)
 
     if (this.config.grid) this.drawGrid()
+    if (this.config.axes) this.drawAxes()
+    if (this.config.origin) this.drawOrigin()
     for (const ln  of this.scene.lines)    this.drawLine(ln)
     for (const ci  of this.scene.circles)  this.drawCircle(ci)
     for (const seg of this.scene.segments) this.drawSegment(seg)
@@ -136,38 +138,65 @@ export class Canvas2DRenderer implements Renderer {
 
   // ── Grid ──────────────────────────────────────────────────────────────────
 
+  /** The visible part of the world, accounting for pan. The ctx transform is
+   *  screen_x = (W/2+panX) + wx*scale, screen_y = (H/2+panY) - wy*scale;
+   *  solving for wx/wy at the screen edges gives these. */
+  private worldBounds() {
+    const { canvas, panX, panY } = this
+    const scale = SCALE * this.zoom
+    return {
+      xMin: -(canvas.width  / 2 + panX) / scale,
+      xMax:  (canvas.width  / 2 - panX) / scale,
+      yMin: -(canvas.height / 2 - panY) / scale,
+      yMax:  (canvas.height / 2 + panY) / scale,
+    }
+  }
+
   private drawGrid() {
-    const { ctx, canvas, panX, panY, zoom } = this
-    const scale = SCALE * zoom
-    const px = 1 / scale  // 1 screen pixel in world units
+    const { ctx } = this
+    const px = 1 / (SCALE * this.zoom)  // 1 screen pixel in world units
+    const { xMin, xMax, yMin, yMax } = this.worldBounds()
+    // The axes cover the lines through 0 when they are shown.
+    const skip0 = this.config.axes
 
-    // Visible world bounds (accounting for pan).
-    // ctx transform: screen_x = (W/2+panX) + wx*scale, screen_y = (H/2+panY) - wy*scale
-    // Solving for wx/wy at screen edges gives the bounds below.
-    const xMin = -(canvas.width  / 2 + panX) / scale
-    const xMax =  (canvas.width  / 2 - panX) / scale
-    const yMin = -(canvas.height / 2 - panY) / scale
-    const yMax =  (canvas.height / 2 + panY) / scale
-
-    // Minor grid lines (every 1 unit)
     ctx.strokeStyle = '#e8e8e8'
     ctx.lineWidth = px
     for (let x = Math.ceil(xMin); x <= Math.floor(xMax); x++) {
-      if (x === 0) continue
+      if (x === 0 && skip0) continue
       ctx.beginPath(); ctx.moveTo(x, yMin); ctx.lineTo(x, yMax); ctx.stroke()
     }
     for (let y = Math.ceil(yMin); y <= Math.floor(yMax); y++) {
-      if (y === 0) continue
+      if (y === 0 && skip0) continue
       ctx.beginPath(); ctx.moveTo(xMin, y); ctx.lineTo(xMax, y); ctx.stroke()
     }
+  }
 
-    // Axes
+  private drawAxes() {
+    const { ctx } = this
+    const px = 1 / (SCALE * this.zoom)
+    const { xMin, xMax, yMin, yMax } = this.worldBounds()
+
     ctx.strokeStyle = '#ccc'
     ctx.lineWidth = 1.5 * px
     ctx.beginPath()
     ctx.moveTo(0, yMin); ctx.lineTo(0, yMax)
     ctx.moveTo(xMin, 0); ctx.lineTo(xMax, 0)
     ctx.stroke()
+  }
+
+  /** A small dot at (0, 0), labelled O as geometry books do. */
+  private drawOrigin() {
+    const { ctx } = this
+    const scale = SCALE * this.zoom
+    ctx.save()
+    ctx.fillStyle = '#999'
+    ctx.beginPath()
+    ctx.arc(0, 0, 2.5 / scale, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.scale(1 / scale, -1 / scale)
+    ctx.font = '11px monospace'
+    ctx.fillText('O', -12, 14)
+    ctx.restore()
   }
 
   // ── Lines ─────────────────────────────────────────────────────────────────

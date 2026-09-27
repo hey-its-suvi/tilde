@@ -76,7 +76,12 @@ export type HoverInfo =
 // ─── Render Config ────────────────────────────────────────────────────────────
 
 export type RenderConfig = {
+  /** Faint lines at every whole unit. */
   grid: boolean
+  /** The x and y axes. */
+  axes: boolean
+  /** A marked, labelled point at (0, 0). */
+  origin: boolean
   /** Draw the part of a name after `_` as a subscript. On unless a program
    *  says `set subscripts off`. */
   subscripts: boolean
@@ -84,6 +89,8 @@ export type RenderConfig = {
 
 export const DEFAULT_CONFIG: RenderConfig = {
   grid: true,
+  axes: true,
+  origin: false,
   subscripts: true,
 }
 

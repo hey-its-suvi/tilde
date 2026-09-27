@@ -23,7 +23,7 @@ import { RuleBasedPick } from './pick/rule-based/index.js'
 import { BudgetPick } from './pick/budget/index.js'
 import { NonePick } from './pick/none/index.js'
 import { buildSceneGraph } from './output.js'
-import { runSource, isText, type Value } from '../defs/eval.js'
+import { runSource, isText, SETTINGS, type Value } from '../defs/eval.js'
 import { PRELUDE } from '../prelude/index.js'
 import { SceneGraph, RenderConfig, DEFAULT_CONFIG } from '../../renderer/interface.js'
 
@@ -64,8 +64,8 @@ export function solve(program: Program): { scene: SceneGraph; config: RenderConf
 // (a ConstraintSet handed to the same Solver), so the pick strategy applies
 // identically and the scene graph is built the same way.
 //
-// Config starts from the default and takes whatever `set` lines chose. Only
-// `subscripts` is a prelude definition so far; `set grid` is still to come.
+// Config starts from the default and takes whatever `set` lines chose. Each
+// on/off setting in the prelude is named after the RenderConfig field it sets.
 
 export function solveSource(
   source: string,
@@ -81,7 +81,9 @@ export function solveSource(
 
   const printed = prints.map(value => describe(value, result, labels))
   const config: RenderConfig = { ...DEFAULT_CONFIG }
-  if (settings.has('subscripts')) config.subscripts = settings.get('subscripts') === true
+  for (const key of SETTINGS) {
+    if (settings.has(key)) (config as Record<string, boolean>)[key] = settings.get(key) === true
+  }
   return { scene: buildSceneGraph(result, labels), config, printed }
 }
 

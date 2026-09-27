@@ -1,6 +1,6 @@
 # Settings
 
-Settings configure the figure environment. They must appear before any geometry declarations.
+Settings configure the figure environment. In the classic syntax they must appear before any geometry declarations. In the definition syntax, the on/off settings below can go anywhere — they change how the figure is shown, not what it is — and setting one both `on` and `off` is an error.
 
 ---
 
@@ -29,14 +29,40 @@ segment cd = 50mm    # also 5 cm internally
 
 ## Grid
 
-Toggles the background grid.
+Toggles the faint background lines at every whole unit.
 
 ```
 set grid on
 set grid off
 ```
 
+Default: `on`. In the classic syntax this also shows or hides the axes.
+
+---
+
+## Axes
+
+_Definition syntax only._ Toggles the x and y axes, separately from the grid.
+
+```
+set axes on
+set axes off
+```
+
 Default: `on`.
+
+---
+
+## Origin
+
+_Definition syntax only._ Marks the point (0, 0) with a dot, labelled O.
+
+```
+set origin on
+set origin off
+```
+
+Default: `off`.
 
 ---
 

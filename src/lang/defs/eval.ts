@@ -436,6 +436,10 @@ function runTsx(m: Match, env: Map<string, Value>, ctx: Context): Value {
   }
 }
 
+/** Every setting there is. Each is on or off, and named after the field of the
+ *  render config it sets. */
+export const SETTINGS: readonly string[] = ['grid', 'axes', 'origin', 'subscripts']
+
 const show = (v: unknown) => (v === true ? 'on' : v === false ? 'off' : String(v))
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -548,6 +552,9 @@ function makeApi(ctx: Context): Api {
     /** A setting is a fact like any other: saying it twice is fine, saying two
      *  different things is a contradiction, not a change of mind. */
     setting(name, value) {
+      if (!SETTINGS.includes(name)) {
+        throw new EvalError(`there is no setting called ${name} (there are ${SETTINGS.join(', ')})`)
+      }
       const existing = ctx.settings.get(name)
       if (existing !== undefined && existing !== value) {
         throw new EvalError(`${name} is already set to ${show(existing)}, so it cannot also be ${show(value)}`)

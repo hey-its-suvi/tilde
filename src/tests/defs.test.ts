@@ -175,8 +175,8 @@ describe('the prelude parses', () => {
       'new (ty: Name) (n: Name)',
       'print (x: Any)',
       'segment (p: Point) (q: Point)',
-      'set subscripts off',
-      'set subscripts on',
+      'set (s: Name) off',
+      'set (s: Name) on',
     ])
   })
 })
