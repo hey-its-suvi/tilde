@@ -7,6 +7,7 @@ import { solve, solveSource, setPick, getPick, PICK_NAMES, PickName } from '../l
 import { ConstraintError } from '../lang/solver/interface.js'
 import { ElaborationError } from '../lang/elaborate.js'
 import { Canvas2DRenderer } from '../renderer/canvas2d.js'
+import { labelRuns } from '../renderer/label.js'
 
 const canvas     = document.getElementById('canvas')    as HTMLCanvasElement
 const consoleEl  = document.getElementById('console')   as HTMLDivElement
@@ -29,10 +30,28 @@ window.addEventListener('resize', resizeCanvas)
 
 // ─── Console ──────────────────────────────────────────────────────────────────
 
+/** Whether the last program asked for `set subscripts on`. */
+let subscripts = false
+
+/** Put `text` in `el`, with the part of each name after `_` as a subscript when
+ *  that is on. Built from text nodes, never markup, so nothing in a name or a
+ *  printed string is ever read as HTML. */
+function showText(el: HTMLElement, text: string) {
+  if (!subscripts) { el.textContent = text; return }
+  el.replaceChildren(...labelRuns(text).map(run => {
+    if (!run.sub) return document.createTextNode(run.text)
+    const sub = document.createElement('sub')
+    sub.textContent = run.text
+    return sub
+  }))
+}
+
 function log(msg: string, kind: 'info' | 'error' = 'info') {
   const line = document.createElement('div')
   line.className = kind
-  line.textContent = msg
+  // Errors quote names exactly as written, underscores and all.
+  if (kind === 'error') line.textContent = msg
+  else showText(line, msg)
   consoleEl.appendChild(line)
   consoleEl.scrollTop = consoleEl.scrollHeight
 }
@@ -43,9 +62,11 @@ function clearConsole() { consoleEl.innerHTML = '' }
 
 function compile(source: string) {
   clearConsole()
+  subscripts = false
   try {
     if (mode === 'definitions') {
       const { scene, config, printed } = solveSource(source)
+      subscripts = config.subscripts
       renderer.render(scene, config)
       for (const line of printed) log(line)
       log('OK')
@@ -253,21 +274,21 @@ canvas.addEventListener('mousemove', (e) => {
     tooltip.style.top  = `${e.clientY - rect.top  - 8}px`
 
     if (info.kind === 'segment') {
-      tooltip.textContent = `${info.solutions === 'infinite' ? '~' : ''}  [${info.label}]`
+      showText(tooltip, `${info.solutions === 'infinite' ? '~' : ''}  [${info.label}]`)
     } else if (info.kind === 'point') {
-      tooltip.textContent = `${info.label}  (${info.x.toFixed(2)}, ${info.y.toFixed(2)})`
+      showText(tooltip, `${info.label}  (${info.x.toFixed(2)}, ${info.y.toFixed(2)})`)
     } else if (info.kind === 'line') {
       const prefix = info.solutions === 'infinite' ? '~' : info.solutions === 'multiple' ? '?' : ''
-      tooltip.textContent = `${prefix}  ${info.label}  ${formatLineEq(info.a, info.b, info.c)}`
+      showText(tooltip, `${prefix}  ${info.label}  ${formatLineEq(info.a, info.b, info.c)}`)
     } else if (info.kind === 'circle') {
       const prefix = info.solutions === 'infinite' ? '~' : info.solutions === 'multiple' ? '?' : ''
-      tooltip.textContent = `${prefix}  ${info.label}  center (${fmt(info.cx)}, ${fmt(info.cy)})  r=${fmt(info.r)}`
+      showText(tooltip, `${prefix}  ${info.label}  center (${fmt(info.cx)}, ${fmt(info.cy)})  r=${fmt(info.r)}`)
     } else {
       // Unhandled kind — show whatever label we have so we don't leak the
       // previously-set tooltip text. Any new shape gets a placeholder until a
       // proper formatter is added above.
       const label = (info as { label?: string }).label
-      tooltip.textContent = label ? `${label}  (no format)` : '(no format)'
+      showText(tooltip, label ? `${label}  (no format)` : '(no format)')
     }
   } else {
     tooltip.style.display = 'none'

@@ -66,7 +66,12 @@ export type Program = {
   /** What `print` asked for, in order. Filled in only after solving, since a
    *  named number has no value until then. */
   prints: Value[]
+  /** What `set` lines chose, by setting name. How the result is shown, not what
+   *  it is, so these are read after solving and never reach the solver. */
+  settings: Settings
 }
+
+export type Settings = Map<string, unknown>
 
 /** Types the solver stores as elements. Anything else (Triangle) is a purely
  *  language-level tag: it types names for dispatch, and its body emits the
@@ -135,6 +140,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
   const ctx: Context = {
     store: { types, parts, decls, aliases, owned: new Map(), frames: [] },
     constraints, homeOf, locals, calls: 0, frameDefs: new Map(), prints: [],
+    settings: new Map(),
   }
   for (const unit of units) {
     for (const statement of unit.statements) {
@@ -145,7 +151,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
       }
     }
   }
-  return { constraints, types, parts, aliases, prints: ctx.prints }
+  return { constraints, types, parts, aliases, prints: ctx.prints, settings: ctx.settings }
 }
 
 /** Prefix an error with where the statement was, when we know. Statements
@@ -168,6 +174,7 @@ type Context = {
   frameDefs: Map<number, string>
   /** Values `print` was given, reported after solving. */
   prints: Value[]
+  settings: Settings
 }
 
 function evalStatement(
@@ -382,6 +389,7 @@ type Api = {
   mint: (name: string, type: string) => string
   alias: (name: string, existing: string) => string
   print: (value: Value) => void
+  setting: (name: string, value: unknown) => void
 }
 
 const isIdentifier = (s: string) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(s)
@@ -398,13 +406,13 @@ function runTsx(m: Match, env: Map<string, Value>, ctx: Context): Value {
     }
   }
 
-  const params = [...slots, 'declare', 'constrain', 'segment', 'mint', 'alias', 'print']
+  const params = [...slots, 'declare', 'constrain', 'segment', 'mint', 'alias', 'print', 'setting']
   const args = [
     // Text reaches a body as a String object: it joins and compares like a
     // string, so `a + b` just concatenates, yet stays distinguishable from a
     // bare string, which is how an element's key arrives.
     ...slots.map(s => { const v = env.get(s)!; return isText(v) ? new String(v.text) : v }),
-    api.declare, api.constrain, api.segment, api.mint, api.alias, api.print,
+    api.declare, api.constrain, api.segment, api.mint, api.alias, api.print, api.setting,
   ]
 
   let body: (...a: unknown[]) => Value
@@ -427,6 +435,8 @@ function runTsx(m: Match, env: Map<string, Value>, ctx: Context): Value {
     throw new EvalError(`\`${form(m)}\` failed while running: ${message(e)}`)
   }
 }
+
+const show = (v: unknown) => (v === true ? 'on' : v === false ? 'off' : String(v))
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -533,6 +543,16 @@ function makeApi(ctx: Context): Api {
 
     print(value) {
       ctx.prints.push((value as unknown) instanceof String ? { text: String(value) } : value)
+    },
+
+    /** A setting is a fact like any other: saying it twice is fine, saying two
+     *  different things is a contradiction, not a change of mind. */
+    setting(name, value) {
+      const existing = ctx.settings.get(name)
+      if (existing !== undefined && existing !== value) {
+        throw new EvalError(`${name} is already set to ${show(existing)}, so it cannot also be ${show(value)}`)
+      }
+      ctx.settings.set(name, value)
     },
   }
   return api

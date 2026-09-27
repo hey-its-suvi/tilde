@@ -240,6 +240,23 @@ define print (x: Any):
     print(x)
     `
 
+-- ─── Settings ──────────────────────────────────────────────────────────────
+-- How the figure is shown, not what it is: nothing here reaches the solver, so
+-- a `set` line means the same wherever it is written. Each choice is its own
+-- definition — `on` and `off` are words in the pattern, not a value passed in.
+-- Two different choices for one setting contradict each other.
+
+-- `t_1` is labelled t₁, `t_1_2` t₁,₂ and `t_1.point_2` t₁.point₂.
+define set subscripts on:
+    tsx`
+    setting('subscripts', true)
+    `
+
+define set subscripts off:
+    tsx`
+    setting('subscripts', false)
+    `
+
 -- ─── Drawn edges ────────────────────────────────────────────────────────────
 -- A segment is a drawn join between two points, not a constraint.
 

@@ -153,7 +153,10 @@ rejected as duplicates, and groups to be settled before any of them run.
 
 ### Settings and picking
 `pick`, `set unit` and `set grid` work in the classic syntax and have no
-definition-syntax equivalent yet.
+definition-syntax equivalent yet. The way in exists: `set subscripts on` is a
+prelude definition backed by a `setting()` call, and the others can follow it.
+Still to decide: whether `set unit` has to come before the geometry, as it does
+in the classic syntax.
 
 ### Retiring the classic front end
 Both syntaxes run side by side today. The older one is still what `solve()` uses

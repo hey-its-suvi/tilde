@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseFile } from '../lang/defs/parser.js'
-import { runSource } from '../lang/defs/eval.js'
+import { runModules, runSource } from '../lang/defs/eval.js'
 import { loadModule, type Registry } from '../lang/defs/modules.js'
 import { PRELUDE } from '../lang/prelude/index.js'
 import { Solver } from '../lang/solver/solver.js'
@@ -8,6 +8,15 @@ import { GeometricPropagate } from '../lang/solver/propagate/geometric/index.js'
 import { RuleBasedPick } from '../lang/solver/pick/rule-based/index.js'
 
 const run = (source: string) => runSource(source, PRELUDE)
+
+/** Run `source`, then one more statement that skips the source parser. A local's
+ *  key (`_c_1`) cannot be written in a program — no name may start with `_` — so
+ *  this is how to reach one and check that it is closed off all the same. */
+const runThenInternal = (source: string, statement: string) => {
+  const loaded = loadModule('main', { ...PRELUDE, main: source })
+  loaded.order.at(-1)!.statements.push({ text: statement, line: 0 })
+  return runModules(loaded)
+}
 
 const solve = (source: string) =>
   new Solver(new GeometricPropagate(), new RuleBasedPick()).solve(run(source).constraints)
@@ -227,7 +236,8 @@ dot e at 1 1
   it('ends a local\'s name when its call returns', () => {
     // The circle still exists — the drawing may depend on it — but nothing
     // outside the call can name it again.
-    expect(() => run(`${dot}_c_1 with radius 9\n`)).toThrow(
+    expect(() => run(`${dot}_c_1 with radius 9\n`)).toThrow(/'_c_1' starts with '_'/)
+    expect(() => runThenInternal(dot, '_c_1 with radius 9')).toThrow(
       /"c" was local to `dot \(n: Name\) at \(x: Scalar\) \(y: Scalar\)` and ended when it returned/,
     )
   })
@@ -251,7 +261,7 @@ define corner (n: Name):
 corner z
 `
     expect(() => run(src)).not.toThrow()
-    expect(() => run(`${src}_pt_2 at 5 5\n`)).toThrow(/was local to `corner \(n: Name\)`/)
+    expect(() => runThenInternal(src, '_pt_2 at 5 5')).toThrow(/was local to `corner \(n: Name\)`/)
   })
 
   it('lets a local be used freely while its call is running', () => {

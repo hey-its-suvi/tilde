@@ -77,10 +77,13 @@ export type HoverInfo =
 
 export type RenderConfig = {
   grid: boolean
+  /** Draw the part of a name after `_` as a subscript (`set subscripts on`). */
+  subscripts: boolean
 }
 
 export const DEFAULT_CONFIG: RenderConfig = {
   grid: true,
+  subscripts: false,
 }
 
 // ─── Renderer Interface ───────────────────────────────────────────────────────

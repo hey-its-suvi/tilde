@@ -1,6 +1,7 @@
 // ─── Canvas 2D Renderer ───────────────────────────────────────────────────────
 
-import { Renderer, SceneGraph, SceneLine, SceneCircle, SceneSegment, ScenePoint, RenderConfig, Solutions } from './interface.js'
+import { labelRuns } from './label.js'
+import { Renderer, SceneGraph, SceneLine, SceneCircle, SceneSegment, ScenePoint, RenderConfig, DEFAULT_CONFIG, Solutions } from './interface.js'
 
 const SCALE       = 60   // pixels per unit
 const DOT_RADIUS  = 3    // inner filled dot, screen pixels
@@ -16,7 +17,7 @@ const COLOR: Record<Solutions, string> = {
 export class Canvas2DRenderer implements Renderer {
   private ctx: CanvasRenderingContext2D
   private scene: SceneGraph = { segments: [], points: [], arcs: [], annotations: [], lines: [], circles: [], scalars: [] }
-  private config: RenderConfig = { grid: true }
+  private config: RenderConfig = { ...DEFAULT_CONFIG }
   private panX = 0   // screen pixels
   private panY = 0   // screen pixels
   private zoom = 1
@@ -233,8 +234,25 @@ export class Canvas2DRenderer implements Renderer {
     ctx.font = '11px monospace'
     ctx.fillStyle = color
     const label = ln.solutionIndex !== undefined ? `${ln.label} ${ln.solutionIndex}` : ln.label
-    ctx.fillText(label, labelX, labelY)
+    this.drawLabel(ctx, label, labelX, labelY, 11)
     ctx.restore()
+  }
+
+  /** A name label, left-aligned at (x, y) in the current font. With subscripts
+   *  on, each subscript is drawn smaller and dropped below the baseline. */
+  private drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number): void {
+    if (!this.config.subscripts) {
+      ctx.fillText(text, x, y)
+      return
+    }
+    const font = ctx.font
+    const subSize = Math.round(size * 0.75)
+    for (const run of labelRuns(text)) {
+      ctx.font = run.sub ? `${subSize}px monospace` : font
+      ctx.fillText(run.text, x, run.sub ? y + size * 0.3 : y)
+      x += ctx.measureText(run.text).width
+    }
+    ctx.font = font
   }
 
   // ── Circles ───────────────────────────────────────────────────────────────
@@ -266,7 +284,7 @@ export class Canvas2DRenderer implements Renderer {
     ctx.scale(1 / scale, -1 / scale)
     ctx.font = '11px monospace'
     ctx.fillStyle = color
-    ctx.fillText(ci.label, labelX, labelY)
+    this.drawLabel(ctx, ci.label, labelX, labelY, 11)
     ctx.restore()
   }
 
@@ -346,7 +364,7 @@ export class Canvas2DRenderer implements Renderer {
     ctx.font = '12px monospace'
     ctx.fillStyle = COLOR[pt.solutions]
     const label = pt.solutionIndex !== undefined ? `${pt.label} ${pt.solutionIndex}` : pt.label
-    ctx.fillText(label, sx + RING_RADIUS + 4, sy - 3)
+    this.drawLabel(ctx, label, sx + RING_RADIUS + 4, sy - 3, 12)
     if (this.annotations && pt.solutions === 'one') {
       ctx.font = '10px monospace'
       ctx.fillStyle = '#888'
