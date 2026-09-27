@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { resolveStatement, form, type Store } from '../lang/defs/resolve.js'
 import type { Definition } from '../lang/defs/types.js'
+import { Scope } from '../lang/defs/scope.js'
 
 import { loadModule } from '../lang/defs/modules.js'
 import { PRELUDE } from '../lang/prelude/index.js'
@@ -14,7 +15,7 @@ const symbols = (entries: Record<string, string>): Store => ({
   types: new Map(Object.entries(entries)),
   parts: new Map(),
   decls: prelude.types,
-  aliases: new Map(),
+  aliases: new Scope(),
   owned: new Map(),
   frames: [],
 })

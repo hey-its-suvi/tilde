@@ -77,7 +77,7 @@ export function solveSource(
   // its vertices `t.point1`, but the user asked for `a`, so names given by `call`
   // become the labels. First one wins if something is named twice.
   const labels = new Map<string, string>()
-  for (const [name, key] of aliases) if (!labels.has(key)) labels.set(key, name)
+  for (const { name, key } of aliases.labels()) if (!labels.has(key)) labels.set(key, name)
 
   const printed = prints.map(value => describe(value, result, labels))
   const config: RenderConfig = { ...DEFAULT_CONFIG }

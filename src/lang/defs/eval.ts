@@ -19,9 +19,10 @@
 // against the table as it stands at that point. This is what makes
 // declaration-before-use the natural rule rather than an imposed one.
 
+import { Scope, asKey } from './scope.js'
 import { lexHeader, type Token } from './lexer.js'
 import { groupTokens, render, type Node } from './tree.js'
-import { resolveStatement, resolvePath, keyOf, NAME, form, type Aliases, type Parts, type Store, type SymbolTable } from './resolve.js'
+import { resolveStatement, resolvePath, keyOf, NAME, form, type Parts, type Store, type SymbolTable } from './resolve.js'
 import type { Match } from './match.js'
 import { loadModule, type HomeMap, type Loaded, type LocalsMap, type Registry, type TypeMap } from './modules.js'
 import type { Definition, Statement } from './types.js'
@@ -62,7 +63,7 @@ export type Program = {
   /** Element key → its fields → the key each references. */
   parts: Parts
   /** Name → the element key it stands for, for names given by `call`. */
-  aliases: Aliases
+  aliases: Scope
   /** What `print` asked for, in order. Filled in only after solving, since a
    *  named number has no value until then. */
   prints: Value[]
@@ -136,7 +137,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
   }
 
   const parts: Parts = new Map()
-  const aliases: Aliases = new Map()
+  const aliases = new Scope()
   const ctx: Context = {
     store: { types, parts, decls, aliases, owned: new Map(), frames: [] },
     constraints, homeOf, locals, calls: 0, frameDefs: new Map(), prints: [],
@@ -541,7 +542,7 @@ function makeApi(ctx: Context): Api {
       if (!ctx.store.types.has(key)) {
         throw new EvalError(`"${existing}" is not declared, so nothing can be called "${name}"`)
       }
-      ctx.store.aliases.set(name, key)
+      ctx.store.aliases.add({ name, key: asKey(key) })
       return key
     },
 

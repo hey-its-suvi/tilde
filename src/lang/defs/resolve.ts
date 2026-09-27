@@ -14,6 +14,7 @@ import { lexHeader } from './lexer.js'
 import { matchStatement, type Match } from './match.js'
 import type { TypeMap } from './modules.js'
 import type { Definition } from './types.js'
+import type { Scope } from './scope.js'
 
 export class ResolutionError extends Error {
   constructor(message: string) {
@@ -29,11 +30,6 @@ export type SymbolTable = Map<string, string>
  *  language already knows how to use. */
 export type Parts = Map<string, Map<string, string>>
 
-/** Name → the element key it stands for. Almost always identity: a name *is*
- *  its key until something gives a second name to the same element. `is` is what
- *  makes them differ, so `a` and `t.a` can be one box under two names. */
-export type Aliases = Map<string, string>
-
 /** Which call a local's key belongs to, and what it was called there — so a
  *  key used after its call has returned can be refused with a useful message. */
 export type Owned = { call: number; local: string; def: string }
@@ -43,7 +39,11 @@ export type Store = {
   types: SymbolTable
   parts: Parts
   decls: TypeMap
-  aliases: Aliases
+  /** Names given to an element that already has a key. Almost always empty for
+   *  a name: until keys are generated, a name *is* its key unless something
+   *  (`call`) gives a second name to the same element — so `a` and `t.point1`
+   *  can be one box under two names. */
+  aliases: Scope
   /** Local keys, by the call that made them. A key leaves this map when its
    *  call returns it — returning is how a local escapes. */
   owned: Map<string, Owned>
