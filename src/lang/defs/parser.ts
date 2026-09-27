@@ -41,6 +41,32 @@ const isBlank = (s: string) => s.trim() === ''
 const isComment = (s: string) => s.trimStart().startsWith('--')
 const isIndented = (s: string) => /^[ \t]/.test(s)
 
+/** `_` inside a name marks a subscript — `t_1` reads t₁ — so it must have
+ *  something on both sides. A name may not start with one either: that is
+ *  where evaluation keeps names of its own (`_<local>_<n>`), and a user's name
+ *  must never collide with them. Checked here, on what was written, rather than
+ *  in the lexer, which also re-reads statements after those names are filled in.
+ *  Each part of a path is its own name: `t_1.point_2` is fine, `t._a` is not. */
+function checkNames(text: string, lineNo: number): void {
+  for (const token of lexHeader(text, lineNo)) {
+    if (token.kind !== 'WORD') continue
+    for (const part of token.value.split('.')) {
+      const bare = part.replace(/'+$/, '')
+      const problem =
+        bare.startsWith('_') ? 'starts with' :
+        bare.endsWith('_') ? 'ends with' :
+        bare.includes('__') ? 'has two of' :
+        null
+      if (problem !== null) {
+        throw new DefinitionError(
+          `'${token.value}' ${problem} '_' — an underscore goes between a name and its subscript, as in t_1`,
+          lineNo,
+        )
+      }
+    }
+  }
+}
+
 // ─── Stage 1: framing ────────────────────────────────────────────────────────
 
 export function parseFile(src: string): ParsedFile {
@@ -70,7 +96,9 @@ export function parseFile(src: string): ParsedFile {
     }
 
     if (first !== 'define') {
-      statements.push({ text: dropTerminator(raw.trim()), line: lineNo })
+      const text = dropTerminator(raw.trim())
+      checkNames(text, lineNo)
+      statements.push({ text, line: lineNo })
       i++
       continue
     }
@@ -81,6 +109,8 @@ export function parseFile(src: string): ParsedFile {
         lineNo,
       )
     }
+
+    checkNames(raw, lineNo)
 
     // By token rather than by splitting on spaces: `define type:` has no space
     // before the colon, and would otherwise slip past as an ordinary definition
@@ -142,7 +172,9 @@ function takeTypeDecl(lines: string[], at: number, lineNo: number): { decl: Type
     const line = lines[i]!
     if (isBlank(line) || !isIndented(line)) break
     if (!isComment(line)) {
-      const field = parseField(dropTerminator(line.trim()), i + 1)
+      const text = dropTerminator(line.trim())
+      checkNames(text, i + 1)
+      const field = parseField(text, i + 1)
       if (seen.has(field.name)) {
         throw new DefinitionError(`${name} declares field '${field.name}' twice`, i + 1)
       }
@@ -214,7 +246,11 @@ function takeBody(lines: string[], start: number, defLine: number): { body: Body
   while (i < lines.length) {
     const line = lines[i]!
     if (isBlank(line) || !isIndented(line)) break
-    if (!isComment(line)) body.push(dropTerminator(line.trim()))
+    if (!isComment(line)) {
+      const text = dropTerminator(line.trim())
+      checkNames(text, i + 1)
+      body.push(text)
+    }
     i++
   }
 

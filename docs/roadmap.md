@@ -152,8 +152,12 @@ lets `is a parallel b` choose between the asserting and asking forms of
 rejected as duplicates, and groups to be settled before any of them run.
 
 ### Settings and picking
-`pick`, `set unit` and `set grid` work in the classic syntax and have no
-definition-syntax equivalent yet.
+`pick` and `set unit` work in the classic syntax and have no definition-syntax
+equivalent yet. On/off settings (`grid`, `axes`, `origin`, `subscripts`) exist,
+as `set (s: Name) on` / `off` in the prelude backed by a `setting()` call. `set
+unit` takes a value rather than on/off, so it needs its own definition. Still to
+decide: whether it has to come before the geometry, as it does in the classic
+syntax.
 
 ### Retiring the classic front end
 Both syntaxes run side by side today. The older one is still what `solve()` uses

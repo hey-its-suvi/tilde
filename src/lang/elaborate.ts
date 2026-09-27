@@ -41,7 +41,8 @@ export function elaborate(program: Program): ElaborationResult {
     else if (stmt.kind === 'PointDecl')      ctx.elaboratePoint(stmt)
     else if (stmt.kind === 'CircleDecl')     ctx.elaborateCircle(stmt)
     else if (stmt.kind === 'ConstraintStmt') ctx.elaborateConstraint(stmt.constraint)
-    else if (stmt.kind === 'SetGrid')        ctx.config.grid = stmt.on
+    // The classic `set grid` has always covered the axes too.
+    else if (stmt.kind === 'SetGrid')        ctx.config.grid = ctx.config.axes = stmt.on
     else if (stmt.kind === 'PickStmt')       ctx.picks.set(ctx.resolveVertexName(stmt.vertex), stmt.index)
   }
 

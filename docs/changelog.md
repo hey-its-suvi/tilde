@@ -1,6 +1,18 @@
 # Changelog
 
-## 0.3.51 — current
+## 0.3.53 — current
+
+- **`set grid`, `set axes` and `set origin`**, in the definition syntax, each `on` or `off`. The axes are now separate from the grid, so either can be shown alone. `set origin on` marks (0, 0) with a dot labelled O. Defaults: grid and axes on, origin off.
+- `set` with a setting that does not exist says which ones do.
+- Setting names stay free to use as names: `point origin at 0 0` still works, inside a definition too.
+
+## 0.3.52
+
+- **Subscripts**, in the definition syntax: the part of a name after `_` is drawn as a subscript, on the canvas, in tooltips and in printed output. `t_1` shows as t₁, `t_1_2` as t₁,₂, `l_1'` as l₁', and `t_1.point_2` as t₁.point₂. On by default; `set subscripts off` turns it off. The setting can go anywhere in the program; setting it both on and off is an error.
+- The classic syntax now draws its subscript names (`t_1`) as subscripts too, always.
+- In the definition syntax, a name can no longer start or end with `_`, or have two in a row. Names starting with `_` belong to the language's own hidden shapes, so a program could otherwise reach or clash with them.
+
+## 0.3.51
 
 - Withdrawn: brackets around a single word that names nothing no longer run it as a statement. Brackets around one word always mean just that word, as before 0.3.50.
 

@@ -23,7 +23,7 @@ import { RuleBasedPick } from './pick/rule-based/index.js'
 import { BudgetPick } from './pick/budget/index.js'
 import { NonePick } from './pick/none/index.js'
 import { buildSceneGraph } from './output.js'
-import { runSource, isText, type Value } from '../defs/eval.js'
+import { runSource, isText, SETTINGS, type Value } from '../defs/eval.js'
 import { PRELUDE } from '../prelude/index.js'
 import { SceneGraph, RenderConfig, DEFAULT_CONFIG } from '../../renderer/interface.js'
 
@@ -64,13 +64,13 @@ export function solve(program: Program): { scene: SceneGraph; config: RenderConf
 // (a ConstraintSet handed to the same Solver), so the pick strategy applies
 // identically and the scene graph is built the same way.
 //
-// Config is the default until `set grid` exists as a prelude definition —
-// RenderConfig is one boolean, so there is nothing else to carry across.
+// Config starts from the default and takes whatever `set` lines chose. Each
+// on/off setting in the prelude is named after the RenderConfig field it sets.
 
 export function solveSource(
   source: string,
 ): { scene: SceneGraph; config: RenderConfig; printed: string[] } {
-  const { constraints, aliases, prints } = runSource(source, PRELUDE)
+  const { constraints, aliases, prints, settings } = runSource(source, PRELUDE)
   const result = activeSolver.solve(constraints)
 
   // A drawing should say what the program wrote. `triangle t with a b c` keys
@@ -80,7 +80,11 @@ export function solveSource(
   for (const [name, key] of aliases) if (!labels.has(key)) labels.set(key, name)
 
   const printed = prints.map(value => describe(value, result, labels))
-  return { scene: buildSceneGraph(result, labels), config: { ...DEFAULT_CONFIG }, printed }
+  const config: RenderConfig = { ...DEFAULT_CONFIG }
+  for (const key of SETTINGS) {
+    if (settings.has(key)) (config as Record<string, boolean>)[key] = settings.get(key) === true
+  }
+  return { scene: buildSceneGraph(result, labels), config, printed }
 }
 
 /** One `print`, in words. A number written out prints as itself; anything named

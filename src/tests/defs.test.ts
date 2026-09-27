@@ -145,7 +145,7 @@ describe('the prelude parses', () => {
     // The design check: every convenient form composes from primitives, using
     // nothing a user could not use. If a hatch appears outside core, either the
     // primitives are wrong or something took a shortcut.
-    expect(hatched('core')).toBe(23)
+    expect(hatched('core')).toBe(25)
     expect(hatched('shapes')).toBe(0)
     expect(hatched('constraints')).toBe(0)
   })
@@ -153,10 +153,10 @@ describe('the prelude parses', () => {
   it('splits roughly evenly between primitive and composed', () => {
     const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
 
-    // Measured, not aspirational: 23 primitive to 19 composed. The earlier claim
+    // Measured, not aspirational: 25 primitive to 19 composed. The earlier claim
     // that "most of the prelude composes" was wrong — it is an even split, and
     // the composed half has been growing as convenience forms are added.
-    expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(23)
+    expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(25)
     expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(19)
   })
 
@@ -164,10 +164,10 @@ describe('the prelude parses', () => {
     const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
     const void_ = all.filter(d => d.returns === null).map(d => show(d.pattern))
 
-    // Four exceptions, each for a reason. `distance` takes a length rather than
+    // A few exceptions, each for a reason. `distance` takes a length rather than
     // returning one, because the solver stores a length for a pair of points but
-    // cannot hand a measurement back. The other three are acts rather than
-    // relations — they make, name, or draw something, and there is no subject to
+    // cannot hand a measurement back. The rest are acts rather than relations —
+    // they make, name, draw, show or set something, and there is no subject to
     // give back. Everything else returns its subject and chains (decision 4b).
     expect(void_.sort()).toEqual([
       'call (x: Any) (n: Name)',
@@ -175,6 +175,8 @@ describe('the prelude parses', () => {
       'new (ty: Name) (n: Name)',
       'print (x: Any)',
       'segment (p: Point) (q: Point)',
+      'set (s: Name) off',
+      'set (s: Name) on',
     ])
   })
 })

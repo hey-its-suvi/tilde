@@ -240,6 +240,30 @@ define print (x: Any):
     print(x)
     `
 
+-- ─── Settings ──────────────────────────────────────────────────────────────
+-- How the figure is shown, not what it is: nothing here reaches the solver, so
+-- a `set` line means the same wherever it is written. Two different choices for
+-- one setting contradict each other.
+--
+-- The setting's name goes in a slot rather than the pattern, so `grid` or
+-- `origin` stay free to name things with — a pattern word cannot also be a
+-- body's own name.
+--
+--   grid        faint lines at every whole unit            on
+--   axes        the x and y axes                           on
+--   origin      a marked point O at (0, 0)                 off
+--   subscripts  `t_1` drawn as t₁, `t_1_2` as t₁,₂        on
+
+define set (s: Name) on:
+    tsx`
+    setting(s, true)
+    `
+
+define set (s: Name) off:
+    tsx`
+    setting(s, false)
+    `
+
 -- ─── Drawn edges ────────────────────────────────────────────────────────────
 -- A segment is a drawn join between two points, not a constraint.
 
