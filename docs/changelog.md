@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.50 — current
+## 0.3.51 — current
+
+- Withdrawn: brackets around a single word that names nothing no longer run it as a statement. Brackets around one word always mean just that word, as before 0.3.50.
+
+## 0.3.50
 
 - **Text**: `"hello"`, with `\"`, `\\`, `\n` and `\t` as escapes. `print "hello"` prints it, and `+` joins two pieces of text: `print ("hello, " + "world")`. Text only joins to text — a number is not quietly turned into text.
 - Text stays distinct from a name spelled the same way: `print p` prints the point `p`, `print "p"` prints the letter.

@@ -204,14 +204,8 @@ function settleGroups(
     if (node.kind === 'token') return node
 
     const settled = settleGroups(node.children, whole, scope, ctx, depth)
-    // Brackets only group: around a single value they change nothing. A lone word
-    // that names nothing is a statement instead — `(greeting)` runs a definition
-    // that takes no arguments.
-    if (settled.length === 1) {
-      const only = settled[0]!
-      if (only.kind !== 'token' || only.token.kind !== 'WORD') return only
-      if (resolvePath(only.token.value, ctx.store) !== null) return only
-    }
+    // Brackets only group: around a single name or number they change nothing.
+    if (settled.length === 1) return settled[0]!
 
     const inner = render(settled)
     const value = evalStatement(inner, scope, ctx, depth + 1)

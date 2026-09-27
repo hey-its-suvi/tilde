@@ -47,15 +47,6 @@ describe('text is a value', () => {
     expect(fails('print ("r is " + 5)\n')).toThrow(/no definition of "\"r is \" \+ 5" fits/)
   })
 
-  it('can be returned by a definition', () => {
-    const src = `define greeting => Text:
-    return "hello"
-
-print (greeting)
-`
-    expect(printed(src)).toEqual(['hello'])
-  })
-
   it('can pass through a definition untouched', () => {
     const src = `define echo (t: Text) => Text:
     tsx\`
