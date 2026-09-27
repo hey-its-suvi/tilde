@@ -1012,6 +1012,93 @@ points at once — it can be added later without disturbing anything.
 
 ---
 
+## Possible values — every name is a set
+
+Direction agreed, system underneath not designed. Prior work in `READING.md`.
+
+**The problem.** `p` lies where line `l` meets circle `c`, at `(-1,-2)` or
+`(3,4)`. Storing that per field — `p.x ∈ {-1, 3}`, `p.y ∈ {-2, 4}` — gives four
+points, not two: the product of the shadows is a rectangle, and the answer is two
+dots inside it. What `p` can be is a subset of ℝ × ℝ, and most subsets are not
+products. Decision 15 met the same thing for a line's coefficients (2×2×2 = 8).
+
+**It does not stop at one element.** With `p` and `q` both on `l` and `c` and
+`p ≠ q`, each alone is `{A, B}`, but the pair is only `(A,B)` or `(B,A)`. Sets
+per element fail the same way sets per field do. What a program means is one set
+— every assignment to every unknown that satisfies every fact — and what an
+element can be is that set's shadow.
+
+**One type per kind of thing, not a set type beside it.** A name of type `T`
+stands for a set of possible `T`s; a single value is the one-member case, not a
+different type. Three reasons:
+
+- *How many* values is decided by solving, not by the source. `p on l; p on c`
+  has two, or one at a tangent. A type fixed before solving cannot say which.
+- A set type beside each type doubles every definition — `parallel` over
+  Line/LineSet, `on` four ways.
+- A geometry book says "let P be a point where l meets c". P is a point; which
+  one is what is not yet known. The type is the kind; the set is the knowledge.
+
+It fits what is already decided. Unknown is the whole space; `=` narrowing is
+intersection (decision 6); a contradiction is the empty set; `point p = (2, )` is
+the line `{2} × ℝ`, which is why `synthesizeAxisLine` was the right fix
+(decision 17); `one` / `multiple` / `infinite` become a summary of the set's
+size rather than the state itself.
+
+**Fields are read, not stored.** `p.x` and `p.y` are two reads of *one* choice of
+`p` — Curry calls this *call-time choice*. Reading `p.x` gives its shadow
+`{-1, 3}`; writing `p.x = 7` intersects `p` with the line `x = 7`. Neither makes
+the field a box of its own.
+
+**Not a collection.** `p` could be A *or* B — possible values, what `pick` is for.
+`l intersect c` is A *and* B — a collection, both exist. Keep the names apart;
+a list slot never stands in for the possibilities of one thing.
+
+### Settled
+
+1. **`print` shows the whole set.** `p is one of (-1,-2), (3,4)`, with no `pick`
+   needed first. Curry's *set functions* are the model: collect every value of
+   one expression. The care needed is inside a definition, where the argument's
+   choices were made by the caller.
+2. **Asking and asserting are two definitions.** `<=` is defined twice — once
+   returning Boolean (asking), once returning nothing (constraining) — and the
+   statement around it chooses, through outside-in type inference. Same shape as
+   decision 8's successor and brackets piece 2. Only the constraining form needs
+   loci (half-lines, half-planes) in the solver.
+3. **`pick` on one element does not narrow another** when nothing relates them.
+   `p` and `q` both on `l` and `c` each choose from the true intersection set on
+   their own; their pairs really are the full product. That stops holding the
+   moment a fact joins them — `p ≠ q`, `pq = 5` — and then choosing `p` must
+   narrow `q`. So independence is a *result* of the facts, not a rule: elements
+   no fact links are split into separate groups, linked ones share branches.
+
+### The shape of the system underneath
+
+Not built. The working model:
+
+> What a program means is a set of **branches**. A branch records which choices
+> it took, gives a value to every determined element, and keeps a leftover locus
+> — point, line, circle, arc, region — for the rest. Groups no fact links are kept
+> apart, so independent choices do not multiply.
+
+This is constraint logic programming's answer (a substitution plus leftover
+constraints) with a geometric solver where plain search would be. A figure with
+one value is one branch, no choices, nothing left over — the simple case costs
+nothing.
+
+Open inside it:
+
+- **Scalar ranges keep the same hazard.** Plain intervals per scalar are sets per
+  field again: `k - k` over `[0,1]` gives `[-1,1]`. Ranges stay inside a branch,
+  tied to its constraints.
+- **Arithmetic on unknown numbers** (`k + 1`) is Curry's *residuation* —
+  suspend until known — which is where Tilde stands now. Solving arithmetic both
+  ways is the way past it.
+- **Branches multiply.** n linked two-way choices are 2ⁿ branches. Splitting into
+  independent groups is the defence; how far it goes is untested.
+
+---
+
 ## Still unresolved
 
 - **Subtyping.** `Square <: Polygon <: Shape` is in the philosophy, but the
@@ -1164,6 +1251,10 @@ Built recently, each covered by tests and the changelog:
 - **Text**, `"…"`, joined only to text. No implicit number-to-text conversion.
 
 ## Open — needs a decision
+
+- **The set system under possible values.** Every name stands for a set;
+  meaning is a set of branches. Direction and three answers settled, system not
+  designed — see "Possible values", and `READING.md` for prior work.
 
 - **What `=` means.** Whether naming something and saying two things are the
   same are one feature or two. Leaning: one — declaring makes an empty shape and
