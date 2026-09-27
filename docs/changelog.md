@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.45 — current
+## 0.3.46 — current
+
+- **Roadmap:** an open question on what `=` should mean — whether naming something and saying two things are the same should be one feature or two.
+
+## 0.3.45
 
 - **Names inside a definition are private to it.** A name a definition uses for its own working parts ends when the definition finishes, the way a local variable does in most languages. The shapes it named are kept — the drawing may depend on them — but nothing outside can refer to them. To hand something back, a definition returns it; to expose a part permanently, make it a field of the type.
 - **A definition's helper shapes are no longer drawn.** Previously they appeared on the canvas under a generated name. Shapes built under the name the caller supplied, and fields of a declared type, are unaffected.

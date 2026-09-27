@@ -25,6 +25,20 @@ points needs them to become one thing rather than one copying the other, so that
 they are still the same when neither is known yet. Sketched: keep both names,
 point them at one shape, and narrow to what both could be.
 
+### What `=` means
+
+An open question. `=` currently has no built-in meaning: it is a word patterns can
+use, and the prelude defines it once per shape — `point p = (3, 4)`, `scalar r =
+2`, and so on. That works, but every new type needs its own definitions before
+`=` means anything for it.
+
+The underlying question is whether **giving something a name** and **saying two
+things are the same** are one feature or two. Most languages treat them as two:
+`x = 5` names a value, `a == b` compares, and only the second can be redefined
+per type. Tilde has no reassignment — `point p = (3, 4)` followed by `p = (1, 2)`
+is a contradiction, not an update — which suggests they may be the same thing
+here: declaring a name makes an empty shape, and every `=` after that narrows it.
+
 ### True and false
 
 A `Boolean` type, so a definition can answer a question rather than assert
