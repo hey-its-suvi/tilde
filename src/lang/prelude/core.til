@@ -220,6 +220,16 @@ define call (x: Any) (n: Name):
     alias(n, x)
     `
 
+-- ─── Printing ───────────────────────────────────────────────────────────────
+-- Shows a value in the console. Reported after solving, since a named number has
+-- no value until then — so what prints is the solved value, or that there are
+-- several, none, or nothing known yet.
+
+define print (x: Any):
+    tsx`
+    print(x)
+    `
+
 -- ─── Drawn edges ────────────────────────────────────────────────────────────
 -- A segment is a drawn join between two points, not a constraint.
 

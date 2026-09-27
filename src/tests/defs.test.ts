@@ -145,7 +145,7 @@ describe('the prelude parses', () => {
     // The design check: every convenient form composes from primitives, using
     // nothing a user could not use. If a hatch appears outside core, either the
     // primitives are wrong or something took a shortcut.
-    expect(hatched('core')).toBe(21)
+    expect(hatched('core')).toBe(22)
     expect(hatched('shapes')).toBe(0)
     expect(hatched('constraints')).toBe(0)
   })
@@ -153,10 +153,10 @@ describe('the prelude parses', () => {
   it('splits roughly evenly between primitive and composed', () => {
     const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
 
-    // Measured, not aspirational: 21 primitive to 19 composed. The earlier claim
+    // Measured, not aspirational: 22 primitive to 19 composed. The earlier claim
     // that "most of the prelude composes" was wrong — it is an even split, and
     // the composed half has been growing as convenience forms are added.
-    expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(21)
+    expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(22)
     expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(19)
   })
 
@@ -173,6 +173,7 @@ describe('the prelude parses', () => {
       'call (x: Any) (n: Name)',
       'distance between (p: Point) and (q: Point) is (d: Scalar)',
       'new (ty: Name) (n: Name)',
+      'print (x: Any)',
       'segment (p: Point) (q: Point)',
     ])
   })

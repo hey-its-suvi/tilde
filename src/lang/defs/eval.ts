@@ -47,6 +47,9 @@ export type Program = {
   parts: Parts
   /** Name → the element key it stands for, for names given by `call`. */
   aliases: Aliases
+  /** What `print` asked for, in order. Filled in only after solving, since a
+   *  named number has no value until then. */
+  prints: Value[]
 }
 
 /** Types the solver stores as elements. Anything else (Triangle) is a purely
@@ -115,7 +118,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
   const aliases: Aliases = new Map()
   const ctx: Context = {
     store: { types, parts, decls, aliases, owned: new Map(), frames: [] },
-    constraints, homeOf, locals, calls: 0, frameDefs: new Map(),
+    constraints, homeOf, locals, calls: 0, frameDefs: new Map(), prints: [],
   }
   for (const unit of units) {
     for (const statement of unit.statements) {
@@ -126,7 +129,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
       }
     }
   }
-  return { constraints, types, parts, aliases }
+  return { constraints, types, parts, aliases, prints: ctx.prints }
 }
 
 /** Prefix an error with where the statement was, when we know. Statements
@@ -147,6 +150,8 @@ type Context = {
   calls: number
   /** Each such call's surface form, for saying whose local something was. */
   frameDefs: Map<number, string>
+  /** Values `print` was given, reported after solving. */
+  prints: Value[]
 }
 
 function evalStatement(
@@ -352,6 +357,7 @@ type Api = {
   segment: (a: string, b: string) => void
   mint: (name: string, type: string) => string
   alias: (name: string, existing: string) => string
+  print: (value: Value) => void
 }
 
 const isIdentifier = (s: string) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(s)
@@ -368,10 +374,10 @@ function runTsx(m: Match, env: Map<string, Value>, ctx: Context): Value {
     }
   }
 
-  const params = [...slots, 'declare', 'constrain', 'segment', 'mint', 'alias']
+  const params = [...slots, 'declare', 'constrain', 'segment', 'mint', 'alias', 'print']
   const args = [
     ...slots.map(s => env.get(s)!),
-    api.declare, api.constrain, api.segment, api.mint, api.alias,
+    api.declare, api.constrain, api.segment, api.mint, api.alias, api.print,
   ]
 
   let body: (...a: unknown[]) => Value
@@ -490,6 +496,10 @@ function makeApi(ctx: Context): Api {
       }
       ctx.store.aliases.set(name, key)
       return key
+    },
+
+    print(value) {
+      ctx.prints.push(value)
     },
   }
   return api

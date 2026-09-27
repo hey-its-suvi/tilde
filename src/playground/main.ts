@@ -45,8 +45,9 @@ function compile(source: string) {
   clearConsole()
   try {
     if (mode === 'definitions') {
-      const { scene, config } = solveSource(source)
+      const { scene, config, printed } = solveSource(source)
       renderer.render(scene, config)
+      for (const line of printed) log(line)
       log('OK')
     } else {
       const ast = parse(lex(source))

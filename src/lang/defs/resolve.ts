@@ -170,8 +170,8 @@ function typesFit(m: Match, store: Store): boolean {
       continue
     }
     if (b.token.kind === 'NUMBER') {
-      // A numeric literal fills only a Scalar slot.
-      if (b.type.name !== 'Scalar') return false
+      // A numeric literal is a Scalar, so it fills a Scalar slot or an Any one.
+      if (b.type.name !== 'Scalar' && b.type.name !== ANY) return false
       continue
     }
     const found = resolvePath(b.token.value, store)

@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.48 — current
+## 0.3.49 — current
+
+- **`print`**, in the definition syntax: `print r` shows a value in the playground console, above the status line. It reports the *solved* value — so a number worked out from the geometry prints its answer, and when there are several possibilities, none, or nothing yet pins it down, it says so. Works on points, lines and circles as well as numbers: `q = (5, 0) or (-5, 0)`, `l: y = 0`.
+
+## 0.3.48
 
 - **Arithmetic on written numbers**: `scalar r = ((2 + 3) * 4)` is 20, and a sum or product can go anywhere a number can — `point p at (1 + 1) (10 / 5)`. The four operators are ordinary definitions in the prelude rather than built into the language.
 - **Negative numbers**: `-3`, `(1, -2)`, `at -3 4`. A minus touching a value on its left subtracts (`a - 3`, `a-3`); one with nothing value-like before it is a sign.
