@@ -59,6 +59,45 @@ define (s: Scalar) is (v: Scalar) => Scalar:
     return s
     `
 
+-- ─── Arithmetic ─────────────────────────────────────────────────────────────
+-- Ordinary definitions: `+` means what these say, like any other pattern word.
+-- There is no precedence yet, so a sum inside a product needs brackets —
+-- `(2 + 3) * 4`. A slot takes one word, number or bracketed group, so `2 + 3 * 4`
+-- simply matches nothing.
+--
+-- Only numbers written down can be worked out here. A named number is decided
+-- by the solver after these run, so `k + 1` cannot be computed yet — it is
+-- refused rather than guessed.
+
+define (a: Scalar) + (b: Scalar) => Scalar:
+    tsx`
+    if (typeof a !== 'number' || typeof b !== 'number') throw new Error(
+        'arithmetic on a named number is not supported yet — only on numbers written out')
+    return a + b
+    `
+
+define (a: Scalar) - (b: Scalar) => Scalar:
+    tsx`
+    if (typeof a !== 'number' || typeof b !== 'number') throw new Error(
+        'arithmetic on a named number is not supported yet — only on numbers written out')
+    return a - b
+    `
+
+define (a: Scalar) * (b: Scalar) => Scalar:
+    tsx`
+    if (typeof a !== 'number' || typeof b !== 'number') throw new Error(
+        'arithmetic on a named number is not supported yet — only on numbers written out')
+    return a * b
+    `
+
+define (a: Scalar) / (b: Scalar) => Scalar:
+    tsx`
+    if (typeof a !== 'number' || typeof b !== 'number') throw new Error(
+        'arithmetic on a named number is not supported yet — only on numbers written out')
+    if (b === 0) throw new Error('division by zero')
+    return a / b
+    `
+
 -- ─── Equality ───────────────────────────────────────────────────────────────
 -- `=` has no built-in meaning. It is a character a pattern may use, like `at`
 -- or `on`, and means whatever the definitions using it do. Here it reads as

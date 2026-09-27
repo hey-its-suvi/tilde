@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.3.47 — current
+## 0.3.48 — current
+
+- **Arithmetic on written numbers**: `scalar r = ((2 + 3) * 4)` is 20, and a sum or product can go anywhere a number can — `point p at (1 + 1) (10 / 5)`. The four operators are ordinary definitions in the prelude rather than built into the language.
+- **Negative numbers**: `-3`, `(1, -2)`, `at -3 4`. A minus touching a value on its left subtracts (`a - 3`, `a-3`); one with nothing value-like before it is a sign.
+- Not yet: arithmetic on a named number (`k + 1`), which is refused rather than guessed, and precedence — `2 + 3 * 4` needs brackets.
+
+## 0.3.47
 
 - **Names can carry primes**: `l'`, `A''`. Tilde has no reassignment — giving a name a second, different value is a contradiction — so something made from an existing shape gets a new name, the way geometry is written on paper: rotate `l` and call the result `l'`.
 - **Roadmap:** explicit redefinition, for the rare case where you really mean to replace a value, as a possibility.

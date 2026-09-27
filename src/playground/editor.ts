@@ -138,7 +138,7 @@ const tildeLanguage = StreamLanguage.define<TokenState>({
       state.expect = state.isDefine ? 'slotName' : 'none'
       return 'punctuation'
     }
-    if (stream.match(/[)[\]=,;`]/)) return 'punctuation'
+    if (stream.match(/[)[\]=,;`+\-*/]/)) return 'punctuation'
 
     const col = stream.pos
 

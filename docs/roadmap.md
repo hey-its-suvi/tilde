@@ -96,9 +96,15 @@ Two things make it harder than it looks:
   `parallel` it wants — see *Letting the slot decide* below.
 
 ### Arithmetic
-`2 * r` is not expressible. This is what stands between the language and things
-like `scale`, which needs to say one size is *twice* another rather than equal to
-it.
+`+ - * /` exist as ordinary definitions and work on numbers written out:
+`((2 + 3) * 4)` is 20. What is missing is `2 * r` for a *named* number — what
+stands between the language and things like `scale`, which needs to say one size
+is *twice* another rather than equal to it.
+
+**Precedence** is planned as a fixed table on the symbols — `* /` before `+ -`,
+the way ordinary maths reads — applied by inserting brackets before a statement
+is matched. Definitions keep giving the symbols their meaning; nothing about
+matching or dispatch changes. Until then, brackets are required.
 
 Two halves, and they can be taken separately. Writing the expression is the small
 one. Solving it is the large one: a size given as `2 * r` has to work backwards

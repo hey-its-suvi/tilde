@@ -81,8 +81,12 @@ between them. Two gaps:
 The newer syntax — the playground's `syntax: definitions` — is younger than the
 classic one and does less.
 
-**Not available at all:** `pick`, `set unit`, `set grid`, and arithmetic of any
-kind (`2 * r`).
+**Not available at all:** `pick`, `set unit` and `set grid`.
+
+**Arithmetic works only on numbers written out.** `scalar r = ((2 + 3) * 4)` is
+20, but `(k + 1)` with a named `k` is refused — a named number is worked out after
+the arithmetic runs, so there is nothing to add yet. There is also no precedence:
+`2 + 3 * 4` needs brackets to say which comes first.
 
 **Brackets are worked out from the inside alone.** `line l through (1,2) (3,4)`
 works, because each group can only mean one thing. A group that could mean two —
