@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.46 — current
+## 0.3.47 — current
+
+- **Names can carry primes**: `l'`, `A''`. Tilde has no reassignment — giving a name a second, different value is a contradiction — so something made from an existing shape gets a new name, the way geometry is written on paper: rotate `l` and call the result `l'`.
+- **Roadmap:** explicit redefinition, for the rare case where you really mean to replace a value, as a possibility.
+
+## 0.3.46
 
 - **Roadmap:** an open question on what `=` should mean — whether naming something and saying two things are the same should be one feature or two.
 

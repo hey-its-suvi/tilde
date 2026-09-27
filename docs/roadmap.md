@@ -39,6 +39,17 @@ per type. Tilde has no reassignment — `point p = (3, 4)` followed by `p = (1, 
 is a contradiction, not an update — which suggests they may be the same thing
 here: declaring a name makes an empty shape, and every `=` after that narrows it.
 
+### Redefinition
+
+Tilde has no reassignment: `point p = (3, 4)` followed by `p = (1, 2)` is a
+contradiction, and a new object made from an old one gets a new name — `l'`,
+`A''`. For the rare case where you really mean "no, this one", an explicit
+redefinition could be added, likely as `redefine p as (1, 2)` or `:=`. It would
+*replace* the definition everywhere rather than from that line onward — so
+anything depending on `p` follows the new value, and the order of statements still
+does not matter. Suited to interactive editing more than to written programs.
+Not `<=`, which is reserved for inequalities.
+
 ### True and false
 
 A `Boolean` type, so a definition can answer a question rather than assert

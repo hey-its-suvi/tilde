@@ -147,7 +147,7 @@ const tildeLanguage = StreamLanguage.define<TokenState>({
       return 'propertyName' // a literal is a value like any other
     }
 
-    if (stream.match(/[a-zA-Z_][a-zA-Z0-9_.]*/)) {
+    if (stream.match(/[a-zA-Z_][a-zA-Z0-9_.']*/)) {
       const expect = state.expect
       state.expect = 'none'
 

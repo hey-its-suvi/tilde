@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseFile } from '../lang/defs/parser.js'
+import { lexHeader } from '../lang/defs/lexer.js'
+import { solveSource } from '../lang/solver/index.js'
 import { runSource } from '../lang/defs/eval.js'
 import { loadModule, type Registry } from '../lang/defs/modules.js'
 import { PRELUDE } from '../lang/prelude/index.js'
@@ -287,5 +289,29 @@ k = 4
 
   it('leaves `at` working alongside it', () => {
     expect(point('point p at 1 2\n', 'p')).toEqual({ x: 1, y: 2 })
+  })
+})
+
+describe('primed names', () => {
+  it('reads a prime as part of the name', () => {
+    const words = lexHeader("line l' through a' a''", 0).map(t => t.value)
+    expect(words).toEqual(['line', "l'", 'through', "a'", "a''", ''])
+  })
+
+  it('names a new object made from an old one', () => {
+    // No reassignment, so a second line related to `l` gets its own name.
+    const scene = solveSource(`import prelude
+point a at 0 0
+point a' at 3 4
+line l through a a'
+line l' perpendicular l
+a' on l'
+`).scene
+    expect(scene.points.map(p => p.label)).toEqual(['a', "a'"])
+    expect(scene.lines.map(l => l.label)).toEqual(['l', "l'"])
+  })
+
+  it('does not let a name start with a prime', () => {
+    expect(() => lexHeader("point 'a", 0)).toThrow(/unexpected character/)
   })
 })

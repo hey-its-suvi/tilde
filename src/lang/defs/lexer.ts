@@ -40,6 +40,12 @@ const PUNCT: Record<string, TokenKind> = {
  *  still a number rather than a name. */
 const isWordChar = (c: string) => /[A-Za-z0-9_.]/.test(c)
 
+/** A prime may follow the start of a name — `l'`, `A''` — the way geometry names
+ *  a new object made from an old one. Tilde has no reassignment, so a rotated
+ *  line is a *new* line, and priming is how it gets a name. Never first: a name
+ *  cannot be only primes. */
+const continuesWord = (c: string) => c === "'" || isWordChar(c)
+
 /** Tokenise one header line. `line` is only used for error messages. */
 export function lexHeader(src: string, line: number): Token[] {
   const tokens: Token[] = []
@@ -76,7 +82,7 @@ export function lexHeader(src: string, line: number): Token[] {
 
     if (isWordChar(c)) {
       const start = i
-      while (i < src.length && isWordChar(src[i]!)) i++
+      while (i < src.length && continuesWord(src[i]!)) i++
       tokens.push({ kind: 'WORD', value: src.slice(start, i), col: start })
       continue
     }
