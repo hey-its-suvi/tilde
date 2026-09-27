@@ -1145,19 +1145,54 @@ Removed: `blocks.ts`, `blocks.test.ts`, `constraint-defs.ts`, `constraints.ts`,
 
 ---
 
-## Next
+## Where things stand
 
-1. **Arithmetic** — `2 * r`. What `scale` waits on; no expression language exists.
-2. **`with` as destructuring** — `t with a b c` on an existing `t`. Sugar over
-   `t.point1`, which works. The aliasing half is built (decision 16's `call`).
-3. **`pick`, `set unit`, `set grid`.** The legacy path supports these and the
-   ConstraintSet carries `picks`; no prelude definition emits them yet.
-4. **`draw`.** Decision 7 sketches it; nothing is built. Un-drawn must mean
-   *not rendered*, never *deleted*. The `_` prefix already hides an element from
-   the renderer, which covers the simple case.
-5. **Cut over `solve()`**, then delete `elaborate.ts` and the legacy front end.
-6. **Bracketed sub-expressions** (decision 3) — `l parallel (m rotated 60)`.
-7. **The pure scalar model.** Everything down to scalar boxes, `new` and `is` in
-   Tilde. Blocked on re-architecting multiple solutions as global branches —
-   ~1,100 lines of solver core. Deliberately deferred; nothing built forecloses
-   it, and decision 17 shows the practical half can be had without it.
+Built recently, each covered by tests and the changelog:
+
+- **Brackets group**, worked out from the inside alone: `line l through (1,2)
+  (3,4)`, `point p = (3, 4)`. A statement is a tree; groups run innermost first.
+  Brackets around one word are always just that word.
+- **Locals end when their definition returns.** Keys are `_<local>_<n>`, owned by
+  the call that made them; a local escapes only by being returned, and then
+  belongs to whoever it was returned into. Local shapes are kept but not drawn.
+- **No reassignment; primes in names** (decision 6, revised). `=` only narrows.
+- **Definition headers end in `:`**; `=` is an ordinary pattern word, defined
+  per shape in the prelude.
+- **Arithmetic on written numbers**, `+ - * /`, as prelude definitions. Negative
+  numbers lex. No precedence — brackets required.
+- **`print`**, reported after solving. How each kind prints lives in TypeScript.
+- **Text**, `"…"`, joined only to text. No implicit number-to-text conversion.
+
+## Open — needs a decision
+
+- **What `=` means.** Whether naming something and saying two things are the
+  same are one feature or two. Leaning: one — declaring makes an empty shape and
+  every `=` narrows it — but not settled. On the roadmap.
+- **Letting the slot decide (brackets piece 2).** `(2, 1)` as a point in one slot
+  and a line in another. Planned shape: groups report the set of types they could
+  produce, the outer statement picks, the choice passes back down (how Ada does
+  it). Needs definitions that differ only by return type to stop colliding, and
+  groups resolved before any run. Also what `is a parallel b` needs.
+- **Arithmetic on named numbers.** `k + 1` is refused today: evaluation only
+  builds facts, and the solver decides `k` later. Needs arithmetic the solver runs
+  in both directions, and care with numbers that have several possible values.
+- **A stage after solving.** Where printing a point could be written in terms of
+  printing its numbers, and measurements could return a value. Depends on `p.x`
+  and on running once per version of the drawing.
+- **Point equality and partly-known points.** `p = (2, 3)` when `p` is `(2, )`.
+  The partly-known point is an infinite set with shape; one route is to express
+  "x is 2" only as a constraint, so a point's own state matches a scalar's.
+- **`draw`.** Agreed design, not built: top-level names draw by default; inside a
+  definition `draw` is needed, and may only draw what the caller can reach (the
+  `Name`-slot thing or its fields), so labels are always unique and usable.
+- **Using a no-argument definition's result.** `define greeting => Text` runs as a
+  statement, but its value cannot be passed anywhere.
+
+## Smaller, whenever
+
+- Precedence for `+ - * /`, as automatic bracket insertion.
+- `(c: Circle) with center (p) and radius (r)` for an existing circle.
+- `print` for declared types, through their fields.
+- `pick`, `set unit`, `set grid` in the definition syntax.
+- Retiring the classic front end (`solve()`, `elaborate.ts`).
+- The pure scalar model — deliberately deferred.
