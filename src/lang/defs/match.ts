@@ -33,7 +33,7 @@ export type Match = {
 /** A token can fill a slot if it is a single atom — a name or a number. Parens,
  *  brackets, and operators are not atoms (yet — bracketed slot values come with
  *  expression support later). */
-const isAtom = (t: Token) => t.kind === 'WORD' || t.kind === 'NUMBER'
+const isAtom = (t: Token) => t.kind === 'WORD' || t.kind === 'NUMBER' || t.kind === 'STRING'
 
 /** Every definition whose pattern matches `statement` word-for-word, in table
  *  order. Empty when nothing fits. */

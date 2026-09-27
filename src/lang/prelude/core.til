@@ -98,6 +98,16 @@ define (a: Scalar) / (b: Scalar) => Scalar:
     return a / b
     `
 
+-- ─── Text ───────────────────────────────────────────────────────────────────
+-- Joined with `+`, the same word as adding numbers: which one a statement means
+-- is decided by what it is given, like any other overloaded pattern. Text joins
+-- only to text — there is no silent turning of a number into text.
+
+define (a: Text) + (b: Text) => Text:
+    tsx`
+    return a + b
+    `
+
 -- ─── Equality ───────────────────────────────────────────────────────────────
 -- `=` has no built-in meaning. It is a character a pattern may use, like `at`
 -- or `on`, and means whatever the definitions using it do. Here it reads as

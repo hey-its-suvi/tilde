@@ -114,6 +114,7 @@ const tildeLanguage = StreamLanguage.define<TokenState>({
       return 'punctuation'
     }
 
+    if (stream.match(/"(?:[^"\\]|\\.)*"?/)) return 'string'
     if (stream.match(/--.*/)) return 'comment'
 
     // A type body is `Type name` per line: the type reads as scaffolding, the
@@ -208,6 +209,7 @@ const tildeHighlight = HighlightStyle.define([
   { tag: tags.propertyName,  color: '#c2255c' }, // slot fillers: names and numbers
   { tag: tags.atom,          color: '#343a40' }, // pattern words
   { tag: tags.punctuation,   color: '#868e96' }, // brackets, types, tsx bodies
+  { tag: tags.string,        color: '#c2255c' }, // text is a value, like a number
 ])
 
 // ─── Tilde linter ─────────────────────────────────────────────────────────────

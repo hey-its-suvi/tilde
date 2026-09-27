@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.3.49 — current
+## 0.3.50 — current
+
+- **Text**: `"hello"`, with `\"`, `\\`, `\n` and `\t` as escapes. `print "hello"` prints it, and `+` joins two pieces of text: `print ("hello, " + "world")`. Text only joins to text — a number is not quietly turned into text.
+- Text stays distinct from a name spelled the same way: `print p` prints the point `p`, `print "p"` prints the letter.
+- A single word in brackets that names nothing now runs as a statement, so `(greeting)` calls a definition that takes no arguments. Brackets around a name that exists still change nothing.
+- **Roadmap:** working with solved values — a stage that runs after the solver, where printing a point could be written in terms of printing its numbers, and measurements could give back a value.
+
+## 0.3.49
 
 - **`print`**, in the definition syntax: `print r` shows a value in the playground console, above the status line. It reports the *solved* value — so a number worked out from the geometry prints its answer, and when there are several possibilities, none, or nothing yet pins it down, it says so. Works on points, lines and circles as well as numbers: `q = (5, 0) or (-5, 0)`, `l: y = 0`.
 

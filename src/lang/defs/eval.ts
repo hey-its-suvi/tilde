@@ -36,7 +36,23 @@ export class EvalError extends Error {
 
 /** A runtime value. Elements are their key in the ConstraintSet; literals are
  *  numbers. Definitions with no return type produce `null`. */
-export type Value = string | number | null
+export type Value = string | number | Text | null
+
+/** A piece of text. Wrapped rather than a bare string, because a bare string is
+ *  already how a value names an element — `"p"` the text and `p` the point have
+ *  to stay different things. */
+export type Text = { text: string }
+export const isText = (v: unknown): v is Text =>
+  typeof v === 'object' && v !== null && 'text' in v
+
+/** How a value is written back into a statement: an element by its key, a
+ *  number as itself, text quoted — so substituting it and re-reading the line
+ *  gives back the same value. */
+const valueSource = (v: Value): string =>
+  isText(v) ? JSON.stringify(v.text) : String(v)
+
+/** A string token's value, quotes and escapes removed. */
+const textOf = (token: Token): Text => ({ text: JSON.parse(token.value) as string })
 
 export type Program = {
   constraints: ConstraintSet
@@ -188,8 +204,14 @@ function settleGroups(
     if (node.kind === 'token') return node
 
     const settled = settleGroups(node.children, whole, scope, ctx, depth)
-    // Brackets only group: around a single name or number they change nothing.
-    if (settled.length === 1) return settled[0]!
+    // Brackets only group: around a single value they change nothing. A lone word
+    // that names nothing is a statement instead — `(greeting)` runs a definition
+    // that takes no arguments.
+    if (settled.length === 1) {
+      const only = settled[0]!
+      if (only.kind !== 'token' || only.token.kind !== 'WORD') return only
+      if (resolvePath(only.token.value, ctx.store) !== null) return only
+    }
 
     const inner = render(settled)
     const value = evalStatement(inner, scope, ctx, depth + 1)
@@ -200,6 +222,8 @@ function settleGroups(
     }
     const token: Token = typeof value === 'number'
       ? { kind: 'NUMBER', value: String(value), col: node.col }
+      : isText(value)
+      ? { kind: 'STRING', value: JSON.stringify(value.text), col: node.col }
       : { kind: 'WORD', value, col: node.col }
     return { kind: 'token', token }
   })
@@ -212,6 +236,10 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
     // is nothing to look up. Everything else is a key or a literal.
     if (b.token.kind === 'NUMBER') {
       env.set(b.slot, Number(b.token.value))
+      continue
+    }
+    if (b.token.kind === 'STRING') {
+      env.set(b.slot, textOf(b.token))
       continue
     }
     // A path binds the element it points at, so a body never sees the dots.
@@ -286,6 +314,7 @@ function runComposed(
   if (tokens.length === 1) {
     const only = tokens[0]!
     if (only.kind === 'NUMBER') return Number(only.value)
+    if (only.kind === 'STRING') return textOf(only)
     if (only.kind === 'WORD') return only.value
   }
   return evalStatement(result, scope, ctx, depth + 1)
@@ -300,6 +329,7 @@ function checkReturn(m: Match, value: Value, ctx: Context): void {
 
   const actual =
     typeof value === 'number' ? 'Scalar'
+    : isText(value) ? 'Text'
     // Through the alias: a name given by `call` has no entry of its own, only the
     // element it stands for does.
     : typeof value === 'string' ? ctx.store.types.get(keyOf(value, ctx.store))
@@ -329,7 +359,7 @@ function substitute(line: string, env: Map<string, Value>): string {
       if (t.kind !== 'WORD') return t.value
 
       const bound = env.get(t.value)
-      if (bound !== undefined) return String(bound)
+      if (bound !== undefined) return valueSource(bound)
 
       // A path rooted at a slot — `n.p` where `n` is the slot — substitutes its
       // root and keeps the rest. Without this a body could only reach a field of
@@ -376,7 +406,10 @@ function runTsx(m: Match, env: Map<string, Value>, ctx: Context): Value {
 
   const params = [...slots, 'declare', 'constrain', 'segment', 'mint', 'alias', 'print']
   const args = [
-    ...slots.map(s => env.get(s)!),
+    // Text reaches a body as a String object: it joins and compares like a
+    // string, so `a + b` just concatenates, yet stays distinguishable from a
+    // bare string, which is how an element's key arrives.
+    ...slots.map(s => { const v = env.get(s)!; return isText(v) ? new String(v.text) : v }),
     api.declare, api.constrain, api.segment, api.mint, api.alias, api.print,
   ]
 
@@ -388,7 +421,13 @@ function runTsx(m: Match, env: Map<string, Value>, ctx: Context): Value {
   }
 
   try {
-    return body(...args) ?? null
+    const result = (body(...args) as unknown) ?? null
+    // Text handed straight back is still a String object.
+    if (result instanceof String) return { text: String(result) }
+    // Otherwise a body returns a plain string either way; the definition's
+    // declared type says whether it is text or the key of an element.
+    if (typeof result === 'string' && m.def.returns?.name === 'Text') return { text: result }
+    return result as Value
   } catch (e) {
     if (e instanceof EvalError) throw e
     throw new EvalError(`\`${form(m)}\` failed while running: ${message(e)}`)
@@ -499,7 +538,7 @@ function makeApi(ctx: Context): Api {
     },
 
     print(value) {
-      ctx.prints.push(value)
+      ctx.prints.push((value as unknown) instanceof String ? { text: String(value) } : value)
     },
   }
   return api

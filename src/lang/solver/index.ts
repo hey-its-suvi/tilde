@@ -23,7 +23,7 @@ import { RuleBasedPick } from './pick/rule-based/index.js'
 import { BudgetPick } from './pick/budget/index.js'
 import { NonePick } from './pick/none/index.js'
 import { buildSceneGraph } from './output.js'
-import { runSource } from '../defs/eval.js'
+import { runSource, isText, type Value } from '../defs/eval.js'
 import { PRELUDE } from '../prelude/index.js'
 import { SceneGraph, RenderConfig, DEFAULT_CONFIG } from '../../renderer/interface.js'
 
@@ -86,9 +86,10 @@ export function solveSource(
 /** One `print`, in words. A number written out prints as itself; anything named
  *  prints as `name = …` with every value it could take — several, none, or not
  *  yet known are all answers worth seeing. */
-function describe(value: string | number | null, result: SolveResult, labels: Map<string, string>): string {
+function describe(value: Value, result: SolveResult, labels: Map<string, string>): string {
   if (value === null) return '(nothing)'
   if (typeof value === 'number') return num(value)
+  if (isText(value)) return value.text
 
   const name = labels.get(value) ?? value
   const found =

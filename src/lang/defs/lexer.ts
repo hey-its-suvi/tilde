@@ -18,6 +18,7 @@ export type TokenKind =
   | 'EQUALS'
   | 'COMMA'
   | 'OPERATOR'  // + - * /
+  | 'STRING'    // "text" — the value keeps its quotes, so it can be written back out as-is
   | 'EOF'
 
 export type Token = {
@@ -71,6 +72,23 @@ export function lexHeader(src: string, line: number): Token[] {
     const c = src[i]!
 
     if (c === ' ' || c === '\t') { i++; continue }
+
+    // Before the comment check, so `"a -- b"` is text rather than a cut-off line.
+    if (c === '"') {
+      const start = i
+      i++
+      while (i < src.length && src[i] !== '"') i += src[i] === '\\' ? 2 : 1
+      if (i >= src.length) throw new DefinitionError('text is never closed with a "', line)
+      i++
+      const raw = src.slice(start, i)
+      try {
+        JSON.parse(raw)
+      } catch {
+        throw new DefinitionError(`${raw} is not valid text — only \\" \\\\ \\n \\t are escapes`, line)
+      }
+      tokens.push({ kind: 'STRING', value: raw, col: start })
+      continue
+    }
 
     // `--` starts a comment, but only outside a word (so `a--b` is not one).
     if (c === '-' && src[i + 1] === '-') break

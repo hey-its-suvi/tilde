@@ -39,6 +39,27 @@ per type. Tilde has no reassignment — `point p = (3, 4)` followed by `p = (1, 
 is a contradiction, not an update — which suggests they may be the same thing
 here: declaring a name makes an empty shape, and every `=` after that narrows it.
 
+### Working with solved values
+
+Everything a program says runs *before* the solver: it builds up facts, and only
+afterwards are positions and sizes known. So anything that needs a solved value —
+printing it, measuring something, writing a point as `"(" + p.x + ", " + p.y + ")"`
+— has nowhere to run in Tilde itself. Today `print` works by recording what was
+asked and having the implementation fill it in after solving, which is why how a
+point or line prints cannot be written or changed in Tilde.
+
+The fix is a second stage: definitions that run once the solver is done. That is
+where `print` for a point could be written in terms of `print` for a number, and
+where `distance between a and b` could give back a length rather than only take
+one. Two things it depends on:
+
+- **Reaching a point's coordinates**, `p.x` — a coordinate is part of a point
+  rather than a shape of its own, which is the same question as *Reaching inside
+  a point, line or circle* above.
+- **Keeping possibilities together.** If `p` could be `(5, 0)` or `(-5, 0)`, the
+  second stage has to run once for each version of the drawing — pairing each `x`
+  with its own `y` — or it will produce answers that were never possible.
+
 ### Redefinition
 
 Tilde has no reassignment: `point p = (3, 4)` followed by `p = (1, 2)` is a

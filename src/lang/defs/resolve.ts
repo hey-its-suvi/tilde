@@ -174,6 +174,10 @@ function typesFit(m: Match, store: Store): boolean {
       if (b.type.name !== 'Scalar' && b.type.name !== ANY) return false
       continue
     }
+    if (b.token.kind === 'STRING') {
+      if (b.type.name !== 'Text' && b.type.name !== ANY) return false
+      continue
+    }
     const found = resolvePath(b.token.value, store)
     if (found === null) return false
     if (!compatible(found.type, b.type.name)) return false
