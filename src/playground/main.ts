@@ -8,6 +8,7 @@ import { ConstraintError } from '../lang/solver/interface.js'
 import { ElaborationError } from '../lang/elaborate.js'
 import { Canvas2DRenderer } from '../renderer/canvas2d.js'
 import { labelRuns } from '../renderer/label.js'
+import { DEFAULT_CONFIG } from '../renderer/interface.js'
 
 const canvas     = document.getElementById('canvas')    as HTMLCanvasElement
 const consoleEl  = document.getElementById('console')   as HTMLDivElement
@@ -30,8 +31,8 @@ window.addEventListener('resize', resizeCanvas)
 
 // ─── Console ──────────────────────────────────────────────────────────────────
 
-/** Whether the last program asked for `set subscripts on`. */
-let subscripts = false
+/** Whether the last program shows subscripts — on unless it said otherwise. */
+let subscripts = DEFAULT_CONFIG.subscripts
 
 /** Put `text` in `el`, with the part of each name after `_` as a subscript when
  *  that is on. Built from text nodes, never markup, so nothing in a name or a
@@ -62,7 +63,7 @@ function clearConsole() { consoleEl.innerHTML = '' }
 
 function compile(source: string) {
   clearConsole()
-  subscripts = false
+  subscripts = DEFAULT_CONFIG.subscripts
   try {
     if (mode === 'definitions') {
       const { scene, config, printed } = solveSource(source)
@@ -73,6 +74,7 @@ function compile(source: string) {
     } else {
       const ast = parse(lex(source))
       const { scene, config } = solve(ast)
+      subscripts = config.subscripts
       renderer.render(scene, config)
       log(`OK — ${ast.statements.length} statement(s)`)
     }

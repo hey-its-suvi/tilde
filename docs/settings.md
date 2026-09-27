@@ -42,14 +42,14 @@ Default: `on`.
 
 ## Subscripts
 
-_Definition syntax only._ Draws the part of a name after `_` as a subscript, on the canvas and in printed output.
+Draws the part of a name after `_` as a subscript, on the canvas and in printed output. `set subscripts` is definition syntax only; the classic syntax always shows subscripts.
 
 ```
-set subscripts on
 set subscripts off
+set subscripts on
 ```
 
-Default: `off`.
+Default: `on`.
 
 | Written | Shown |
 |---|---|

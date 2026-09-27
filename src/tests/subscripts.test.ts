@@ -48,8 +48,8 @@ print p
 })
 
 describe('set subscripts', () => {
-  it('is off unless set', () => {
-    expect(run('point t_1 at 0 0\n').config.subscripts).toBe(false)
+  it('is on unless set off', () => {
+    expect(run('point t_1 at 0 0\n').config.subscripts).toBe(true)
   })
 
   it('turns on and off', () => {
@@ -58,7 +58,7 @@ describe('set subscripts', () => {
   })
 
   it('means the same wherever it is written', () => {
-    expect(run('point t_1 at 0 0\nset subscripts on\n').config.subscripts).toBe(true)
+    expect(run('point t_1 at 0 0\nset subscripts off\n').config.subscripts).toBe(false)
   })
 
   it('may be said twice, but not two different ways', () => {
