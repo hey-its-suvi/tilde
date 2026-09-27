@@ -129,7 +129,7 @@ define dot (n: Name) at (x: Scalar) (y: Scalar) => Circle:
 dot d at 3 4;
 `)
     expect(result.points.get('d')!.solutions![0]).toEqual({ x: 3, y: 4 })
-    expect(result.circles.get('d_c')!.solutions![0]).toEqual({ center: 'd', r: 1 })
+    expect(result.circles.get('_c_1')!.solutions![0]).toEqual({ center: 'd', r: 1 })
   })
 
   it('treats a terminated and an unterminated program as identical', () => {
@@ -166,7 +166,7 @@ dot d at 3 4
     n at x y
     return c`))
     expect(result.points.get('d')!.solutions![0]).toEqual({ x: 3, y: 4 })
-    expect(result.circles.get('d_c')!.solutions![0]).toEqual({ center: 'd', r: 1 })
+    expect(result.circles.get('_c_1')!.solutions![0]).toEqual({ center: 'd', r: 1 })
   })
 
   it('catches a return that does not match the signature', () => {
@@ -178,7 +178,7 @@ dot d at 3 4
   it('accepts a whole statement, not just a name', () => {
     const result = solve(dot(`    point n at x y
     return circle c with center n and radius 2`))
-    expect(result.circles.get('d_c')!.solutions![0]).toEqual({ center: 'd', r: 2 })
+    expect(result.circles.get('_c_1')!.solutions![0]).toEqual({ center: 'd', r: 2 })
   })
 
   it('requires a return when the signature promises one', () => {
@@ -214,21 +214,50 @@ dot e at 1 1
   it('lets the same definition be used more than once', () => {
     // `c` is written literally in the body, so each call gets its own.
     const result = solve(dot)
-    expect(result.circles.get('d_c')!.solutions![0]).toEqual({ center: 'd', r: 1 })
-    expect(result.circles.get('e_c')!.solutions![0]).toEqual({ center: 'e', r: 1 })
+    expect(result.circles.get('_c_1')!.solutions![0]).toEqual({ center: 'd', r: 1 })
+    expect(result.circles.get('_c_2')!.solutions![0]).toEqual({ center: 'e', r: 1 })
   })
 
-  it('gives each call its own copy, under a key naming the call', () => {
+  it('gives each call its own copy, numbered by call', () => {
     const { types } = run(dot)
-    expect([...types.keys()].sort()).toEqual(['d', 'd_c', 'e', 'e_c'])
+    expect([...types.keys()].sort()).toEqual(['_c_1', '_c_2', 'd', 'e'])
     expect(types.has('c')).toBe(false)
   })
 
-  it('does not yet hide the local — the key is still reachable', () => {
-    // Uniquification, not encapsulation: two calls cannot collide, but nothing
-    // stops an outer statement naming `d_c` deliberately. Closing this is a
-    // separate decision, not an oversight.
-    expect(() => run(`${dot}d_c with radius 9\n`)).not.toThrow()
+  it('ends a local\'s name when its call returns', () => {
+    // The circle still exists — the drawing may depend on it — but nothing
+    // outside the call can name it again.
+    expect(() => run(`${dot}_c_1 with radius 9\n`)).toThrow(
+      /"c" was local to `dot \(n: Name\) at \(x: Scalar\) \(y: Scalar\)` and ended when it returned/,
+    )
+  })
+
+  it('lets a returned local out', () => {
+    // `(3, 4)` returns its point, so the caller may use it — that is how
+    // `point p = (3, 4)` works.
+    const { aliases } = run('import prelude\npoint p = (3, 4)\np at 3 4\n')
+    expect(aliases.get('p')).toBe('_pt_1')
+  })
+
+  it('keeps a value returned into a definition inside that definition', () => {
+    // `(1, 1)` hands its point to `corner`, not to the program — so once
+    // `corner` returns, the point is as unreachable as `corner`'s own locals.
+    const src = `import prelude
+
+define corner (n: Name):
+    point helper = (1, 1)
+    point n = (2, 2)
+
+corner z
+`
+    expect(() => run(src)).not.toThrow()
+    expect(() => run(`${src}_pt_2 at 5 5\n`)).toThrow(/was local to `corner \(n: Name\)`/)
+  })
+
+  it('lets a local be used freely while its call is running', () => {
+    // Nested definitions called from the body see it: `circle c with center n
+    // and radius 1` expands into several calls, all inside `dot`.
+    expect(() => run(dot)).not.toThrow()
   })
 
   it('leaves names that came from a slot alone', () => {

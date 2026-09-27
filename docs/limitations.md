@@ -97,9 +97,12 @@ the roadmap for why that is harder than it looks.
 **Two numbers can be made the same number; two points cannot.** `r = w` works.
 `p = q` for points does not.
 
-**A definition's helpers are still reachable.** They are given names based on
-what you called the thing, and nothing stops you using those names from outside.
-They are not private, only unlikely to be typed by accident.
+**A definition's helper shapes are not drawn.** A name used only inside a
+definition ends when the definition finishes, and so does any way of showing what
+it named. The shape still counts — if it holds something else in place, that
+still holds — but it does not appear. To show a part of what a definition builds,
+make it a field of the thing's type, or build it under the name the caller
+supplied. A way to ask for a helper to be drawn is planned.
 
 **A definition can only use what its own file imported.** Importing a file does
 not give you what *it* imported. This is deliberate, and matches how most

@@ -34,12 +34,22 @@ export type Parts = Map<string, Map<string, string>>
  *  makes them differ, so `a` and `t.a` can be one box under two names. */
 export type Aliases = Map<string, string>
 
+/** Which call a local's key belongs to, and what it was called there — so a
+ *  key used after its call has returned can be refused with a useful message. */
+export type Owned = { call: number; local: string; def: string }
+
 /** Everything resolution needs to know about what exists. */
 export type Store = {
   types: SymbolTable
   parts: Parts
   decls: TypeMap
   aliases: Aliases
+  /** Local keys, by the call that made them. A key leaves this map when its
+   *  call returns it — returning is how a local escapes. */
+  owned: Map<string, Owned>
+  /** Calls currently running, innermost last. A local's key is usable only
+   *  while its call is among them. */
+  frames: number[]
 }
 
 /** The element key a name stands for. */
@@ -109,9 +119,22 @@ export function resolveStatement(
   store: Store,
   defs: readonly Definition[],
 ): Match {
-  // A broken path deserves to say so, rather than surfacing as "nothing fits".
   for (const token of lexHeader(statement, 0)) {
-    if (token.kind !== 'WORD' || !token.value.includes('.')) continue
+    if (token.kind !== 'WORD') continue
+
+    // A definition's local names end when it returns. Its shapes live on — the
+    // drawing may depend on them — but nothing outside can name them again.
+    const head = token.value.split('.')[0]!
+    const owner = store.aliases.has(head) ? undefined : store.owned.get(head)
+    if (owner !== undefined && !store.frames.includes(owner.call)) {
+      throw new ResolutionError(
+        `"${owner.local}" was local to \`${owner.def}\` and ended when it returned` +
+          ` — to reach it from outside, return it or make it a field`,
+      )
+    }
+
+    // A broken path deserves to say so, rather than surfacing as "nothing fits".
+    if (!token.value.includes('.')) continue
     const problem = pathProblem(token.value, store)
     if (problem !== null) throw new ResolutionError(problem)
   }

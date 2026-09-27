@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.3.44 — current
+## 0.3.45 — current
+
+- **Names inside a definition are private to it.** A name a definition uses for its own working parts ends when the definition finishes, the way a local variable does in most languages. The shapes it named are kept — the drawing may depend on them — but nothing outside can refer to them. To hand something back, a definition returns it; to expose a part permanently, make it a field of the type.
+- **A definition's helper shapes are no longer drawn.** Previously they appeared on the canvas under a generated name. Shapes built under the name the caller supplied, and fields of a declared type, are unaffected.
+- Referring to a finished definition's private name now says so, rather than reporting that nothing matches.
+
+## 0.3.44
 
 - **Brackets group.** `line l through (1,2) (3,4)` and `circle c with center (0,0) and radius 2` work: a bracketed group is worked out first and its result fills the slot it sits in, wherever that is. Groups can sit inside groups, and brackets around a single name or number change nothing.
 - **`point p = (3, 4)`**, and a pair of numbers anywhere a point is expected. A pair is an ordinary definition in the prelude rather than something built into the language, and brackets are required when it is used — not because the definition says so, but because a slot takes one word, one number or one bracketed group.

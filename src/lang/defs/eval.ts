@@ -113,7 +113,10 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
 
   const parts: Parts = new Map()
   const aliases: Aliases = new Map()
-  const ctx: Context = { store: { types, parts, decls, aliases }, constraints, homeOf, locals, calls: 0 }
+  const ctx: Context = {
+    store: { types, parts, decls, aliases, owned: new Map(), frames: [] },
+    constraints, homeOf, locals, calls: 0, frameDefs: new Map(),
+  }
   for (const unit of units) {
     for (const statement of unit.statements) {
       try {
@@ -140,8 +143,10 @@ type Context = {
   constraints: ConstraintSet
   homeOf: HomeMap
   locals: LocalsMap
-  /** How many anonymous calls have been keyed so far. */
+  /** How many calls with locals have run — each numbers its own locals. */
   calls: number
+  /** Each such call's surface form, for saying whose local something was. */
+  frameDefs: Map<number, string>
 }
 
 function evalStatement(
@@ -212,41 +217,48 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   // A name the body writes on its own account belongs to this call, not to the
   // program. Rewriting it up front — before the body runs — is what keeps it
   // out of the caller's namespace and lets the same definition be used twice.
+  // Each call with locals gets a number: its locals are keyed by it, and they
+  // can be named only while this call is running.
   const locals = ctx.locals.get(m.def) ?? []
-  if (locals.length > 0) {
-    const key = localKeyer(m, env, ctx)
-    for (const local of locals) env.set(local, key(local))
+  const call = locals.length > 0 ? ++ctx.calls : null
+  if (call !== null) {
+    for (const local of locals) {
+      const key = `_${local}_${call}`
+      env.set(local, key)
+      ctx.store.owned.set(key, { call, local, def: form(m) })
+    }
+    ctx.store.frames.push(call)
+    ctx.frameDefs.set(call, form(m))
   }
 
-  const value = m.def.body.body === 'tsx'
-    ? runTsx(m, env, ctx)
-    // A body expands in the scope of the module that *defined* it, not the one
-    // that called it. This is what makes imports non-transitive: a definition
-    // may use everything its own file imported, and nothing the caller did.
-    : runComposed(m.def.body, env, ctx.homeOf.get(m.def) ?? scope, ctx, depth)
+  let value: Value
+  try {
+    value = m.def.body.body === 'tsx'
+      ? runTsx(m, env, ctx)
+      // A body expands in the scope of the module that *defined* it, not the one
+      // that called it. This is what makes imports non-transitive: a definition
+      // may use everything its own file imported, and nothing the caller did.
+      : runComposed(m.def.body, env, ctx.homeOf.get(m.def) ?? scope, ctx, depth)
+  } finally {
+    if (call !== null) ctx.store.frames.pop()
+  }
+
+  // Returning a local is how it escapes — but only from the call that owns it.
+  // A nested call handing it back to its owner changes nothing. When the owner
+  // returns it, it passes to whichever call it was returned into, and is public
+  // only if that is the program itself.
+  if (call !== null && typeof value === 'string') {
+    const key = keyOf(value, ctx.store)
+    if (ctx.store.owned.get(key)?.call === call) {
+      const into = ctx.store.frames.at(-1)
+      if (into === undefined) ctx.store.owned.delete(key)
+      // It has no name of its own there, so it is known by its key.
+      else ctx.store.owned.set(key, { call: into, local: key, def: ctx.frameDefs.get(into)! })
+    }
+  }
 
   checkReturn(m, value, ctx)
   return value
-}
-
-/** How a call's own names are keyed, so calling a definition twice makes two of
- *  each. The `Name` slot supplies the prefix when there is one, which keeps keys
- *  readable and tied to something the caller wrote: `dot d …` gives `d_ring`.
- *
- *  A definition with no `Name` slot — `(x: Scalar) , (y: Scalar) => Point`, which
- *  makes a point nobody named — is numbered instead: `_pt_1`, `_pt_2`. The name
- *  comes first so a key reads as "the pt from the first such call". The leading
- *  underscore is what the renderer treats as "not drawn unless named". One number
- *  per call, shared by all of that call's locals. */
-function localKeyer(m: Match, env: Map<string, Value>, ctx: Context): (local: string) => string {
-  const nameSlot = m.def.pattern.find(p => p.part === 'slot' && p.type.name === NAME)
-  if (nameSlot !== undefined && nameSlot.part === 'slot') {
-    const prefix = String(env.get(nameSlot.name))
-    return local => `${prefix}_${local}`
-  }
-  ctx.calls += 1
-  const n = ctx.calls
-  return local => `_${local}_${n}`
 }
 
 /** Run every body line, then evaluate whatever `return` designates. Order in the
