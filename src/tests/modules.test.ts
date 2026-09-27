@@ -48,8 +48,8 @@ describe('imports are file-scoped', () => {
 
   it('lets an indirect call reach what the caller cannot name', () => {
     // `r x` runs p and q even though C can write neither.
-    const { constraints, types } = runProgram(['r x'], loadModule('c', abc))
-    expect(types.get('x')).toBe('Point')
+    const { constraints, data } = runProgram(['r x'], loadModule('c', abc))
+    expect(data.typeOf('x')).toBe('Point')
     expect(constraints.constraints).toEqual([{ kind: 'position', point: 'x', x: 1, y: 1 }])
   })
 
@@ -108,8 +108,8 @@ define greet (n: Name) => Line:
   })
 
   it('uses the local definition, not the imported one', () => {
-    const { types } = runProgram(['greet x'], loadModule('user', shadowed))
-    expect(types.get('x')).toBe('Line')
+    const { data } = runProgram(['greet x'], loadModule('user', shadowed))
+    expect(data.typeOf('x')).toBe('Line')
   })
 
   it('leaves two colliding imports ambiguous rather than picking one', () => {

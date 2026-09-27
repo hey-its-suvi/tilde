@@ -20,9 +20,10 @@
 // declaration-before-use the natural rule rather than an imposed one.
 
 import { Scope, asKey } from './scope.js'
+import { DataStore } from './data.js'
 import { lexHeader, type Token } from './lexer.js'
 import { groupTokens, render, type Node } from './tree.js'
-import { resolveStatement, resolvePath, keyOf, NAME, form, type Parts, type Store, type SymbolTable } from './resolve.js'
+import { resolveStatement, resolvePath, keyOf, NAME, form, type Store } from './resolve.js'
 import type { Match } from './match.js'
 import { loadModule, type HomeMap, type Loaded, type LocalsMap, type Registry, type TypeMap } from './modules.js'
 import type { Definition, Statement } from './types.js'
@@ -57,11 +58,9 @@ const textOf = (token: Token): Text => ({ text: JSON.parse(token.value) as strin
 
 export type Program = {
   constraints: ConstraintSet
-  /** Element key → its type. Keyed by *element*, so a name given by `call` is
-   *  not in here — look it up through `aliases` first. */
-  types: SymbolTable
-  /** Element key → its fields → the key each references. */
-  parts: Parts
+  /** Every element made, with its type and fields. Keyed by *element*, so a name
+   *  given by `call` is not in here — look it up through `aliases` first. */
+  data: DataStore
   /** Name → the element key it stands for, for names given by `call`. */
   aliases: Scope
   /** What `print` asked for, in order. Filled in only after solving, since a
@@ -125,7 +124,7 @@ type Unit = {
 }
 
 function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: TypeMap): Program {
-  const types: SymbolTable = new Map()
+  const data = new DataStore()
   const constraints: ConstraintSet = {
     points: new Set(),
     segments: new Set(),
@@ -136,10 +135,9 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
     picks: new Map(),
   }
 
-  const parts: Parts = new Map()
   const aliases = new Scope()
   const ctx: Context = {
-    store: { types, parts, decls, aliases, owned: new Map(), frames: [] },
+    store: { data, decls, aliases, owned: new Map(), frames: [] },
     constraints, homeOf, locals, calls: 0, frameDefs: new Map(), prints: [],
     settings: new Map(),
   }
@@ -152,7 +150,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
       }
     }
   }
-  return { constraints, types, parts, aliases, prints: ctx.prints, settings: ctx.settings }
+  return { constraints, data, aliases, prints: ctx.prints, settings: ctx.settings }
 }
 
 /** Prefix an error with where the statement was, when we know. Statements
@@ -334,7 +332,7 @@ function checkReturn(m: Match, value: Value, ctx: Context): void {
     : isText(value) ? 'Text'
     // Through the alias: a name given by `call` has no entry of its own, only the
     // element it stands for does.
-    : typeof value === 'string' ? ctx.store.types.get(keyOf(value, ctx.store))
+    : typeof value === 'string' ? ctx.store.data.typeOf(keyOf(value, ctx.store))
     : undefined
 
   if (actual === undefined) {
@@ -445,10 +443,11 @@ const show = (v: unknown) => (v === true ? 'on' : v === false ? 'off' : String(v
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-/** Record what a new element's fields reference, checking them against the
- *  type's declaration. Fields are set once, when the element is made — nothing
- *  in Tilde mutates, so there is never an update to apply later. */
-function setParts(name: string, type: string, parts: Record<string, string>, ctx: Context): void {
+/** The scope a new element's fields make, checked against its type's
+ *  declaration: every declared field, nothing else, each pointing at the right
+ *  type. Built once, when the element is made — nothing in Tilde mutates, so
+ *  there is never an update to apply later. */
+function fieldScope(name: string, type: string, parts: Record<string, string>, ctx: Context): Scope {
   const decl = ctx.store.decls.get(type)
   if (decl === undefined) {
     throw new EvalError(`${type} has no \`define type\`, so "${name}" cannot be given fields`)
@@ -461,13 +460,13 @@ function setParts(name: string, type: string, parts: Record<string, string>, ctx
     }
   }
 
-  const bound = new Map<string, string>()
+  const scope = new Scope()
   for (const field of decl.fields) {
     const target = parts[field.name]
     if (target === undefined) {
       throw new EvalError(`"${name}" is a ${type} but its field "${field.name}" was not set`)
     }
-    const actual = ctx.store.types.get(target)
+    const actual = ctx.store.data.typeOf(target)
     if (actual === undefined) {
       throw new EvalError(`"${name}.${field.name}" was set to "${target}", which is not declared`)
     }
@@ -476,15 +475,15 @@ function setParts(name: string, type: string, parts: Record<string, string>, ctx
         `"${name}.${field.name}" holds a ${field.type.name}, but "${target}" is a ${actual}`,
       )
     }
-    bound.set(field.name, target)
+    scope.add({ name: field.name, key: asKey(target) })
   }
-  ctx.store.parts.set(name, bound)
+  return scope
 }
 
 function makeApi(ctx: Context): Api {
   const api: Api = {
     declare(name, type, parts) {
-      const existing = ctx.store.types.get(name)
+      const existing = ctx.store.data.typeOf(name)
       if (existing !== undefined) {
         throw new EvalError(`"${name}" is already declared as a ${existing}`)
       }
@@ -494,12 +493,11 @@ function makeApi(ctx: Context): Api {
       if (type === NAME) {
         throw new EvalError(`"${name}" cannot be declared as ${NAME} — that is a slot marker, not a type`)
       }
-      ctx.store.types.set(name, type)
+      const scope = parts === undefined ? new Scope() : fieldScope(name, type, parts, ctx)
+      ctx.store.data.make(asKey(name), type, scope)
 
       const set = SOLVER_SETS[type as keyof typeof SOLVER_SETS]
       if (set !== undefined) (ctx.constraints[set] as Set<string>).add(name)
-
-      if (parts !== undefined) setParts(name, type, parts, ctx)
       return name
     },
 
@@ -535,11 +533,11 @@ function makeApi(ctx: Context): Api {
     /** Give `name` to whatever `existing` already names. Two names, one element —
      *  not a copy — so constraining either constrains the same thing. */
     alias(name, existing) {
-      if (ctx.store.types.has(name) || ctx.store.aliases.has(name)) {
+      if (ctx.store.data.has(name) || ctx.store.aliases.has(name)) {
         throw new EvalError(`"${name}" is already declared`)
       }
       const key = keyOf(existing, ctx.store)
-      if (!ctx.store.types.has(key)) {
+      if (!ctx.store.data.has(key)) {
         throw new EvalError(`"${existing}" is not declared, so nothing can be called "${name}"`)
       }
       ctx.store.aliases.add({ name, key: asKey(key) })

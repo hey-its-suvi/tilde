@@ -103,8 +103,8 @@ describe('statements in an imported module', () => {
   }
 
   it('run when the module is loaded', () => {
-    const { types, constraints } = runSource('import lib\n', registry)
-    expect(types.get('origin')).toBe('Point')
+    const { data, constraints } = runSource('import lib\n', registry)
+    expect(data.typeOf('origin')).toBe('Point')
     expect(constraints.constraints).toEqual([
       { kind: 'position', point: 'origin', x: 0, y: 0 },
     ])
@@ -228,9 +228,9 @@ dot e at 1 1
   })
 
   it('gives each call its own copy, numbered by call', () => {
-    const { types } = run(dot)
-    expect([...types.keys()].sort()).toEqual(['_c_1', '_c_2', 'd', 'e'])
-    expect(types.has('c')).toBe(false)
+    const { data } = run(dot)
+    expect([...data.keys()].sort()).toEqual(['_c_1', '_c_2', 'd', 'e'])
+    expect(data.has('c')).toBe(false)
   })
 
   it('ends a local\'s name when its call returns', () => {
@@ -272,21 +272,21 @@ corner z
 
   it('leaves names that came from a slot alone', () => {
     // `n` is a Name slot, so `d` and `e` are the caller's own names, untouched.
-    const { types } = run(dot)
-    expect(types.get('d')).toBe('Point')
-    expect(types.get('e')).toBe('Point')
+    const { data } = run(dot)
+    expect(data.typeOf('d')).toBe('Point')
+    expect(data.typeOf('e')).toBe('Point')
   })
 
   it('changes nothing for a definition with no names of its own', () => {
     // The whole prelude is like this, which is why none of it moved.
-    const { types } = run('import prelude\npoint a\npoint b\nline l through a b\n')
-    expect([...types.keys()].sort()).toEqual(['a', 'b', 'l'])
+    const { data } = run('import prelude\npoint a\npoint b\nline l through a b\n')
+    expect([...data.keys()].sort()).toEqual(['a', 'b', 'l'])
   })
 
   it('keys a definition with no Name slot by call instead', () => {
     // Nothing names the call, so a counter does: `_origin_1`, `_origin_2`. Two
     // uses make two points rather than colliding.
-    const { types } = run('import prelude\n\ndefine grid:\n    point origin at 0 0\n\ngrid\ngrid\n')
-    expect([...types.keys()].sort()).toEqual(['_origin_1', '_origin_2'])
+    const { data } = run('import prelude\n\ndefine grid:\n    point origin at 0 0\n\ngrid\ngrid\n')
+    expect([...data.keys()].sort()).toEqual(['_origin_1', '_origin_2'])
   })
 })

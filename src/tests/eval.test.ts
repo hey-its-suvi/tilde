@@ -58,16 +58,16 @@ describe('primitives emit solver constraints', () => {
 describe('composed bodies expand', () => {
   it('substitutes slots into each body line', () => {
     // `point p at 3 5` is `point p` then `p at 3 5`.
-    const { constraints, types } = run('point p at 3 5')
-    expect(types.get('p')).toBe('Point')
+    const { constraints, data } = run('point p at 3 5')
+    expect(data.typeOf('p')).toBe('Point')
     expect(of(constraints.constraints, 'position')).toEqual([
       { kind: 'position', point: 'p', x: 3, y: 5 },
     ])
   })
 
   it('expands a declaring constraint form', () => {
-    const { constraints, types } = run('line m', 'line l parallel m')
-    expect(types.get('l')).toBe('Line')
+    const { constraints, data } = run('line m', 'line l parallel m')
+    expect(data.typeOf('l')).toBe('Line')
     expect(of(constraints.constraints, 'parallel')).toEqual([
       { kind: 'parallel', l1: 'l', l2: 'm' },
     ])
@@ -77,8 +77,8 @@ describe('composed bodies expand', () => {
     // `circle c with center o and radius 5`
     //   → `circle c with center o` → `circle c`, `c with center o`
     //   → `c with radius 5`
-    const { constraints, types } = run('point o', 'circle c with center o and radius 5')
-    expect(types.get('c')).toBe('Circle')
+    const { constraints, data } = run('point o', 'circle c with center o and radius 5')
+    expect(data.typeOf('c')).toBe('Circle')
     expect(of(constraints.constraints, 'circle-spec')).toEqual([
       { kind: 'circle-spec', circle: 'c', center: 'o', r: null },
       { kind: 'circle-spec', circle: 'c', center: null, r: 5 },
@@ -105,9 +105,9 @@ describe('multi-name declaration forms', () => {
   it('types every name a triangle introduces', () => {
     // `new Triangle t` makes the points; `call` gives each the caller's name.
     // So the elements are keyed by the triangle and a/b/c are names for them.
-    const { types, aliases, constraints } = run('triangle t with a b c')
-    expect(types.get('t')).toBe('Triangle')
-    expect(types.get('t.point1')).toBe('Point')
+    const { data, aliases, constraints } = run('triangle t with a b c')
+    expect(data.typeOf('t')).toBe('Triangle')
+    expect(data.typeOf('t.point1')).toBe('Point')
     expect(aliases.get('a')).toBe('t.point1')
     expect(aliases.get('c')).toBe('t.point3')
     expect([...constraints.points].sort()).toEqual(['t.point1', 't.point2', 't.point3'])

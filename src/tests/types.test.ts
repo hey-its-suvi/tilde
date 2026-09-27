@@ -92,11 +92,11 @@ describe('reaching a field', () => {
   })
 
   it('records what each field references', () => {
-    const { parts } = run(tri)
-    expect([...parts.get('t')!]).toEqual([
-      ['point1', 't.point1'],
-      ['point2', 't.point2'],
-      ['point3', 't.point3'],
+    const { data } = run(tri)
+    expect([...data.get('t')!.scope.labels()]).toEqual([
+      { name: 'point1', key: 't.point1' },
+      { name: 'point2', key: 't.point2' },
+      { name: 'point3', key: 't.point3' },
     ])
   })
 
@@ -215,7 +215,7 @@ dot b 4 5
   it('does not depend on the caller using the slot’s own name', () => {
     // Every earlier triangle test named it `t`, which is also the slot name —
     // so the substitution was never actually exercised.
-    const named = (n: string) => run(`import prelude\ntriangle ${n} with a b c\n`).types
+    const named = (n: string) => run(`import prelude\ntriangle ${n} with a b c\n`).data
     expect([...named('q').keys()].sort()).toEqual(['q', 'q.point1', 'q.point2', 'q.point3'])
     expect([...named('t').keys()].sort()).toEqual(['t', 't.point1', 't.point2', 't.point3'])
   })

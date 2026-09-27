@@ -15,6 +15,7 @@ import { matchStatement, type Match } from './match.js'
 import type { TypeMap } from './modules.js'
 import type { Definition } from './types.js'
 import type { Scope } from './scope.js'
+import type { DataStore } from './data.js'
 
 export class ResolutionError extends Error {
   constructor(message: string) {
@@ -22,22 +23,14 @@ export class ResolutionError extends Error {
   }
 }
 
-/** A name's declared type, by name. Owned and mutated by evaluation. */
-export type SymbolTable = Map<string, string>
-
-/** Element key → its fields → the key each references. A field always points at
- *  a whole element, so following one hands back something the rest of the
- *  language already knows how to use. */
-export type Parts = Map<string, Map<string, string>>
-
 /** Which call a local's key belongs to, and what it was called there — so a
  *  key used after its call has returned can be refused with a useful message. */
 export type Owned = { call: number; local: string; def: string }
 
 /** Everything resolution needs to know about what exists. */
 export type Store = {
-  types: SymbolTable
-  parts: Parts
+  /** Every element made so far, with its type and fields. */
+  data: DataStore
   decls: TypeMap
   /** Names given to an element that already has a key. Almost always empty for
    *  a name: until keys are generated, a name *is* its key unless something
@@ -61,16 +54,16 @@ export const keyOf = (name: string, store: Store): string => store.aliases.get(n
 export function resolvePath(name: string, store: Store): { key: string; type: string } | null {
   const [head, ...fields] = name.split('.')
   let key = keyOf(head!, store)
-  let type = store.types.get(key)
+  let type = store.data.typeOf(key)
   if (type === undefined) return null
 
   for (const field of fields) {
     const decl = store.decls.get(type)
     if (decl === undefined) return null
     if (!decl.fields.some(f => f.name === field)) return null
-    const next = store.parts.get(key)?.get(field)
+    const next = store.data.get(key)?.scope.get(field)
     if (next === undefined) return null
-    const nextType = store.types.get(next)
+    const nextType = store.data.typeOf(next)
     if (nextType === undefined) return null
     key = next
     type = nextType
@@ -85,7 +78,7 @@ function pathProblem(name: string, store: Store): string | null {
   if (fields.length === 0) return null // not a path; ordinary "not declared"
 
   let key = keyOf(head!, store)
-  let type = store.types.get(key)
+  let type = store.data.typeOf(key)
   if (type === undefined) return `"${head}" is not declared`
 
   for (const field of fields) {
@@ -96,10 +89,10 @@ function pathProblem(name: string, store: Store): string | null {
       const known = decl.fields.map(f => f.name).join(', ')
       return `${type} has no field "${field}" (it has ${known})`
     }
-    const next = store.parts.get(key)?.get(field)
+    const next = store.data.get(key)?.scope.get(field)
     if (next === undefined) return `"${key}" was made without setting its "${field}"`
     key = next
-    type = store.types.get(next) ?? type
+    type = store.data.typeOf(next) ?? type
   }
   return null
 }
