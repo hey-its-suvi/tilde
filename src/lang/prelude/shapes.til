@@ -86,9 +86,9 @@ define type Triangle:
     Point point2
     Point point3
 
--- `new Triangle t` makes the triangle and its three points, named t.a, t.b, t.c.
--- `call` then hands each one the name the caller asked for, so `a` and `t.a` are
--- two names for one point rather than two points kept in step.
+-- `new Triangle t` makes the triangle and its three points, t.point1..3.
+-- `call` then hands each one the name the caller asked for, so `a` and
+-- `t.point1` are two names for one point rather than two points kept in step.
 --
 -- Note `with`, not juxtaposition: `triangle a, b, c` distributes into three
 -- separate triangles, so the multi-vertex form must be lexically distinct.

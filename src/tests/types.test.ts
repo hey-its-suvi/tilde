@@ -125,43 +125,6 @@ describe('errors name what went wrong', () => {
   it('reports an undeclared owner', () => {
     expect(() => run('import prelude\nt.point1 at 0 0\n')).toThrow(/"t" is not declared/)
   })
-
-  it('rejects a field set to the wrong kind of thing', () => {
-    const src = `import prelude
-
-define type Pair:
-    Point a
-    Point b
-
-define pair (n: Name) of (x: Point) (y: Line) => Pair:
-    tsx\`
-    return declare(n, 'Pair', { a: x, b: y })
-    \`
-
-point p
-line l
-pair q of p l
-`
-    expect(() => run(src)).toThrow(/"q.b" holds a Point, but "l" is a Line/)
-  })
-
-  it('rejects a field left unset', () => {
-    const src = `import prelude
-
-define type Pair:
-    Point a
-    Point b
-
-define half (n: Name) of (x: Point) => Pair:
-    tsx\`
-    return declare(n, 'Pair', { a: x })
-    \`
-
-point p
-half q of p
-`
-    expect(() => run(src)).toThrow(/its field "b" was not set/)
-  })
 })
 
 describe('a user declares their own type', () => {
@@ -173,19 +136,21 @@ define type Segment:
     Point from
     Point to
 
-define segment (n: Name) from (p: Point) to (q: Point) => Segment:
-    tsx\`
-    segment(p, q)
-    return declare(n, 'Segment', { from: p, to: q })
-    \`
+define segment (n: Name) from (p: Name) to (q: Name) => Segment:
+    new Segment n
+    call n.from p
+    call n.to q
+    segment p q
+    return n
 
-point p at 0 0
-point q at 3 4
 segment s from p to q
+p at 0 0
+q at 3 4
 distance between s.from and s.to is 5
 `)
-    expect(result.points.get('p')!.solutions![0]).toEqual({ x: 0, y: 0 })
-    expect(result.points.get('q')!.solutions![0]).toEqual({ x: 3, y: 4 })
+    // `p` and `q` name the segment's own points, so the solver has them by key.
+    expect(result.points.get('s.from')!.solutions![0]).toEqual({ x: 0, y: 0 })
+    expect(result.points.get('s.to')!.solutions![0]).toEqual({ x: 3, y: 4 })
   })
 })
 

@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.53 — current
+## 0.3.54 — current
+
+- In a `tsx` body, `declare(name, type)` now always makes an element's fields from its `define type` — a Triangle comes with its three points. Fields can no longer be handed in (`declare(n, 'Segment', { from: p, to: q })`); to tie a field to a name, make the element and name its fields, as `triangle t with a b c` does: `new Segment s`, `call s.from p`. `mint` is gone — `declare` does what it did.
+
+## 0.3.53
 
 - **`set grid`, `set axes` and `set origin`**, in the definition syntax, each `on` or `off`. The axes are now separate from the grid, so either can be shown alone. `set origin on` marks (0, 0) with a dot labelled O. Defaults: grid and axes on, origin off.
 - `set` with a setting that does not exist says which ones do.

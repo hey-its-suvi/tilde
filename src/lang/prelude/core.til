@@ -1,9 +1,11 @@
 -- The primitive surface: every definition the solver backs directly.
 --
 -- A tsx`...` body is TypeScript, run when the statement is evaluated. Slots are
--- in scope by name, and the API is three calls: `declare(name, type)` registers
--- a name, `constrain(c)` adds a constraint the solver understands, `segment(a, b)`
--- records a segment. The body's return value is the definition's result.
+-- in scope by name, and the API is a handful of calls: `declare(name, type)`
+-- makes an element and its fields, `constrain(c)` adds a constraint the solver
+-- understands, `segment(a, b)` records a segment, `alias(name, existing)` gives
+-- something a second name, `print(x)` and `setting(name, value)` say how to show
+-- the result. The body's return value is the definition's result.
 --
 -- These are the only definitions that reach into the solver. Everything else in
 -- the prelude composes from them, using nothing a user could not use — which is
@@ -222,7 +224,7 @@ define distance between (p: Point) and (q: Point) is (d: Scalar):
 
 define new (ty: Name) (n: Name):
     tsx`
-    mint(n, ty)
+    declare(n, ty)
     `
 
 define call (x: Any) (n: Name):

@@ -382,10 +382,9 @@ function substitute(line: string, env: Map<string, Value>): string {
  *  constraint, record a segment. Everything the prelude needs, nothing that
  *  lets a body reach into evaluation itself. */
 type Api = {
-  declare: (name: string, type: string, parts?: Record<string, string>) => string
+  declare: (name: string, type: string) => string
   constrain: (c: ResolvedConstraint) => void
   segment: (a: string, b: string) => void
-  mint: (name: string, type: string) => string
   alias: (name: string, existing: string) => string
   print: (value: Value) => void
   setting: (name: string, value: unknown) => void
@@ -405,13 +404,13 @@ function runTsx(m: Match, env: Map<string, Value>, ctx: Context): Value {
     }
   }
 
-  const params = [...slots, 'declare', 'constrain', 'segment', 'mint', 'alias', 'print', 'setting']
+  const params = [...slots, 'declare', 'constrain', 'segment', 'alias', 'print', 'setting']
   const args = [
     // Text reaches a body as a String object: it joins and compares like a
     // string, so `a + b` just concatenates, yet stays distinguishable from a
     // bare string, which is how an element's key arrives.
     ...slots.map(s => { const v = env.get(s)!; return isText(v) ? new String(v.text) : v }),
-    api.declare, api.constrain, api.segment, api.mint, api.alias, api.print, api.setting,
+    api.declare, api.constrain, api.segment, api.alias, api.print, api.setting,
   ]
 
   let body: (...a: unknown[]) => Value
@@ -443,46 +442,15 @@ const show = (v: unknown) => (v === true ? 'on' : v === false ? 'off' : String(v
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-/** The scope a new element's fields make, checked against its type's
- *  declaration: every declared field, nothing else, each pointing at the right
- *  type. Built once, when the element is made — nothing in Tilde mutates, so
- *  there is never an update to apply later. */
-function fieldScope(name: string, type: string, parts: Record<string, string>, ctx: Context): Scope {
-  const decl = ctx.store.decls.get(type)
-  if (decl === undefined) {
-    throw new EvalError(`${type} has no \`define type\`, so "${name}" cannot be given fields`)
-  }
-
-  const declared = new Set(decl.fields.map(f => f.name))
-  for (const given of Object.keys(parts)) {
-    if (!declared.has(given)) {
-      throw new EvalError(`${type} has no field "${given}" (it has ${[...declared].join(', ')})`)
-    }
-  }
-
-  const scope = new Scope()
-  for (const field of decl.fields) {
-    const target = parts[field.name]
-    if (target === undefined) {
-      throw new EvalError(`"${name}" is a ${type} but its field "${field.name}" was not set`)
-    }
-    const actual = ctx.store.data.typeOf(target)
-    if (actual === undefined) {
-      throw new EvalError(`"${name}.${field.name}" was set to "${target}", which is not declared`)
-    }
-    if (actual !== field.type.name) {
-      throw new EvalError(
-        `"${name}.${field.name}" holds a ${field.type.name}, but "${target}" is a ${actual}`,
-      )
-    }
-    scope.add({ name: field.name, key: asKey(target) })
-  }
-  return scope
-}
-
 function makeApi(ctx: Context): Api {
   const api: Api = {
-    declare(name, type, parts) {
+    /** Make an element of `type`. Its fields come from the type: if it has a
+     *  `define type`, each field is made too, named `<name>.<field>`, and so on
+     *  down to the solver's own primitives — Point, Line, Circle, Scalar — which
+     *  have none. So `new Triangle t` reaches three real points and no further.
+     *  A field is never handed in: to tie one to something that already exists,
+     *  name it (`call t.point1 a`) or constrain it. */
+    declare(name, type) {
       const existing = ctx.store.data.typeOf(name)
       if (existing !== undefined) {
         throw new EvalError(`"${name}" is already declared as a ${existing}`)
@@ -493,7 +461,16 @@ function makeApi(ctx: Context): Api {
       if (type === NAME) {
         throw new EvalError(`"${name}" cannot be declared as ${NAME} — that is a slot marker, not a type`)
       }
-      const scope = parts === undefined ? new Scope() : fieldScope(name, type, parts, ctx)
+      const scope = new Scope()
+      for (const field of ctx.store.decls.get(type)?.fields ?? []) {
+        if (field.type.list) {
+          throw new EvalError(
+            `${type}.${field.name} is a list, and how many to make is not yet expressible`,
+          )
+        }
+        const key = api.declare(`${name}.${field.name}`, field.type.name)
+        scope.add({ name: field.name, key: asKey(key) })
+      }
       ctx.store.data.make(asKey(name), type, scope)
 
       const set = SOLVER_SETS[type as keyof typeof SOLVER_SETS]
@@ -507,27 +484,6 @@ function makeApi(ctx: Context): Api {
 
     segment(a, b) {
       ctx.constraints.segments.add(segKey(a, b))
-    },
-
-    /** Make an element of `type`, and — if that type declares fields — make each
-     *  of those too, named `<name>.<field>`. The recursion stops at a type with
-     *  no declaration, which is exactly where the solver's own primitives are:
-     *  Point, Line, Circle, Scalar. So `new Triangle t` reaches down to three
-     *  real points and no further. */
-    mint(name, type) {
-      const decl = ctx.store.decls.get(type)
-      if (decl === undefined) return api.declare(name, type)
-
-      const fields: Record<string, string> = {}
-      for (const field of decl.fields) {
-        if (field.type.list) {
-          throw new EvalError(
-            `${type}.${field.name} is a list, and how many to make is not yet expressible`,
-          )
-        }
-        fields[field.name] = api.mint(`${name}.${field.name}`, field.type.name)
-      }
-      return api.declare(name, type, fields)
     },
 
     /** Give `name` to whatever `existing` already names. Two names, one element —
