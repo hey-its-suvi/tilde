@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { resolveStatement, form, type Store } from '../lang/defs/resolve.js'
 import type { Definition } from '../lang/defs/types.js'
-import { Scope, asKey } from '../lang/defs/scope.js'
+import { Scope } from '../lang/defs/scope.js'
 import { DataStore } from '../lang/defs/data.js'
 
 import { loadModule } from '../lang/defs/modules.js'
@@ -14,8 +14,9 @@ const table: Definition[] = prelude.scope
 
 const symbols = (entries: Record<string, string>): Store => {
   const data = new DataStore()
-  for (const [name, type] of Object.entries(entries)) data.make(asKey(name), type)
-  return { data, decls: prelude.types, aliases: new Scope(), owned: new Map(), frames: [] }
+  const globals = new Scope()
+  for (const [name, type] of Object.entries(entries)) globals.add({ name, key: data.make(type).key })
+  return { data, decls: prelude.types, globals, owned: new Map(), frames: [] }
 }
 
 /** The surface form resolution settles on, so assertions read like the prelude

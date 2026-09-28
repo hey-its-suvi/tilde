@@ -3,13 +3,14 @@ import { parseFile } from '../lang/defs/parser.js'
 import { lexHeader } from '../lang/defs/lexer.js'
 import { solveSource } from '../lang/solver/index.js'
 import { runSource } from '../lang/defs/eval.js'
+import { byName } from './named.js'
 import { loadModule, type Registry } from '../lang/defs/modules.js'
 import { PRELUDE } from '../lang/prelude/index.js'
 import { Solver } from '../lang/solver/solver.js'
 import { GeometricPropagate } from '../lang/solver/propagate/geometric/index.js'
 import { RuleBasedPick } from '../lang/solver/pick/rule-based/index.js'
 
-const run = (source: string) => runSource(source, PRELUDE)
+const run = (source: string) => byName(runSource(source, PRELUDE))
 const solve = (source: string) =>
   new Solver(new GeometricPropagate(), new RuleBasedPick()).solve(run(source).constraints)
 
@@ -74,29 +75,31 @@ describe('reaching a field', () => {
   const tri = 'import prelude\ntriangle t with a b c\n'
 
   it('names the same element the caller named', () => {
-    // `t.a` and `a` are two spellings of one point, so constraining either works.
-    expect(at(`${tri}t.point1 at 0 0\nt.point2 at 6 0\nt.point3 at 3 4\n`, 't.point1')).toEqual({ x: 0, y: 0 })
-    expect(at(`${tri}a at 1 1\nt.point2 at 6 0\nt.point3 at 3 4\n`, 't.point1')).toEqual({ x: 1, y: 1 })
+    // `t.point1` and `a` are two spellings of one point, so constraining either works.
+    expect(at(`${tri}t.point1 at 0 0\nt.point2 at 6 0\nt.point3 at 3 4\n`, 'a')).toEqual({ x: 0, y: 0 })
+    expect(at(`${tri}a at 1 1\nt.point2 at 6 0\nt.point3 at 3 4\n`, 'a')).toEqual({ x: 1, y: 1 })
   })
 
   it('fits a slot like any other name', () => {
     const { constraints } = run(`${tri}line l through t.point1 t.point2\n`)
-    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 't.point1', line: 'l' })
-    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 't.point2', line: 'l' })
+    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 'a', line: 'l' })
+    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 'b', line: 'l' })
   })
 
   it('dispatches on the field’s type, not the owner’s', () => {
-    // `t.point1 on l` picks the Point-on-Line form because `t.a` is a Point.
+    // `t.point1 on l` picks the Point-on-Line form because `t.point1` is a Point.
     const { constraints } = run(`${tri}line l\nt.point1 on l\n`)
-    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 't.point1', line: 'l' })
+    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 'a', line: 'l' })
   })
 
   it('records what each field references', () => {
-    const { data } = run(tri)
-    expect([...data.get('t')!.scope.labels()]).toEqual([
-      { name: 'point1', key: 't.point1' },
-      { name: 'point2', key: 't.point2' },
-      { name: 'point3', key: 't.point3' },
+    // The triangle's own scope holds its fields, each pointing at the point the
+    // caller then named.
+    const { raw, globals } = run(tri)
+    expect([...raw.data.get(globals.get('t')!)!.scope.labels()]).toEqual([
+      { name: 'point1', key: globals.get('a') },
+      { name: 'point2', key: globals.get('b') },
+      { name: 'point3', key: globals.get('c') },
     ])
   })
 
@@ -105,7 +108,7 @@ describe('reaching a field', () => {
     expect(constraints.constraints).not.toContainEqual(
       expect.objectContaining({ point: 't' }),
     )
-    expect([...constraints.points].sort()).toEqual(['t.point1', 't.point2', 't.point3'])
+    expect([...constraints.points].sort()).toEqual(['a', 'b', 'c'])
   })
 })
 
@@ -148,9 +151,9 @@ p at 0 0
 q at 3 4
 distance between s.from and s.to is 5
 `)
-    // `p` and `q` name the segment's own points, so the solver has them by key.
-    expect(result.points.get('s.from')!.solutions![0]).toEqual({ x: 0, y: 0 })
-    expect(result.points.get('s.to')!.solutions![0]).toEqual({ x: 3, y: 4 })
+    // `p` and `q` name the segment's own points.
+    expect(result.points.get('p')!.solutions![0]).toEqual({ x: 0, y: 0 })
+    expect(result.points.get('q')!.solutions![0]).toEqual({ x: 3, y: 4 })
   })
 })
 
@@ -180,9 +183,9 @@ dot b 4 5
   it('does not depend on the caller using the slot’s own name', () => {
     // Every earlier triangle test named it `t`, which is also the slot name —
     // so the substitution was never actually exercised.
-    const named = (n: string) => run(`import prelude\ntriangle ${n} with a b c\n`).data
-    expect([...named('q').keys()].sort()).toEqual(['q', 'q.point1', 'q.point2', 'q.point3'])
-    expect([...named('t').keys()].sort()).toEqual(['t', 't.point1', 't.point2', 't.point3'])
+    const named = (n: string) => run(`import prelude\ntriangle ${n} with a b c\n`).names()
+    expect(named('q').sort()).toEqual(['a', 'b', 'c', 'q'])
+    expect(named('t').sort()).toEqual(['a', 'b', 'c', 't'])
   })
 
   it('reaches a field of a field', () => {
@@ -219,7 +222,7 @@ describe('`=` is a pattern word, not an operator', () => {
   })
 
   it('constrains a point that already exists', () => {
-    expect(point('triangle t with a b c\na = 0 0\nb = 6 0\nc = 3 4\n', 't.point1'))
+    expect(point('triangle t with a b c\na = 0 0\nb = 6 0\nc = 3 4\n', 'a'))
       .toEqual({ x: 0, y: 0 })
   })
 

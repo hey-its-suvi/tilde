@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { loadModule, type Registry } from '../lang/defs/modules.js'
 import { runProgram } from '../lang/defs/eval.js'
+import { byName } from './named.js'
 import { signature } from '../lang/defs/types.js'
 import { PRELUDE } from '../lang/prelude/index.js'
 
@@ -48,8 +49,8 @@ describe('imports are file-scoped', () => {
 
   it('lets an indirect call reach what the caller cannot name', () => {
     // `r x` runs p and q even though C can write neither.
-    const { constraints, data } = runProgram(['r x'], loadModule('c', abc))
-    expect(data.typeOf('x')).toBe('Point')
+    const { constraints, typeOf } = byName(runProgram(['r x'], loadModule('c', abc)))
+    expect(typeOf('x')).toBe('Point')
     expect(constraints.constraints).toEqual([{ kind: 'position', point: 'x', x: 1, y: 1 }])
   })
 
@@ -108,8 +109,8 @@ define greet (n: Name) => Line:
   })
 
   it('uses the local definition, not the imported one', () => {
-    const { data } = runProgram(['greet x'], loadModule('user', shadowed))
-    expect(data.typeOf('x')).toBe('Line')
+    const { typeOf } = byName(runProgram(['greet x'], loadModule('user', shadowed)))
+    expect(typeOf('x')).toBe('Line')
   })
 
   it('leaves two colliding imports ambiguous rather than picking one', () => {

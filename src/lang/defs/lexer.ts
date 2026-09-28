@@ -45,8 +45,10 @@ const PUNCT: Record<string, TokenKind> = {
 
 /** `.` is a word character so `t.a` is a single atom and fits a slot the way
  *  any other name does. Numbers are lexed by an earlier branch, so `3.5` is
- *  still a number rather than a name. */
-const isWordChar = (c: string) => /[A-Za-z0-9_.]/.test(c)
+ *  still a number rather than a name. `#` is one so an element's key (`Point#1`)
+ *  reads back as a word once evaluation has written it into a statement; a
+ *  program itself may not use it — the parser refuses it in anything written. */
+const isWordChar = (c: string) => /[A-Za-z0-9_.#]/.test(c)
 
 /** A prime may follow the start of a name — `l'`, `A''` — the way geometry names
  *  a new object made from an old one. Tilde has no reassignment, so a rotated

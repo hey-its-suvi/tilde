@@ -18,12 +18,17 @@ function solutionsStatus<T>(result: ElementResult<T>): Solutions {
   return 'one'
 }
 
-/** Element key → what to call it on screen. A key is not always what the user
- *  typed: a triangle's vertices are keyed `t.a` while the program called them
- *  `a`, and the drawing should say what was written. */
+/** Element key → what to call it on screen. A key is not what the user typed:
+ *  a point is keyed `Point#1` while the program called it `a`, and the drawing
+ *  should say what was written. Without a map, keys are shown as they are. */
 export type Labels = ReadonlyMap<string, string>
 
 const labelFor = (key: string, labels?: Labels) => labels?.get(key) ?? key
+
+/** Not drawn: something with no label when there are labels to go by, and
+ *  anything the language made for itself (a label starting with `_`). */
+const hidden = (key: string, labels?: Labels) =>
+  (labels !== undefined && !labels.has(key)) || labelFor(key, labels).startsWith('_')
 
 export function buildSceneGraph(result: SolveResult, labels?: Labels): SceneGraph {
   const segments: SceneSegment[] = []
@@ -34,7 +39,7 @@ export function buildSceneGraph(result: SolveResult, labels?: Labels): SceneGrap
   // Lines (skip anonymous elements created from inline tuples)
   for (const [name, lr] of result.lines) {
     const ls = drawn(lr)
-    if (labelFor(name, labels).startsWith('_') || ls.length === 0) continue
+    if (hidden(name, labels) || ls.length === 0) continue
     const status = solutionsStatus(lr)
     if (status === 'multiple') {
       ls.forEach((s, i) => {
@@ -75,7 +80,7 @@ export function buildSceneGraph(result: SolveResult, labels?: Labels): SceneGrap
   // Circles (skip anonymous synthesised circles)
   for (const [name, cr] of result.circles) {
     const cs = drawn(cr)
-    if (labelFor(name, labels).startsWith('_') || cs.length === 0) continue
+    if (hidden(name, labels) || cs.length === 0) continue
     const s = cs[0]!
     const centerPr = result.points.get(s.center)
     if (!centerPr || drawn(centerPr).length === 0) continue
@@ -87,7 +92,7 @@ export function buildSceneGraph(result: SolveResult, labels?: Labels): SceneGrap
   // Points (skip anonymous elements created from inline tuples)
   for (const [key, pr] of result.points) {
     const pts = drawn(pr)
-    if (labelFor(key, labels).startsWith('_') || pts.length === 0) continue
+    if (hidden(key, labels) || pts.length === 0) continue
     const status = solutionsStatus(pr)
     if (status === 'multiple') {
       pts.forEach((s, i) => {

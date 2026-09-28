@@ -14,7 +14,7 @@ import { lexHeader } from './lexer.js'
 import { matchStatement, type Match } from './match.js'
 import type { TypeMap } from './modules.js'
 import type { Definition } from './types.js'
-import type { Scope } from './scope.js'
+import type { Key, Scope } from './scope.js'
 import type { DataStore } from './data.js'
 
 export class ResolutionError extends Error {
@@ -23,8 +23,8 @@ export class ResolutionError extends Error {
   }
 }
 
-/** Which call a local's key belongs to, and what it was called there — so a
- *  key used after its call has returned can be refused with a useful message. */
+/** Which call a local belongs to, and what it was called there — so a local used
+ *  after its call has returned can be refused with a useful message. */
 export type Owned = { call: number; local: string; def: string }
 
 /** Everything resolution needs to know about what exists. */
@@ -32,35 +32,35 @@ export type Store = {
   /** Every element made so far, with its type and fields. */
   data: DataStore
   decls: TypeMap
-  /** Names given to an element that already has a key. Almost always empty for
-   *  a name: until keys are generated, a name *is* its key unless something
-   *  (`call`) gives a second name to the same element — so `a` and `t.point1`
-   *  can be one box under two names. */
-  aliases: Scope
-  /** Local keys, by the call that made them. A key leaves this map when its
-   *  call returns it — returning is how a local escapes. */
+  /** The program's labels: every name a program has given something. */
+  globals: Scope
+  /** Locals, by the name their call gave them, with the call that owns them.
+   *  One leaves this map when its call returns it — returning is how a local
+   *  escapes. */
   owned: Map<string, Owned>
-  /** Calls currently running, innermost last. A local's key is usable only
-   *  while its call is among them. */
+  /** Calls currently running, innermost last. A local is usable only while its
+   *  call is among them. */
   frames: number[]
 }
 
-/** The element key a name stands for. */
-export const keyOf = (name: string, store: Store): string => store.aliases.get(name) ?? name
+/** The key a word stands for: the element a label points at, or — when a key
+ *  was written into a statement, as a slot's value or a bracket's result — that
+ *  key itself. Undefined when it is neither. */
+export const keyOf = (word: string, store: Store): Key | undefined =>
+  store.globals.get(word) ?? store.data.key(word)
 
-/** Follow a possibly-dotted name to the element it names. `t.a` looks up `t`,
- *  finds its type's field `a`, and hands back the key that field references —
- *  so from there on it is an ordinary element like any other. */
-export function resolvePath(name: string, store: Store): { key: string; type: string } | null {
+/** Follow a possibly-dotted name to the element it names: look the first part up,
+ *  then each next part in the scope of what was found. `t.point1` is `t`, then
+ *  `point1` among `t`'s fields — from there on an ordinary element like any other. */
+export function resolvePath(name: string, store: Store): { key: Key; type: string } | null {
   const [head, ...fields] = name.split('.')
-  let key = keyOf(head!, store)
+  const root = keyOf(head!, store)
+  if (root === undefined) return null
+  let key: Key = root
   let type = store.data.typeOf(key)
   if (type === undefined) return null
 
   for (const field of fields) {
-    const decl = store.decls.get(type)
-    if (decl === undefined) return null
-    if (!decl.fields.some(f => f.name === field)) return null
     const next = store.data.get(key)?.scope.get(field)
     if (next === undefined) return null
     const nextType = store.data.typeOf(next)
@@ -77,22 +77,23 @@ function pathProblem(name: string, store: Store): string | null {
   const [head, ...fields] = name.split('.')
   if (fields.length === 0) return null // not a path; ordinary "not declared"
 
-  let key = keyOf(head!, store)
-  let type = store.data.typeOf(key)
-  if (type === undefined) return `"${head}" is not declared`
+  const root = keyOf(head!, store)
+  if (root === undefined) return `"${head}" is not declared`
+  let key: Key = root
+  let type = store.data.typeOf(key)!
+  let path = head!
 
   for (const field of fields) {
     const decl = store.decls.get(type)
-    if (decl === undefined) return `${type} has no fields, so "${key}.${field}" means nothing`
-    const declared = decl.fields.find(f => f.name === field)
-    if (declared === undefined) {
+    if (decl === undefined) return `${type} has no fields, so "${path}.${field}" means nothing`
+    const next = store.data.get(key)?.scope.get(field)
+    if (next === undefined) {
       const known = decl.fields.map(f => f.name).join(', ')
       return `${type} has no field "${field}" (it has ${known})`
     }
-    const next = store.data.get(key)?.scope.get(field)
-    if (next === undefined) return `"${key}" was made without setting its "${field}"`
     key = next
-    type = store.data.typeOf(next) ?? type
+    type = store.data.typeOf(next)!
+    path = `${path}.${field}`
   }
   return null
 }
@@ -118,7 +119,7 @@ export function resolveStatement(
     // A definition's local names end when it returns. Its shapes live on — the
     // drawing may depend on them — but nothing outside can name them again.
     const head = token.value.split('.')[0]!
-    const owner = store.aliases.has(head) ? undefined : store.owned.get(head)
+    const owner = store.owned.get(head)
     if (owner !== undefined && !store.frames.includes(owner.call)) {
       throw new ResolutionError(
         `"${owner.local}" was local to \`${owner.def}\` and ended when it returned` +

@@ -23,7 +23,7 @@ import { RuleBasedPick } from './pick/rule-based/index.js'
 import { BudgetPick } from './pick/budget/index.js'
 import { NonePick } from './pick/none/index.js'
 import { buildSceneGraph } from './output.js'
-import { runSource, isText, SETTINGS, type Value } from '../defs/eval.js'
+import { runSource, labelsOf, isText, SETTINGS, type Value } from '../defs/eval.js'
 import { PRELUDE } from '../prelude/index.js'
 import { SceneGraph, RenderConfig, DEFAULT_CONFIG } from '../../renderer/interface.js'
 
@@ -70,14 +70,13 @@ export function solve(program: Program): { scene: SceneGraph; config: RenderConf
 export function solveSource(
   source: string,
 ): { scene: SceneGraph; config: RenderConfig; printed: string[] } {
-  const { constraints, aliases, prints, settings } = runSource(source, PRELUDE)
+  const program = runSource(source, PRELUDE)
+  const { constraints, prints, settings } = program
   const result = activeSolver.solve(constraints)
 
-  // A drawing should say what the program wrote. `triangle t with a b c` keys
-  // its vertices `t.point1`, but the user asked for `a`, so names given by `call`
-  // become the labels. First one wins if something is named twice.
-  const labels = new Map<string, string>()
-  for (const { name, key } of aliases.labels()) if (!labels.has(key)) labels.set(key, name)
+  // The solver works in keys (`Point#1`); a drawing says what the program wrote.
+  // Something with no label is not drawn.
+  const labels = new Map<string, string>(labelsOf(program))
 
   const printed = prints.map(value => describe(value, result, labels))
   const config: RenderConfig = { ...DEFAULT_CONFIG }

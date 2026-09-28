@@ -19,7 +19,7 @@
 // against the table as it stands at that point. This is what makes
 // declaration-before-use the natural rule rather than an imposed one.
 
-import { Scope, asKey } from './scope.js'
+import { Scope, type Key } from './scope.js'
 import { DataStore } from './data.js'
 import { lexHeader, type Token } from './lexer.js'
 import { groupTokens, render, type Node } from './tree.js'
@@ -58,11 +58,10 @@ const textOf = (token: Token): Text => ({ text: JSON.parse(token.value) as strin
 
 export type Program = {
   constraints: ConstraintSet
-  /** Every element made, with its type and fields. Keyed by *element*, so a name
-   *  given by `call` is not in here — look it up through `aliases` first. */
+  /** Every element made, with its type and fields, by key. */
   data: DataStore
-  /** Name → the element key it stands for, for names given by `call`. */
-  aliases: Scope
+  /** Every name the program gave something, pointing at its key. */
+  globals: Scope
   /** What `print` asked for, in order. Filled in only after solving, since a
    *  named number has no value until then. */
   prints: Value[]
@@ -135,9 +134,9 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
     picks: new Map(),
   }
 
-  const aliases = new Scope()
+  const globals = new Scope()
   const ctx: Context = {
-    store: { data, decls, aliases, owned: new Map(), frames: [] },
+    store: { data, decls, globals, owned: new Map(), frames: [] },
     constraints, homeOf, locals, calls: 0, frameDefs: new Map(), prints: [],
     settings: new Map(),
   }
@@ -150,7 +149,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, locals: LocalsMap, decls: 
       }
     }
   }
-  return { constraints, data, aliases, prints: ctx.prints, settings: ctx.settings }
+  return { constraints, data, globals, prints: ctx.prints, settings: ctx.settings }
 }
 
 /** Prefix an error with where the statement was, when we know. Statements
@@ -282,11 +281,11 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   // only if that is the program itself.
   if (call !== null && typeof value === 'string') {
     const key = keyOf(value, ctx.store)
-    if (ctx.store.owned.get(key)?.call === call) {
+    for (const [local, owner] of ctx.store.owned) {
+      if (owner.call !== call || ctx.store.globals.get(local) !== key) continue
       const into = ctx.store.frames.at(-1)
-      if (into === undefined) ctx.store.owned.delete(key)
-      // It has no name of its own there, so it is known by its key.
-      else ctx.store.owned.set(key, { call: into, local: key, def: ctx.frameDefs.get(into)! })
+      if (into === undefined) ctx.store.owned.delete(local)
+      else ctx.store.owned.set(local, { call: into, local, def: ctx.frameDefs.get(into)! })
     }
   }
 
@@ -330,9 +329,7 @@ function checkReturn(m: Match, value: Value, ctx: Context): void {
   const actual =
     typeof value === 'number' ? 'Scalar'
     : isText(value) ? 'Text'
-    // Through the alias: a name given by `call` has no entry of its own, only the
-    // element it stands for does.
-    : typeof value === 'string' ? ctx.store.data.typeOf(keyOf(value, ctx.store))
+    : typeof value === 'string' ? typeOfWord(value, ctx.store)
     : undefined
 
   if (actual === undefined) {
@@ -442,40 +439,72 @@ const show = (v: unknown) => (v === true ? 'on' : v === false ? 'off' : String(v
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
+/** Make an element of `type`, with a new key. Its fields come from the type: if
+ *  it has a `define type`, each field is made too, and so on down to the solver's
+ *  own primitives — Point, Line, Circle, Scalar — which have none. So a Triangle
+ *  reaches three real points and no further. A field is labelled only in its
+ *  owner's scope: `t.point1` is reachable through `t`, and by no name of its own
+ *  until something gives it one (`call t.point1 a`). */
+function make(type: string, ctx: Context): Key {
+  const scope = new Scope()
+  for (const field of ctx.store.decls.get(type)?.fields ?? []) {
+    if (field.type.list) {
+      throw new EvalError(`${type}.${field.name} is a list, and how many to make is not yet expressible`)
+    }
+    scope.add({ name: field.name, key: make(field.type.name, ctx) })
+  }
+  const { key } = ctx.store.data.make(type, scope)
+
+  const set = SOLVER_SETS[type as keyof typeof SOLVER_SETS]
+  if (set !== undefined) (ctx.constraints[set] as Set<string>).add(key)
+  return key
+}
+
+const typeOfWord = (word: string, store: Store): string | undefined => {
+  const key = keyOf(word, store)
+  return key === undefined ? undefined : store.data.typeOf(key)
+}
+
+/** What to call each element when showing it: the name the program gave it, or
+ *  failing that a path through a named thing's fields (`t.point1`). Names the
+ *  program wrote come first, so `a` beats `t.point1` for the same point. A local
+ *  (`_c_1`) is used only when nothing else names it — and hides it, since a
+ *  label starting with `_` is never shown. An element with no label at all is
+ *  not in the map. */
+export function labelsOf(program: Pick<Program, 'globals' | 'data'>): Map<Key, string> {
+  const labels = new Map<Key, string>()
+  const give = (key: Key, name: string) => { if (!labels.has(key)) labels.set(key, name) }
+  const written = [...program.globals.labels()].filter(l => !l.name.startsWith('_'))
+
+  for (const { name, key } of written) give(key, name)
+  const walk = (key: Key, path: string) => {
+    for (const field of program.data.get(key)?.scope.labels() ?? []) {
+      give(field.key, `${path}.${field.name}`)
+      walk(field.key, `${path}.${field.name}`)
+    }
+  }
+  for (const { name, key } of written) walk(key, name)
+  for (const { name, key } of program.globals.labels()) give(key, name)
+  return labels
+}
+
 function makeApi(ctx: Context): Api {
   const api: Api = {
-    /** Make an element of `type`. Its fields come from the type: if it has a
-     *  `define type`, each field is made too, named `<name>.<field>`, and so on
-     *  down to the solver's own primitives — Point, Line, Circle, Scalar — which
-     *  have none. So `new Triangle t` reaches three real points and no further.
-     *  A field is never handed in: to tie one to something that already exists,
-     *  name it (`call t.point1 a`) or constrain it. */
+    /** Make an element of `type`, and label it `name`. */
     declare(name, type) {
-      const existing = ctx.store.data.typeOf(name)
+      const existing = ctx.store.globals.get(name)
       if (existing !== undefined) {
-        throw new EvalError(`"${name}" is already declared as a ${existing}`)
+        throw new EvalError(`"${name}" is already declared as a ${ctx.store.data.typeOf(existing)}`)
       }
-      if (ctx.store.aliases.has(name)) {
-        throw new EvalError(`"${name}" is already declared`)
+      if (name.includes('.')) {
+        throw new EvalError(`"${name}" is a path to something that already exists, so it cannot be declared`)
       }
       if (type === NAME) {
         throw new EvalError(`"${name}" cannot be declared as ${NAME} — that is a slot marker, not a type`)
       }
-      const scope = new Scope()
-      for (const field of ctx.store.decls.get(type)?.fields ?? []) {
-        if (field.type.list) {
-          throw new EvalError(
-            `${type}.${field.name} is a list, and how many to make is not yet expressible`,
-          )
-        }
-        const key = api.declare(`${name}.${field.name}`, field.type.name)
-        scope.add({ name: field.name, key: asKey(key) })
-      }
-      ctx.store.data.make(asKey(name), type, scope)
-
-      const set = SOLVER_SETS[type as keyof typeof SOLVER_SETS]
-      if (set !== undefined) (ctx.constraints[set] as Set<string>).add(name)
-      return name
+      const key = make(type, ctx)
+      ctx.store.globals.add({ name, key })
+      return key
     },
 
     constrain(c) {
@@ -489,14 +518,14 @@ function makeApi(ctx: Context): Api {
     /** Give `name` to whatever `existing` already names. Two names, one element —
      *  not a copy — so constraining either constrains the same thing. */
     alias(name, existing) {
-      if (ctx.store.data.has(name) || ctx.store.aliases.has(name)) {
+      if (ctx.store.globals.has(name)) {
         throw new EvalError(`"${name}" is already declared`)
       }
       const key = keyOf(existing, ctx.store)
-      if (!ctx.store.data.has(key)) {
+      if (key === undefined) {
         throw new EvalError(`"${existing}" is not declared, so nothing can be called "${name}"`)
       }
-      ctx.store.aliases.add({ name, key: asKey(key) })
+      ctx.store.globals.add({ name, key })
       return key
     },
 

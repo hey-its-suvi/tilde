@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { parseFile } from '../lang/defs/parser.js'
 import { runModules, runSource } from '../lang/defs/eval.js'
+import { byName } from './named.js'
 import { loadModule, type Registry } from '../lang/defs/modules.js'
 import { PRELUDE } from '../lang/prelude/index.js'
 import { Solver } from '../lang/solver/solver.js'
 import { GeometricPropagate } from '../lang/solver/propagate/geometric/index.js'
 import { RuleBasedPick } from '../lang/solver/pick/rule-based/index.js'
 
-const run = (source: string) => runSource(source, PRELUDE)
+const run = (source: string) => byName(runSource(source, PRELUDE))
 
 /** Run `source`, then one more statement that skips the source parser. A local's
  *  key (`_c_1`) cannot be written in a program — no name may start with `_` — so
@@ -103,8 +104,8 @@ describe('statements in an imported module', () => {
   }
 
   it('run when the module is loaded', () => {
-    const { data, constraints } = runSource('import lib\n', registry)
-    expect(data.typeOf('origin')).toBe('Point')
+    const { typeOf, constraints } = byName(runSource('import lib\n', registry))
+    expect(typeOf('origin')).toBe('Point')
     expect(constraints.constraints).toEqual([
       { kind: 'position', point: 'origin', x: 0, y: 0 },
     ])
@@ -228,9 +229,9 @@ dot e at 1 1
   })
 
   it('gives each call its own copy, numbered by call', () => {
-    const { data } = run(dot)
-    expect([...data.keys()].sort()).toEqual(['_c_1', '_c_2', 'd', 'e'])
-    expect(data.has('c')).toBe(false)
+    const { typeOf, has, names } = run(dot)
+    expect(names().sort()).toEqual(['_c_1', '_c_2', 'd', 'e'])
+    expect(has('c')).toBe(false)
   })
 
   it('ends a local\'s name when its call returns', () => {
@@ -245,8 +246,8 @@ dot e at 1 1
   it('lets a returned local out', () => {
     // `(3, 4)` returns its point, so the caller may use it — that is how
     // `point p = (3, 4)` works.
-    const { aliases } = run('import prelude\npoint p = (3, 4)\np at 3 4\n')
-    expect(aliases.get('p')).toBe('_pt_1')
+    const { globals } = run('import prelude\npoint p = (3, 4)\np at 3 4\n')
+    expect(globals.get('p')).toBe(globals.get('_pt_1'))
   })
 
   it('keeps a value returned into a definition inside that definition', () => {
@@ -272,21 +273,21 @@ corner z
 
   it('leaves names that came from a slot alone', () => {
     // `n` is a Name slot, so `d` and `e` are the caller's own names, untouched.
-    const { data } = run(dot)
-    expect(data.typeOf('d')).toBe('Point')
-    expect(data.typeOf('e')).toBe('Point')
+    const { typeOf, has, names } = run(dot)
+    expect(typeOf('d')).toBe('Point')
+    expect(typeOf('e')).toBe('Point')
   })
 
   it('changes nothing for a definition with no names of its own', () => {
     // The whole prelude is like this, which is why none of it moved.
-    const { data } = run('import prelude\npoint a\npoint b\nline l through a b\n')
-    expect([...data.keys()].sort()).toEqual(['a', 'b', 'l'])
+    const { typeOf, has, names } = run('import prelude\npoint a\npoint b\nline l through a b\n')
+    expect(names().sort()).toEqual(['a', 'b', 'l'])
   })
 
   it('keys a definition with no Name slot by call instead', () => {
     // Nothing names the call, so a counter does: `_origin_1`, `_origin_2`. Two
     // uses make two points rather than colliding.
-    const { data } = run('import prelude\n\ndefine grid:\n    point origin at 0 0\n\ngrid\ngrid\n')
-    expect([...data.keys()].sort()).toEqual(['_origin_1', '_origin_2'])
+    const { typeOf, has, names } = run('import prelude\n\ndefine grid:\n    point origin at 0 0\n\ngrid\ngrid\n')
+    expect(names().sort()).toEqual(['_origin_1', '_origin_2'])
   })
 })

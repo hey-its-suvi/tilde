@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { runProgram } from '../lang/defs/eval.js'
+import { byName } from './named.js'
 import type { Definition } from '../lang/defs/types.js'
 import type { ResolvedConstraint } from '../lang/solver/interface.js'
 import { Solver } from '../lang/solver/solver.js'
@@ -14,7 +15,7 @@ import { PRELUDE } from '../lang/prelude/index.js'
 const prelude = loadModule('prelude', PRELUDE)
 const table: Definition[] = prelude.scope
 
-const run = (...statements: string[]) => runProgram(statements, prelude)
+const run = (...statements: string[]) => byName(runProgram(statements, prelude))
 
 /** Constraints of one kind, so assertions don't depend on emission order
  *  across kinds. */
@@ -58,16 +59,16 @@ describe('primitives emit solver constraints', () => {
 describe('composed bodies expand', () => {
   it('substitutes slots into each body line', () => {
     // `point p at 3 5` is `point p` then `p at 3 5`.
-    const { constraints, data } = run('point p at 3 5')
-    expect(data.typeOf('p')).toBe('Point')
+    const { constraints, typeOf } = run('point p at 3 5')
+    expect(typeOf('p')).toBe('Point')
     expect(of(constraints.constraints, 'position')).toEqual([
       { kind: 'position', point: 'p', x: 3, y: 5 },
     ])
   })
 
   it('expands a declaring constraint form', () => {
-    const { constraints, data } = run('line m', 'line l parallel m')
-    expect(data.typeOf('l')).toBe('Line')
+    const { constraints, typeOf } = run('line m', 'line l parallel m')
+    expect(typeOf('l')).toBe('Line')
     expect(of(constraints.constraints, 'parallel')).toEqual([
       { kind: 'parallel', l1: 'l', l2: 'm' },
     ])
@@ -77,8 +78,8 @@ describe('composed bodies expand', () => {
     // `circle c with center o and radius 5`
     //   → `circle c with center o` → `circle c`, `c with center o`
     //   → `c with radius 5`
-    const { constraints, data } = run('point o', 'circle c with center o and radius 5')
-    expect(data.typeOf('c')).toBe('Circle')
+    const { constraints, typeOf } = run('point o', 'circle c with center o and radius 5')
+    expect(typeOf('c')).toBe('Circle')
     expect(of(constraints.constraints, 'circle-spec')).toEqual([
       { kind: 'circle-spec', circle: 'c', center: 'o', r: null },
       { kind: 'circle-spec', circle: 'c', center: null, r: 5 },
@@ -105,30 +106,33 @@ describe('multi-name declaration forms', () => {
   it('types every name a triangle introduces', () => {
     // `new Triangle t` makes the points; `call` gives each the caller's name.
     // So the elements are keyed by the triangle and a/b/c are names for them.
-    const { data, aliases, constraints } = run('triangle t with a b c')
-    expect(data.typeOf('t')).toBe('Triangle')
-    expect(data.typeOf('t.point1')).toBe('Point')
-    expect(aliases.get('a')).toBe('t.point1')
-    expect(aliases.get('c')).toBe('t.point3')
-    expect([...constraints.points].sort()).toEqual(['t.point1', 't.point2', 't.point3'])
+    const { typeOf, globals, raw, constraints } = run('triangle t with a b c')
+    expect(typeOf('t')).toBe('Triangle')
+    expect(typeOf('a')).toBe('Point')
+    // `a` is a second name for the triangle's own first point, not a copy of it.
+    const t = raw.data.get(globals.get('t')!)!
+    expect(globals.get('a')).toBe(t.scope.get('point1'))
+    expect(globals.get('c')).toBe(t.scope.get('point3'))
+    // Three points, not six: the names the caller gave are the triangle's own.
+    expect([...constraints.points].sort()).toEqual(['a', 'b', 'c'])
   })
 
   it('keeps the composite out of the solver but keeps its segments', () => {
     const { constraints } = run('triangle t with a b c')
-    expect([...constraints.segments].sort()).toEqual(['t.point1:t.point2', 't.point1:t.point3', 't.point2:t.point3'])
+    expect([...constraints.segments].sort()).toEqual(['a:b', 'a:c', 'b:c'])
     // Triangle is a language-level tag; the solver has no set for it.
     expect([...constraints.lines]).toEqual([])
   })
 
   it('lets the vertices be constrained afterwards', () => {
-    // Constraining by the caller's name reaches the same element the triangle
-    // holds — `a` and `t.a` are two names for one point.
-    const { constraints } = run('triangle t with a b c', 'a at 0 0', 'distance between a and b is 5')
+    // Constraining by the caller's name and by the path reaches one element —
+    // `a` and `t.point1` are two names for one point.
+    const { constraints } = run('triangle t with a b c', 'a at 0 0', 'distance between t.point1 and b is 5')
     expect(of(constraints.constraints, 'position')).toEqual([
-      { kind: 'position', point: 't.point1', x: 0, y: 0 },
+      { kind: 'position', point: 'a', x: 0, y: 0 },
     ])
     expect(of(constraints.constraints, 'distance')).toEqual([
-      { kind: 'distance', p1: 't.point1', p2: 't.point2', value: 5 },
+      { kind: 'distance', p1: 'a', p2: 'b', value: 5 },
     ])
   })
 })

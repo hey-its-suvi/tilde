@@ -13,11 +13,6 @@
  *  the two are both strings, and mixing them up is the easy mistake to make. */
 export type Key = string & { readonly __key: true }
 
-/** The one place a string becomes a key without being made as one. Today every
- *  element's key is spelled like a name, so this is how existing keys cross over;
- *  it goes once keys are generated. */
-export const asKey = (s: string): Key => s as Key
-
 /** A name, and the element it points at. */
 export type Label = { name: string; key: Key }
 

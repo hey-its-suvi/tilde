@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { Scope, asKey } from '../lang/defs/scope.js'
+import { Scope, type Key } from '../lang/defs/scope.js'
+
+/** A key for a scope to point at. Real keys come from the data store; a scope
+ *  does not care where they came from. */
+const asKey = (s: string) => s as Key
 
 describe('a scope holds labels', () => {
   it('looks a label up by name', () => {
