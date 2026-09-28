@@ -22,7 +22,6 @@
 // form a barrel module like `prelude` — which has no definitions of its own —
 // would export nothing. Rust spells this `pub use`, JS `export * from`.
 
-import { lexHeader } from './lexer.js'
 import { parseFile } from './parser.js'
 import { DefinitionError, signature, type Definition, type Statement, type TypeDecl } from './types.js'
 
@@ -49,8 +48,6 @@ export type Loaded = {
   /** Definition → the scope its body expands in. Composed bodies from an
    *  imported module must resolve against that module, not the importer. */
   homeOf: HomeMap
-  /** Definition → the names its body introduces on its own account. */
-  locals: LocalsMap
   /** Every `define type` in every module loaded. */
   types: TypeMap
   modules: Map<string, Module>
@@ -64,52 +61,6 @@ export type HomeMap = Map<Definition, Definition[]>
  *  itself is global would be a distinction without a difference. */
 export type TypeMap = Map<string, TypeDecl>
 
-/** Definition → the names its body introduces that did not come from a slot.
- *  These are the definition's own working parts, and each call needs its own
- *  copy of them. Computed once the scope is known, since telling a local from a
- *  pattern word means knowing every pattern word in scope. */
-export type LocalsMap = Map<Definition, string[]>
-
-/** Words a body writes that are neither its slots nor anyone's pattern word.
- *
- *  Two things that look like new names and are not:
- *  - **a path** (`t.a`) — you can only reach a field of something that already
- *    exists, so a dotted word never introduces anything.
- *  - **a type name** (`Triangle` in `new Triangle t`) — it names a kind, not an
- *    element, and lands in a `Name` slot only because a `Name` slot is "a bare
- *    word". */
-function localsOf(
-  def: Definition,
-  scope: readonly Definition[],
-  declaredTypes: ReadonlyMap<string, TypeDecl>,
-): string[] {
-  if (def.body.body !== 'tilde') return [] // a tsx body names things in TypeScript
-
-  const slots = new Set(def.pattern.flatMap(p => (p.part === 'slot' ? [p.name] : [])))
-  const words = new Set(
-    scope.flatMap(d => d.pattern.flatMap(p => (p.part === 'keyword' ? [p.word] : []))),
-  )
-
-  const lines = [...def.body.lines, ...(def.body.result === null ? [] : [def.body.result])]
-  const locals = new Set<string>()
-  for (const line of lines) {
-    let tokens
-    try {
-      tokens = lexHeader(line, def.line)
-    } catch {
-      continue // the statement will report its own problem when it runs
-    }
-    for (const t of tokens) {
-      if (t.kind !== 'WORD') continue
-      if (slots.has(t.value) || words.has(t.value)) continue
-      if (t.value.includes('.')) continue // a path, not a new name
-      if (declaredTypes.has(t.value)) continue // a kind, not an element
-      locals.add(t.value)
-    }
-  }
-  return [...locals]
-}
-
 export class ModuleError extends Error {
   constructor(message: string) {
     super(`[Module] ${message}`)
@@ -119,11 +70,10 @@ export class ModuleError extends Error {
 export function loadModule(entry: string, registry: Registry): Loaded {
   const modules = new Map<string, Module>()
   const homeOf: HomeMap = new Map()
-  const locals: LocalsMap = new Map()
   const types: TypeMap = new Map()
   const order: Module[] = []
-  const module = load(entry, registry, modules, homeOf, locals, types, order, [])
-  return { scope: module.scope, order, homeOf, locals, types, modules }
+  const module = load(entry, registry, modules, homeOf, types, order, [])
+  return { scope: module.scope, order, homeOf, types, modules }
 }
 
 function load(
@@ -131,7 +81,6 @@ function load(
   registry: Registry,
   modules: Map<string, Module>,
   homeOf: HomeMap,
-  locals: LocalsMap,
   types: TypeMap,
   order: Module[],
   stack: string[],
@@ -173,7 +122,7 @@ function load(
   const scope = [...own]
 
   for (const imp of parsed.imports) {
-    const dep = load(imp.name, registry, modules, homeOf, locals, types, order, [...stack, name])
+    const dep = load(imp.name, registry, modules, homeOf, types, order, [...stack, name])
     // Own definitions shadow imported ones: a file may redefine `parallel`.
     // Two *imports* colliding stays an error, surfaced at dispatch as an
     // ambiguity — there is no principled winner between them.
@@ -188,7 +137,6 @@ function load(
   order.push(module)
   for (const def of own) {
     homeOf.set(def, scope)
-    locals.set(def, localsOf(def, scope, types))
   }
   return module
 }

@@ -355,6 +355,22 @@ program. Hiding it would need the symbol table split into "what elements exist"
 scope). Those are conflated today, which is exactly why keying and visibility
 are the same thing. Deliberately left as-is.
 
+**Revised (0.3.55): the split is made.** Every element is data in one store,
+keyed by the store (`Point#1`, `Circle#2`); every name is a *label* pointing at a
+key, held in a scope. The program has one scope, each running call has its own
+(a *frame*), and each piece of data has one for its fields. A call's frame starts
+with its element slots and gains whatever names its body gives things as its
+lines run; it ends when the call returns. So:
+
+- Locals are no longer found by a static scan. What a word is follows from what
+  its line does when it runs — a word in a `Name` slot is being named — so a
+  pattern word (`set`, `origin`) can be a body's own name.
+- A body sees its frame only, not the program's names.
+- A `Name` slot's word carries the frame it was written in, so `point n` inside
+  `dot` labels `d` where the caller wrote it.
+- The thing outlives its label, as decision 14 says: a local's circle stays in
+  the store, drawn only if something still labels it.
+
 ### 14. Scopes are about naming, never existence
 
 Worth stating because it is where the intuition from other languages misleads.
@@ -1152,9 +1168,10 @@ Built recently, each covered by tests and the changelog:
 - **Brackets group**, worked out from the inside alone: `line l through (1,2)
   (3,4)`, `point p = (3, 4)`. A statement is a tree; groups run innermost first.
   Brackets around one word are always just that word.
-- **Locals end when their definition returns.** Keys are `_<local>_<n>`, owned by
-  the call that made them; a local escapes only by being returned, and then
-  belongs to whoever it was returned into. Local shapes are kept but not drawn.
+- **Elements are data, names are labels.** The store keys every element
+  (`Point#1`); the program, each running call and each element's fields have a
+  scope of labels. A call's names end when it returns; a local escapes only by
+  being returned. Unlabelled shapes are kept but not drawn. (Revises 13.)
 - **No reassignment; primes in names** (decision 6, revised). `=` only narrows.
 - **Definition headers end in `:`**; `=` is an ordinary pattern word, defined
   per shape in the prelude.

@@ -23,31 +23,54 @@ export class ResolutionError extends Error {
   }
 }
 
-/** Which call a local belongs to, and what it was called there — so a local used
- *  after its call has returned can be refused with a useful message. */
-export type Owned = { call: number; local: string; def: string }
+/** Where names are looked up while something runs: the program's own frame, or
+ *  one call's. A call's frame starts with its element slots and gains whatever
+ *  names its body gives things; it ends when the call returns. */
+export type Frame = { id: number; labels: Scope; form: string }
 
 /** Everything resolution needs to know about what exists. */
 export type Store = {
   /** Every element made so far, with its type and fields. */
   data: DataStore
   decls: TypeMap
-  /** The program's labels: every name a program has given something. */
+  /** The program's labels — frame 0's. */
   globals: Scope
-  /** Locals, by the name their call gave them, with the call that owns them.
-   *  One leaves this map when its call returns it — returning is how a local
-   *  escapes. */
-  owned: Map<string, Owned>
-  /** Calls currently running, innermost last. A local is usable only while its
-   *  call is among them. */
-  frames: number[]
+  /** Frames still running, by number. */
+  frames: Map<number, Frame>
+  /** The frame names are looked up in now. */
+  current: Frame
+  /** Frames that have ended, kept only to say so when one of their names is
+   *  used from outside. */
+  ended: Frame[]
 }
 
-/** The key a word stands for: the element a label points at, or — when a key
- *  was written into a statement, as a slot's value or a bracket's result — that
- *  key itself. Undefined when it is neither. */
-export const keyOf = (word: string, store: Store): Key | undefined =>
-  store.globals.get(word) ?? store.data.key(word)
+/** The key a word stands for, in the frame running now. A word marked `d@3` is
+ *  a Name-slot word handed down from frame 3, and is looked up there. A key
+ *  written into a statement — a bracket's result — stands for itself. */
+export function keyOf(word: string, store: Store): Key | undefined {
+  const at = word.indexOf('@')
+  if (at >= 0) return store.frames.get(Number(word.slice(at + 1)))?.labels.get(word.slice(0, at))
+  return store.data.key(word) ?? store.current.labels.get(word)
+}
+
+/** A statement as the program wrote it, without the marks evaluation adds. */
+export const unmark = (text: string) => text.replace(/@\d+/g, '')
+
+/** If `word` was a name in a call that has returned, say so: that is almost
+ *  certainly what went wrong, and "nothing fits" would not say it. */
+function endedProblem(statement: string, store: Store): string | null {
+  for (const token of lexHeader(statement, 0)) {
+    if (token.kind !== 'WORD') continue
+    const head = token.value.split('.')[0]!
+    if (keyOf(head, store) !== undefined) continue
+    const frame = [...store.ended].reverse().find(f => f.labels.has(head))
+    if (frame !== undefined) {
+      return `"${head}" was local to \`${frame.form}\` and ended when it returned` +
+        ` — to reach it from outside, return it or make it a field`
+    }
+  }
+  return null
+}
 
 /** Follow a possibly-dotted name to the element it names: look the first part up,
  *  then each next part in the scope of what was found. `t.point1` is `t`, then
@@ -78,10 +101,10 @@ function pathProblem(name: string, store: Store): string | null {
   if (fields.length === 0) return null // not a path; ordinary "not declared"
 
   const root = keyOf(head!, store)
-  if (root === undefined) return `"${head}" is not declared`
+  if (root === undefined) return `"${unmark(head!)}" is not declared`
   let key: Key = root
   let type = store.data.typeOf(key)!
-  let path = head!
+  let path = unmark(head!)
 
   for (const field of fields) {
     const decl = store.decls.get(type)
@@ -113,41 +136,42 @@ export function resolveStatement(
   store: Store,
   defs: readonly Definition[],
 ): Match {
+  const shown = unmark(statement)
+
+  // A definition's local names end when it returns. Its shapes live on — the
+  // drawing may depend on them — but nothing outside can name them again.
+  const ended = () => {
+    const problem = endedProblem(statement, store)
+    if (problem !== null) throw new ResolutionError(problem)
+  }
+
   for (const token of lexHeader(statement, 0)) {
     if (token.kind !== 'WORD') continue
-
-    // A definition's local names end when it returns. Its shapes live on — the
-    // drawing may depend on them — but nothing outside can name them again.
-    const head = token.value.split('.')[0]!
-    const owner = store.owned.get(head)
-    if (owner !== undefined && !store.frames.includes(owner.call)) {
-      throw new ResolutionError(
-        `"${owner.local}" was local to \`${owner.def}\` and ended when it returned` +
-          ` — to reach it from outside, return it or make it a field`,
-      )
-    }
-
     // A broken path deserves to say so, rather than surfacing as "nothing fits".
     if (!token.value.includes('.')) continue
     const problem = pathProblem(token.value, store)
-    if (problem !== null) throw new ResolutionError(problem)
+    if (problem !== null) {
+      ended()
+      throw new ResolutionError(problem)
+    }
   }
 
   const candidates = matchStatement(statement, defs)
   if (candidates.length === 0) {
-    throw new ResolutionError(`no definition matches "${statement}"`)
+    throw new ResolutionError(`no definition matches "${shown}"`)
   }
 
   const viable = candidates.filter(c => typesFit(c, store))
   const list = (ms: Match[]) => ms.map(form).map(f => `\`${f}\``).join(', ')
 
   if (viable.length === 0) {
+    ended()
     throw new ResolutionError(
-      `no definition of "${statement}" fits the argument types (tried ${list(candidates)})`,
+      `no definition of "${shown}" fits the argument types (tried ${list(candidates)})`,
     )
   }
   if (viable.length > 1) {
-    throw new ResolutionError(`"${statement}" is ambiguous: ${list(viable)}`)
+    throw new ResolutionError(`"${shown}" is ambiguous: ${list(viable)}`)
   }
 
   return viable[0]!

@@ -50,9 +50,10 @@ const isIndented = (s: string) => /^[ \t]/.test(s)
 function checkNames(text: string, lineNo: number): void {
   for (const token of lexHeader(text, lineNo)) {
     if (token.kind !== 'WORD') continue
-    if (token.value.includes('#')) {
+    const reserved = ['#', '@'].find(c => token.value.includes(c))
+    if (reserved !== undefined) {
       throw new DefinitionError(
-        `'${token.value}' has a '#' — that is how the language keys its own elements, not part of a name`,
+        `'${token.value}' has a '${reserved}' — the language uses that for its own bookkeeping, not in names`,
         lineNo,
       )
     }

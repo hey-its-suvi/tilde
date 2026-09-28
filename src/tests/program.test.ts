@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseFile } from '../lang/defs/parser.js'
-import { runModules, runSource } from '../lang/defs/eval.js'
+import { runSource } from '../lang/defs/eval.js'
 import { byName } from './named.js'
 import { loadModule, type Registry } from '../lang/defs/modules.js'
 import { PRELUDE } from '../lang/prelude/index.js'
@@ -9,15 +9,6 @@ import { GeometricPropagate } from '../lang/solver/propagate/geometric/index.js'
 import { RuleBasedPick } from '../lang/solver/pick/rule-based/index.js'
 
 const run = (source: string) => byName(runSource(source, PRELUDE))
-
-/** Run `source`, then one more statement that skips the source parser. A local's
- *  key (`_c_1`) cannot be written in a program — no name may start with `_` — so
- *  this is how to reach one and check that it is closed off all the same. */
-const runThenInternal = (source: string, statement: string) => {
-  const loaded = loadModule('main', { ...PRELUDE, main: source })
-  loaded.order.at(-1)!.statements.push({ text: statement, line: 0 })
-  return runModules(loaded)
-}
 
 const solve = (source: string) =>
   new Solver(new GeometricPropagate(), new RuleBasedPick()).solve(run(source).constraints)
@@ -139,7 +130,7 @@ define dot (n: Name) at (x: Scalar) (y: Scalar) => Circle:
 dot d at 3 4;
 `)
     expect(result.points.get('d')!.solutions![0]).toEqual({ x: 3, y: 4 })
-    expect(result.circles.get('_c_1')!.solutions![0]).toEqual({ center: 'd', r: 1 })
+    expect(result.circles.get('Circle#1')!.solutions![0]).toEqual({ center: 'd', r: 1 })
   })
 
   it('treats a terminated and an unterminated program as identical', () => {
@@ -176,7 +167,7 @@ dot d at 3 4
     n at x y
     return c`))
     expect(result.points.get('d')!.solutions![0]).toEqual({ x: 3, y: 4 })
-    expect(result.circles.get('_c_1')!.solutions![0]).toEqual({ center: 'd', r: 1 })
+    expect(result.circles.get('Circle#1')!.solutions![0]).toEqual({ center: 'd', r: 1 })
   })
 
   it('catches a return that does not match the signature', () => {
@@ -188,7 +179,7 @@ dot d at 3 4
   it('accepts a whole statement, not just a name', () => {
     const result = solve(dot(`    point n at x y
     return circle c with center n and radius 2`))
-    expect(result.circles.get('_c_1')!.solutions![0]).toEqual({ center: 'd', r: 2 })
+    expect(result.circles.get('Circle#1')!.solutions![0]).toEqual({ center: 'd', r: 2 })
   })
 
   it('requires a return when the signature promises one', () => {
@@ -222,23 +213,23 @@ dot e at 1 1
 `
 
   it('lets the same definition be used more than once', () => {
-    // `c` is written literally in the body, so each call gets its own.
+    // `c` is written literally in the body, but each call's is its own: a label
+    // in that call's frame. Nothing outside names them, so they read by key.
     const result = solve(dot)
-    expect(result.circles.get('_c_1')!.solutions![0]).toEqual({ center: 'd', r: 1 })
-    expect(result.circles.get('_c_2')!.solutions![0]).toEqual({ center: 'e', r: 1 })
+    expect(result.circles.get('Circle#1')!.solutions![0]).toEqual({ center: 'd', r: 1 })
+    expect(result.circles.get('Circle#2')!.solutions![0]).toEqual({ center: 'e', r: 1 })
   })
 
-  it('gives each call its own copy, numbered by call', () => {
+  it('gives each call its own circle, and the program only the names it wrote', () => {
     const { typeOf, has, names } = run(dot)
-    expect(names().sort()).toEqual(['_c_1', '_c_2', 'd', 'e'])
+    expect(names().sort()).toEqual(['Circle#1', 'Circle#2', 'd', 'e'])
     expect(has('c')).toBe(false)
   })
 
   it('ends a local\'s name when its call returns', () => {
     // The circle still exists — the drawing may depend on it — but nothing
     // outside the call can name it again.
-    expect(() => run(`${dot}_c_1 with radius 9\n`)).toThrow(/'_c_1' starts with '_'/)
-    expect(() => runThenInternal(dot, '_c_1 with radius 9')).toThrow(
+    expect(() => run(`${dot}c with radius 9\n`)).toThrow(
       /"c" was local to `dot \(n: Name\) at \(x: Scalar\) \(y: Scalar\)` and ended when it returned/,
     )
   })
@@ -246,8 +237,10 @@ dot e at 1 1
   it('lets a returned local out', () => {
     // `(3, 4)` returns its point, so the caller may use it — that is how
     // `point p = (3, 4)` works.
-    const { globals } = run('import prelude\npoint p = (3, 4)\np at 3 4\n')
-    expect(globals.get('p')).toBe(globals.get('_pt_1'))
+    const { globals, typeOf } = run('import prelude\npoint p = (3, 4)\np at 3 4\n')
+    expect(typeOf('p')).toBe('Point')
+    // The definition's own `pt` ended with it; the program has only `p`.
+    expect([...globals.labels()].map(l => l.name)).toEqual(['p'])
   })
 
   it('keeps a value returned into a definition inside that definition', () => {
@@ -262,7 +255,7 @@ define corner (n: Name):
 corner z
 `
     expect(() => run(src)).not.toThrow()
-    expect(() => runThenInternal(src, '_pt_2 at 5 5')).toThrow(/was local to `corner \(n: Name\)`/)
+    expect(() => run(`${src}helper at 5 5\n`)).toThrow(/"helper" was local to `corner \(n: Name\)`/)
   })
 
   it('lets a local be used freely while its call is running', () => {
@@ -284,10 +277,10 @@ corner z
     expect(names().sort()).toEqual(['a', 'b', 'l'])
   })
 
-  it('keys a definition with no Name slot by call instead', () => {
+  it('makes a new one each call even with no Name slot to tell them apart', () => {
     // Nothing names the call, so a counter does: `_origin_1`, `_origin_2`. Two
     // uses make two points rather than colliding.
     const { typeOf, has, names } = run('import prelude\n\ndefine grid:\n    point origin at 0 0\n\ngrid\ngrid\n')
-    expect(names().sort()).toEqual(['_origin_1', '_origin_2'])
+    expect(names().sort()).toEqual(['Point#1', 'Point#2'])
   })
 })

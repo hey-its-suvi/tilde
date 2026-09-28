@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.3.54 — current
+## 0.3.55 — current
+
+- **A definition's own names are its own.** Inside a body, any word can name something — including words that are also part of a pattern, like `set`, `on`, `origin` or `grid`. Before, those were quietly treated as pattern words and could not be used.
+- A body sees only its slots and the names it makes itself, never the program's names — as before, now for a clearer reason.
+- Using a definition's own name from outside says so: `c with radius 9` after `dot d at 3 4` reports that `c` was local to `dot` and ended when it returned.
+- Printing something nothing names shows the language's own key for it, like `Point#1 = (1, 2)`.
+- `@` and `#` cannot appear in names; the language uses them for its own bookkeeping.
+
+## 0.3.54
 
 - In a `tsx` body, `declare(name, type)` now always makes an element's fields from its `define type` — a Triangle comes with its three points. Fields can no longer be handed in (`declare(n, 'Segment', { from: p, to: q })`); to tie a field to a name, make the element and name its fields, as `triangle t with a b c` does: `new Segment s`, `call s.from p`. `mint` is gone — `declare` does what it did.
 

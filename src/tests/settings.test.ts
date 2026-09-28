@@ -21,8 +21,8 @@ describe('set', () => {
   })
 
   it('leaves setting names free to name things with', () => {
-    // A pattern word cannot be a body's own name, which is why the setting's
-    // name sits in a slot: `origin` and `grid` here are still new each call.
+    // `origin` and `grid` name settings, but in a Name slot they are just
+    // names — here a body's own, new each call.
     const src = `define corner:
     point origin at 0 0
     point grid at 1 1

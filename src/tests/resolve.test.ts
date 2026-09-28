@@ -16,7 +16,8 @@ const symbols = (entries: Record<string, string>): Store => {
   const data = new DataStore()
   const globals = new Scope()
   for (const [name, type] of Object.entries(entries)) globals.add({ name, key: data.make(type).key })
-  return { data, decls: prelude.types, globals, owned: new Map(), frames: [] }
+  const program = { id: 0, labels: globals, form: 'the program' }
+  return { data, decls: prelude.types, globals, frames: new Map([[0, program]]), current: program, ended: [] }
 }
 
 /** The surface form resolution settles on, so assertions read like the prelude

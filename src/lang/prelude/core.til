@@ -247,9 +247,8 @@ define print (x: Any):
 -- a `set` line means the same wherever it is written. Two different choices for
 -- one setting contradict each other.
 --
--- The setting's name goes in a slot rather than the pattern, so `grid` or
--- `origin` stay free to name things with — a pattern word cannot also be a
--- body's own name.
+-- The setting's name goes in a slot, so one pair of definitions covers every
+-- setting, and the list of them lives in one place.
 --
 --   grid        faint lines at every whole unit            on
 --   axes        the x and y axes                           on
