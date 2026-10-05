@@ -13,7 +13,7 @@
 import { lexHeader } from './lexer.js'
 import { matchStatement, type Match } from './match.js'
 import type { TypeMap } from './modules.js'
-import type { Definition } from './types.js'
+import { typeText, type Definition } from './types.js'
 import type { Key, Scope } from './scope.js'
 import type { DataStore } from './data.js'
 
@@ -35,8 +35,6 @@ export type Store = {
   decls: TypeMap
   /** The program's labels — frame 0's. */
   globals: Scope
-  /** Frames still running, by number. */
-  frames: Map<number, Frame>
   /** The frame names are looked up in now. */
   current: Frame
   /** Frames that have ended, kept only to say so when one of their names is
@@ -44,17 +42,11 @@ export type Store = {
   ended: Frame[]
 }
 
-/** The key a word stands for, in the frame running now. A word marked `d@3` is
- *  a Name-slot word handed down from frame 3, and is looked up there. A key
- *  written into a statement — a bracket's result — stands for itself. */
+/** The key a word stands for, in the frame running now. A key written into a
+ *  statement — a bracket's result — stands for itself. */
 export function keyOf(word: string, store: Store): Key | undefined {
-  const at = word.indexOf('@')
-  if (at >= 0) return store.frames.get(Number(word.slice(at + 1)))?.labels.get(word.slice(0, at))
   return store.data.key(word) ?? store.current.labels.get(word)
 }
-
-/** A statement as the program wrote it, without the marks evaluation adds. */
-export const unmark = (text: string) => text.replace(/@\d+/g, '')
 
 /** If `word` was a name in a call that has returned, say so: that is almost
  *  certainly what went wrong, and "nothing fits" would not say it. */
@@ -101,10 +93,10 @@ function pathProblem(name: string, store: Store): string | null {
   if (fields.length === 0) return null // not a path; ordinary "not declared"
 
   const root = keyOf(head!, store)
-  if (root === undefined) return `"${unmark(head!)}" is not declared`
+  if (root === undefined) return `"${head}" is not declared`
   let key: Key = root
   let type = store.data.typeOf(key)!
-  let path = unmark(head!)
+  let path = head!
 
   for (const field of fields) {
     const decl = store.decls.get(type)
@@ -127,7 +119,7 @@ export const NAME = 'Name'
 
 /** Render a candidate's surface form, for error messages. */
 export const form = (m: Match) =>
-  m.def.pattern.map(p => (p.part === 'keyword' ? p.word : `(${p.name}: ${p.type.name})`)).join(' ')
+  m.def.pattern.map(p => (p.part === 'keyword' ? p.word : `(${p.name}: ${typeText(p.type)})`)).join(' ')
 
 /** The single definition `statement` means, given what is currently declared.
  *  Throws if nothing matches, nothing fits, or more than one fits. */
@@ -136,7 +128,7 @@ export function resolveStatement(
   store: Store,
   defs: readonly Definition[],
 ): Match {
-  const shown = unmark(statement)
+  const shown = statement
 
   // A definition's local names end when it returns. Its shapes live on — the
   // drawing may depend on them — but nothing outside can name them again.
@@ -183,7 +175,8 @@ export function resolveStatement(
  *  evaluation's call, since only the body knows. */
 function typesFit(m: Match, store: Store): boolean {
   for (const b of m.bindings) {
-    if (b.type.name === NAME) {
+    // An output or a Name slot takes a word: a name being given, or just a word.
+    if (b.type.output || b.type.name === NAME) {
       if (b.token.kind !== 'WORD') return false
       continue
     }

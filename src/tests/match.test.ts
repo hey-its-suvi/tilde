@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { matchStatement, type Match } from '../lang/defs/match.js'
-import type { Definition } from '../lang/defs/types.js'
+import { typeText, type Definition } from '../lang/defs/types.js'
 
 import { loadModule } from '../lang/defs/modules.js'
 import { PRELUDE } from '../lang/prelude/index.js'
@@ -14,7 +14,7 @@ const table: Definition[] = prelude.scope
  *  the prelude source rather than referencing table indices. */
 const show = (m: Match) =>
   m.def.pattern
-    .map(p => (p.part === 'keyword' ? p.word : `(${p.name}: ${p.type.name})`))
+    .map(p => (p.part === 'keyword' ? p.word : `(${p.name}: ${typeText(p.type)})`))
     .join(' ')
 
 const forms = (stmt: string) => matchStatement(stmt, table).map(show)
@@ -34,7 +34,7 @@ describe('single unambiguous matches', () => {
     // `line l parallel m` can only be the declaring form. The bare
     // `(a: Line) parallel (b: Line)` fails: its first slot would eat `line`,
     // then the keyword `parallel` meets `l` and the match dies.
-    expect(forms('line l parallel m')).toEqual(['line (n: Name) parallel (m: Line)'])
+    expect(forms('line l parallel m')).toEqual(['line (n: new Line) parallel (m: Line)'])
   })
 
   it('matches a mixfix measurement', () => {
@@ -44,7 +44,7 @@ describe('single unambiguous matches', () => {
   })
 
   it('matches adjacent slots', () => {
-    expect(forms('point p at 3 5')).toEqual(['point (n: Name) at (x: Scalar) (y: Scalar)'])
+    expect(forms('point p at 3 5')).toEqual(['point (n: new Point) at (x: Scalar) (y: Scalar)'])
     expect(bindings('point p at 3 5')).toEqual({ n: 'p', x: '3', y: '5' })
   })
 
@@ -52,7 +52,7 @@ describe('single unambiguous matches', () => {
     // `circle c` alone is also a definition, but a full statement match must
     // consume every token, so the prefix form is not a candidate here.
     expect(forms('circle c with center o and radius r')).toEqual([
-      'circle (n: Name) with center (p: Point) and radius (r: Scalar)',
+      'circle (n: new Circle) with center (p: Point) and radius (r: Scalar)',
     ])
   })
 })

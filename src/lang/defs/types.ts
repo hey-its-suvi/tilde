@@ -5,12 +5,19 @@
 // written as separate definitions instead, and comma-lists are handled by the
 // distribution rule at the statement level rather than inside a pattern.
 
-/** A type as written in a signature: `Line`, `Name`, `[Point]`. */
+/** A type as written in a signature: `Line`, `Name`, `[Point]`, `new Point`. */
 export type TypeRef = {
   name: string
   /** true for `[Point]` — a slot taking a list rather than one value. */
   list: boolean
+  /** true for `new Point` — an output: the caller writes a name there, and gets
+   *  back under that name whatever the body made or chose. Absent otherwise. */
+  output?: true
 }
+
+/** A type as it is written: `Point`, `[Point]`, `new Point`. */
+export const typeText = (t: TypeRef): string =>
+  `${t.output ? 'new ' : ''}${t.list ? `[${t.name}]` : t.name}`
 
 export type PatternPart =
   /** A fixed word the user types: `parallel`, `with`, `center`. */
@@ -80,10 +87,15 @@ export type Statement = {
 /** A definition's surface signature: keywords and slot *types*, with slot names
  *  dropped. Two definitions with the same signature are the same definition as
  *  far as dispatch is concerned, whatever their slots are called. Used to let a
- *  file's own definitions shadow the ones it imports. */
+ *  file's own definitions shadow the ones it imports.
+ *
+ *  An output counts as a plain word whatever its type: the caller writes a new
+ *  name there, and nothing about a new name tells `new Point` from `new Line`.
+ *  So `greet (n: new Point)` and `greet (n: new Line)` are one signature —
+ *  a redefinition, not an overload that could never be told apart. */
 export const signature = (pattern: Pattern): string =>
   pattern
-    .map(p => (p.part === 'keyword' ? p.word : `«${p.type.name}${p.type.list ? '...' : ''}»`))
+    .map(p => (p.part === 'keyword' ? p.word : `«${p.type.output ? 'Name' : p.type.name}${p.type.list ? '...' : ''}»`))
     .join(' ')
 
 export class DefinitionError extends Error {

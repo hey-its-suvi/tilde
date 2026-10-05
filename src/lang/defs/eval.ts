@@ -23,7 +23,7 @@ import { Scope, type Key } from './scope.js'
 import { DataStore } from './data.js'
 import { lexHeader, type Token } from './lexer.js'
 import { groupTokens, render, type Node } from './tree.js'
-import { resolveStatement, resolvePath, keyOf, NAME, form, type Frame, type Store } from './resolve.js'
+import { resolveStatement, resolvePath, keyOf, NAME, ANY, form, type Frame, type Store } from './resolve.js'
 import type { Match } from './match.js'
 import { loadModule, type HomeMap, type Loaded, type Registry, type TypeMap } from './modules.js'
 import type { Definition, Statement } from './types.js'
@@ -40,22 +40,6 @@ export class EvalError extends Error {
  *  numbers. Definitions with no return type produce `null`. */
 export type Value = string | number | Text | null
 
-/** What a slot is bound to while its definition runs: a value, or for a Name
- *  slot the word and where it was written. */
-type Bound = Value | NameArg
-
-/** What a Name slot holds: a word, and the frame it was written in. Declaring it
- *  labels that frame, not the one doing the declaring — `dot d at 3 4` runs
- *  `point n` inside `dot`, and the label `d` belongs to whoever wrote `d`.
- *  Written into a body line as `d@0`; `@` is refused in anything a program
- *  writes, so the mark cannot be forged. Reads as its word in a tsx body. */
-export class NameArg {
-  constructor(readonly name: string, readonly frame: number) {}
-  toString(): string {
-    return this.name
-  }
-}
-
 /** A piece of text. Wrapped rather than a bare string, because a bare string is
  *  already how a value names an element — `"p"` the text and `p` the point have
  *  to stay different things. */
@@ -66,8 +50,8 @@ export const isText = (v: unknown): v is Text =>
 /** How a value is written back into a statement: an element by its key, a
  *  number as itself, text quoted — so substituting it and re-reading the line
  *  gives back the same value. */
-const valueSource = (v: Bound): string =>
-  isText(v) ? JSON.stringify(v.text) : v instanceof NameArg ? `${v.name}@${v.frame}` : String(v)
+const valueSource = (v: Value): string =>
+  isText(v) ? JSON.stringify(v.text) : String(v)
 
 /** A string token's value, quotes and escapes removed. */
 const textOf = (token: Token): Text => ({ text: JSON.parse(token.value) as string })
@@ -151,7 +135,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, decls: TypeMap): Program {
   const globals = new Scope()
   const program: Frame = { id: 0, labels: globals, form: 'the program' }
   const ctx: Context = {
-    store: { data, decls, globals, frames: new Map([[0, program]]), current: program, ended: [] },
+    store: { data, decls, globals, current: program, ended: [] },
     constraints, homeOf, frameCount: 0, prints: [], settings: new Map(),
   }
   for (const unit of units) {
@@ -242,18 +226,24 @@ function settleGroups(
 function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: number): Value {
   const caller = ctx.store.current
 
-  // What each slot holds. A number or text is itself; a Name slot holds the word
-  // together with the frame it was written in, since that is where declaring it
-  // must put the label; anything else is the element it points at, by key.
-  const env = new Map<string, Bound>()
+  // What each slot holds. A number or text is itself, and so is a Name slot's
+  // word; an output slot is a name the caller will get back; anything else is
+  // the element it points at, by key.
+  const env = new Map<string, Value>()
   const elements = new Set<string>()
+  const outputs: Output[] = []
   for (const b of m.bindings) {
     if (b.token.kind === 'NUMBER') {
       env.set(b.slot, Number(b.token.value))
     } else if (b.token.kind === 'STRING') {
       env.set(b.slot, textOf(b.token))
+    } else if (b.type.output) {
+      outputs.push(output(b.slot, b.token.value, b.type.name, caller, ctx))
+      // Inside the body the output is just the slot's own name — a label it
+      // gives in its own frame, handed back when it ends.
+      env.set(b.slot, b.slot)
     } else if (b.type.name === NAME) {
-      env.set(b.slot, nameArg(b.token.value, caller))
+      env.set(b.slot, b.token.value)
     } else {
       // A path binds the element it points at, so a body never sees the dots.
       env.set(b.slot, resolvePath(b.token.value, ctx.store)!.key)
@@ -261,32 +251,35 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
     }
   }
 
-  if (m.def.body.body === 'tsx') {
+  // A tsx body with nothing to hand back runs where it was called from: it only
+  // adds facts about things that already exist.
+  if (m.def.body.body === 'tsx' && outputs.length === 0) {
     const value = runTsx(m, env, ctx)
     checkReturn(m, value, ctx)
     return value
   }
 
-  // A composed body runs in a frame of its own. It sees its slots — the elements
-  // as labels in the frame, the rest written into each line — and the names it
-  // gives things itself, which land in the frame as it runs. Nothing else: not
-  // the program's names, not the caller's. The frame ends when the call does;
-  // what it made lives on in the data store, reachable only if it was returned
-  // or is held by something that was.
+  // Anything else runs in a frame of its own. It sees its slots — the elements
+  // as labels in the frame, numbers and words written into each line, outputs
+  // as names it gives itself — and nothing else: not the program's names, not
+  // the caller's. When it ends, its outputs are handed back to the caller under
+  // the names the caller wrote, and the frame goes. What it made lives on in
+  // the data store.
   const frame: Frame = { id: ++ctx.frameCount, labels: new Scope(), form: form(m) }
   for (const slot of elements) frame.labels.add({ name: slot, key: env.get(slot) as Key })
 
-  ctx.store.frames.set(frame.id, frame)
   ctx.store.current = frame
   let value: Value
   try {
     // A body expands in the scope of the module that *defined* it, not the one
     // that called it. This is what makes imports non-transitive: a definition
     // may use everything its own file imported, and nothing the caller did.
-    value = runComposed(m.def.body, env, elements, ctx.homeOf.get(m.def) ?? scope, ctx, depth)
+    value = m.def.body.body === 'tsx'
+      ? runTsx(m, env, ctx)
+      : runComposed(m.def.body, env, elements, ctx.homeOf.get(m.def) ?? scope, ctx, depth)
+    for (const out of outputs) handBack(out, frame, caller, ctx)
   } finally {
     ctx.store.current = caller
-    ctx.store.frames.delete(frame.id)
     ctx.store.ended.push(frame)
   }
 
@@ -294,11 +287,39 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   return value
 }
 
-/** A Name slot's value: the word, and the frame it belongs to. A word that has
- *  already been handed down from further out keeps the frame it came with. */
-function nameArg(word: string, current: Frame): NameArg {
-  const at = word.indexOf('@')
-  return at < 0 ? new NameArg(word, current.id) : new NameArg(word.slice(0, at), Number(word.slice(at + 1)))
+/** An output slot as called: the slot, the name the caller wrote for it, and
+ *  the type it promises. */
+type Output = { slot: string; word: string; type: string; form: string }
+
+/** Check an output's name before the body runs, so a clash is reported against
+ *  the line that caused it. */
+function output(slot: string, word: string, type: string, caller: Frame, ctx: Context): Output {
+  if (word.includes('.')) {
+    throw new EvalError(`"${word}" is a path to something that already exists, so it cannot be named again`)
+  }
+  const existing = caller.labels.get(word)
+  if (existing !== undefined) {
+    throw new EvalError(`"${word}" is already declared as a ${ctx.store.data.typeOf(existing)}`)
+  }
+  return { slot, word, type, form: caller.form }
+}
+
+/** Give the caller the name it wrote, for whatever the body's output slot
+ *  labels — a fresh element of the promised type if the body left it unlabelled. */
+function handBack(out: Output, frame: Frame, caller: Frame, ctx: Context): void {
+  let key = frame.labels.get(out.slot)
+  if (key === undefined) {
+    if (out.type === ANY) throw new EvalError(`\`${frame.form}\` never made its "${out.slot}"`)
+    key = make(out.type, ctx)
+  }
+  const actual = ctx.store.data.typeOf(key)
+  if (out.type !== ANY && actual !== out.type) {
+    throw new EvalError(`\`${frame.form}\` promised a ${out.type} for "${out.slot}" but made a ${actual}`)
+  }
+  if (caller.labels.has(out.word)) {
+    throw new EvalError(`"${out.word}" is already declared as a ${ctx.store.data.typeOf(caller.labels.get(out.word)!)}`)
+  }
+  caller.labels.add({ name: out.word, key })
 }
 
 /** Run every body line, then evaluate whatever `return` designates. Order in the
@@ -306,7 +327,7 @@ function nameArg(word: string, current: Frame): NameArg {
  *  lines up. */
 function runComposed(
   body: { lines: string[]; result: string | null },
-  env: Map<string, Bound>,
+  env: Map<string, Value>,
   elements: ReadonlySet<string>,
   scope: readonly Definition[],
   ctx: Context,
@@ -361,7 +382,7 @@ function checkReturn(m: Match, value: Value, ctx: Context): void {
  *  never rewrite the `n` inside a longer word. Re-joining with single spaces is
  *  lossless: a statement is a sequence of atoms and keywords, and nothing reads
  *  its layout. */
-function substitute(line: string, env: Map<string, Bound>, elements: ReadonlySet<string>): string {
+function substitute(line: string, env: Map<string, Value>, elements: ReadonlySet<string>): string {
   const written = (slot: string) => (elements.has(slot) ? undefined : env.get(slot))
   return lexHeader(line, 0)
     .filter(t => t.kind !== 'EOF')
@@ -390,17 +411,17 @@ function substitute(line: string, env: Map<string, Bound>, elements: ReadonlySet
  *  constraint, record a segment. Everything the prelude needs, nothing that
  *  lets a body reach into evaluation itself. */
 type Api = {
-  declare: (name: string | NameArg, type: string | NameArg) => string
+  declare: (name: string, type: string) => string
   constrain: (c: ResolvedConstraint) => void
   segment: (a: string, b: string) => void
-  alias: (name: string | NameArg, existing: string) => string
+  alias: (name: string, existing: string) => string
   print: (value: Value) => void
   setting: (name: string, value: unknown) => void
 }
 
 const isIdentifier = (s: string) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(s)
 
-function runTsx(m: Match, env: Map<string, Bound>, ctx: Context): Value {
+function runTsx(m: Match, env: Map<string, Value>, ctx: Context): Value {
   const api = makeApi(ctx)
   const slots = [...env.keys()]
 
@@ -471,17 +492,6 @@ function make(type: string, ctx: Context): Key {
   return key
 }
 
-/** Where a label goes: the frame a Name-slot word was written in, or — for a
- *  plain string handed to the API — the frame running now. */
-function labelTarget(target: string | NameArg, ctx: Context): { name: string; frame: Frame } {
-  const arg = target instanceof NameArg ? target : nameArg(String(target), ctx.store.current)
-  const frame = ctx.store.frames.get(arg.frame)
-  if (frame === undefined) {
-    throw new EvalError(`"${arg.name}" belongs to a call that has already returned`)
-  }
-  return { name: arg.name, frame }
-}
-
 const typeOfWord = (word: string, store: Store): string | undefined => {
   const key = keyOf(word, store)
   return key === undefined ? undefined : store.data.typeOf(key)
@@ -510,11 +520,9 @@ export function labelsOf(program: Pick<Program, 'globals' | 'data'>): Map<Key, s
 
 function makeApi(ctx: Context): Api {
   const api: Api = {
-    /** Make an element of `type`, and label it `name` in the frame the name
-     *  was written in. */
-    declare(target, typeArg) {
-      const { name, frame } = labelTarget(target, ctx)
-      const type = String(typeArg)
+    /** Make an element of `type`, and label it `name` in the frame running now. */
+    declare(name, type) {
+      const frame = ctx.store.current
       const existing = frame.labels.get(name)
       if (existing !== undefined) {
         throw new EvalError(`"${name}" is already declared as a ${ctx.store.data.typeOf(existing)}`)
@@ -540,8 +548,8 @@ function makeApi(ctx: Context): Api {
 
     /** Give `name` to whatever `existing` already names. Two names, one element —
      *  not a copy — so constraining either constrains the same thing. */
-    alias(target, existing) {
-      const { name, frame } = labelTarget(target, ctx)
+    alias(name, existing) {
+      const frame = ctx.store.current
       if (frame.labels.has(name)) {
         throw new EvalError(`"${name}" is already declared`)
       }
@@ -559,8 +567,7 @@ function makeApi(ctx: Context): Api {
 
     /** A setting is a fact like any other: saying it twice is fine, saying two
      *  different things is a contradiction, not a change of mind. */
-    setting(nameArg, value) {
-      const name = String(nameArg)
+    setting(name, value) {
       if (!SETTINGS.includes(name)) {
         throw new EvalError(`there is no setting called ${name} (there are ${SETTINGS.join(', ')})`)
       }

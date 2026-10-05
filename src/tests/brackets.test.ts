@@ -75,7 +75,7 @@ describe('a bracketed group fills a slot with its value', () => {
 
   it('works inside a definition body too', () => {
     const scene = draw(`
-define unit square corner (n: Name) => Point:
+define unit square corner (n: new Point) => Point:
     point n = (1, 1)
     return n
 

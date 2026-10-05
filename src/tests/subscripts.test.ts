@@ -31,11 +31,11 @@ describe('underscores in names', () => {
   })
 
   it('checks names in definitions too', () => {
-    expect(() => run('define spot (_n: Name) => Point:\n    point _n\n    return _n\n')).toThrow(/starts with '_'/)
+    expect(() => run('define spot (_n: new Point) => Point:\n    point _n\n    return _n\n')).toThrow(/starts with '_'/)
   })
 
   it('still lets a definition keep locals of its own', () => {
-    const src = `define marked (n: Name) => Point:
+    const src = `define marked (n: new Point) => Point:
     point m at 1 1
     point n at 2 2
     return n

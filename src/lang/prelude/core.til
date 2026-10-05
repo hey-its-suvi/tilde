@@ -17,17 +17,17 @@
 
 -- ─── Elements ───────────────────────────────────────────────────────────────
 
-define point (n: Name) => Point:
+define point (n: new Point) => Point:
     tsx`
     return declare(n, 'Point')
     `
 
-define line (n: Name) => Line:
+define line (n: new Line) => Line:
     tsx`
     return declare(n, 'Line')
     `
 
-define circle (n: Name) => Circle:
+define circle (n: new Circle) => Circle:
     tsx`
     return declare(n, 'Circle')
     `
@@ -37,12 +37,12 @@ define circle (n: Name) => Circle:
 -- from everything else — `scalar r` with nothing else says only that some number
 -- exists, which is enough to tie two shapes to the same size.
 
-define scalar (n: Name) => Scalar:
+define scalar (n: new Scalar) => Scalar:
     tsx`
     return declare(n, 'Scalar')
     `
 
-define scalar (n: Name) is (v: Scalar) => Scalar:
+define scalar (n: new Scalar) is (v: Scalar) => Scalar:
     scalar n
     n is v
     return n
@@ -123,7 +123,7 @@ define (s: Scalar) = (v: Scalar) => Scalar:
     s is v
     return s
 
-define scalar (n: Name) = (v: Scalar) => Scalar:
+define scalar (n: new Scalar) = (v: Scalar) => Scalar:
     scalar n
     n is v
     return n
@@ -218,16 +218,16 @@ define distance between (p: Point) and (q: Point) is (d: Scalar):
 -- name to something that already exists. Between them a composite is definable
 -- in Tilde with no tsx of its own.
 --
--- The type name sits in a `Name` slot because a `Name` slot is just "a bare
--- word" — declaring is what a body chooses to do with it, not what the slot
--- means. So `new Triangle t` needs no keyword.
+-- The type name sits in a `Name` slot, which is just "a bare word"; the new
+-- element's name is an output, `new Any` because it can be any type. So
+-- `new Triangle t` needs no keyword.
 
-define new (ty: Name) (n: Name):
+define new (ty: Name) (n: new Any):
     tsx`
     declare(n, ty)
     `
 
-define call (x: Any) (n: Name):
+define call (x: Any) (n: new Any):
     tsx`
     alias(n, x)
     `

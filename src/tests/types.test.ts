@@ -38,7 +38,7 @@ describe('declaring a type', () => {
   })
 
   it('tells a type declaration apart from a definition', () => {
-    const src = 'define type Pair:\n    Point a\n    Point b\n\ndefine twin (n: Name) => Point:\n    point n\n    return n\n'
+    const src = 'define type Pair:\n    Point a\n    Point b\n\ndefine twin (n: new Point) => Point:\n    point n\n    return n\n'
     const parsed = parseFile(src)
     expect(parsed.types).toHaveLength(1)
     expect(parsed.definitions).toHaveLength(1)
@@ -139,7 +139,7 @@ define type Segment:
     Point from
     Point to
 
-define segment (n: Name) from (p: Name) to (q: Name) => Segment:
+define segment (n: new Segment) from (p: new Point) to (q: new Point) => Segment:
     new Segment n
     call n.from p
     call n.to q
@@ -169,7 +169,7 @@ define type Dot:
     Point p
     Scalar r
 
-define dot (n: Name) (x: Scalar) (y: Scalar):
+define dot (n: new Dot) (x: Scalar) (y: Scalar):
     new Dot n
     n.p at x y
 
@@ -200,7 +200,7 @@ define type Twin:
     Pair left
     Pair right
 
-define twin (n: Name):
+define twin (n: new Twin):
     new Twin n
     n.left.one at 0 0
     n.right.two at 9 9

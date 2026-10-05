@@ -50,10 +50,9 @@ const isIndented = (s: string) => /^[ \t]/.test(s)
 function checkNames(text: string, lineNo: number): void {
   for (const token of lexHeader(text, lineNo)) {
     if (token.kind !== 'WORD') continue
-    const reserved = ['#', '@'].find(c => token.value.includes(c))
-    if (reserved !== undefined) {
+    if (token.value.includes('#')) {
       throw new DefinitionError(
-        `'${token.value}' has a '${reserved}' — the language uses that for its own bookkeeping, not in names`,
+        `'${token.value}' has a '#' — the language uses that for its own bookkeeping, not in names`,
         lineNo,
       )
     }
@@ -381,6 +380,13 @@ function parseHeader(tokens: Token[], line: number): { pattern: Pattern; returns
   }
 
   function parseType(): TypeRef {
+    // `new Point`: an output. The word `new` is only special here, inside a
+    // slot's type, where nothing else could follow the colon.
+    if (peek().kind === 'WORD' && peek().value === 'new') {
+      i++
+      if (at('LBRACKET')) throw new DefinitionError('an output names one thing, so it cannot be a list', line)
+      return { name: take('WORD', 'a type name').value, list: false, output: true }
+    }
     if (at('LBRACKET')) {
       i++
       const name = take('WORD', 'a type name').value

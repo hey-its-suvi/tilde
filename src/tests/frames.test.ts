@@ -30,7 +30,7 @@ nudge
   it('labels a passed-down name where it was written, however deep', () => {
     // `inner` declares `n`; `outer` hands it its own `q`, so `q` is outer's, and
     // outer — not inner, and not the program — can go on to use it.
-    const src = `define inner (n: Name):
+    const src = `define inner (n: new Point):
     point n
 define outer:
     inner q
@@ -44,9 +44,5 @@ outer
       { kind: 'position', point: 'Point#1', x: 1, y: 1 },
       { kind: 'position', point: 'Point#2', x: 1, y: 1 },
     ])
-  })
-
-  it('refuses the frame mark in a name', () => {
-    expect(() => run('point d@0\n')).toThrow(/has a '@'/)
   })
 })

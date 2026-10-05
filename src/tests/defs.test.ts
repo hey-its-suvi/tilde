@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseFile } from '../lang/defs/parser.js'
-import { DefinitionError, type Pattern } from '../lang/defs/types.js'
+import { DefinitionError, typeText, type Pattern } from '../lang/defs/types.js'
 
 // Loaded as text through Vite, not the filesystem — the playground runs in the
 // browser and will need the prelude bundled the same way.
@@ -10,7 +10,7 @@ const prelude = (name: string) => PRELUDE[name]!
 
 /** Render a pattern back to its surface form, so tests read like the source. */
 const show = (p: Pattern) =>
-  p.map(part => (part.part === 'keyword' ? part.word : `(${part.name}: ${part.type.list ? `[${part.type.name}]` : part.type.name})`)).join(' ')
+  p.map(part => (part.part === 'keyword' ? part.word : `(${part.name}: ${typeText(part.type)})`)).join(' ')
 
 describe('header parsing', () => {
   it('reads keywords and typed slots in order', () => {
@@ -41,9 +41,9 @@ describe('header parsing', () => {
     // Freed by moving the terminator to `:` — `=` has no built-in meaning, it is
     // a character a pattern may use, and means whatever its definition does.
     const { definitions } = parseFile(
-      'define point (n: Name) = (x: Scalar) (y: Scalar) => Point:\n    point n\n    n at x y\n    return n\n',
+      'define point (n: new Point) = (x: Scalar) (y: Scalar) => Point:\n    point n\n    n at x y\n    return n\n',
     )
-    expect(show(definitions[0]!.pattern)).toBe('point (n: Name) = (x: Scalar) (y: Scalar)')
+    expect(show(definitions[0]!.pattern)).toBe('point (n: new Point) = (x: Scalar) (y: Scalar)')
     expect(definitions[0]!.returns).toEqual({ name: 'Point', list: false })
   })
 
@@ -118,7 +118,7 @@ describe('the prelude parses', () => {
   it('reads every definition in core.til', () => {
     const forms = parseFile(prelude('core')).definitions.map(d => show(d.pattern))
 
-    expect(forms).toContain('point (n: Name)')
+    expect(forms).toContain('point (n: new Point)')
     expect(forms).toContain('(p: Point) at (x: Scalar) (y: Scalar)')
     expect(forms).toContain('(a: Line) parallel (b: Line) at (d: Scalar)')
     expect(forms).toContain('distance between (p: Point) and (q: Point) is (d: Scalar)')
@@ -127,14 +127,14 @@ describe('the prelude parses', () => {
   it('reads every definition in shapes.til', () => {
     const forms = parseFile(prelude('shapes')).definitions.map(d => show(d.pattern))
 
-    expect(forms).toContain('circle (n: Name) with center (p: Point) and radius (r: Scalar)')
-    expect(forms).toContain('triangle (t: Name) with (a: Name) (b: Name) (c: Name)')
+    expect(forms).toContain('circle (n: new Circle) with center (p: Point) and radius (r: Scalar)')
+    expect(forms).toContain('triangle (t: new Triangle) with (a: new Point) (b: new Point) (c: new Point)')
   })
 
   it('reads every definition in constraints.til', () => {
     const forms = parseFile(prelude('constraints')).definitions.map(d => show(d.pattern))
 
-    expect(forms).toContain('line (n: Name) parallel (m: Line)')
+    expect(forms).toContain('line (n: new Line) parallel (m: Line)')
     expect(forms).toContain('(l: Line) through (p: Point)')
   })
 
@@ -170,9 +170,9 @@ describe('the prelude parses', () => {
     // they make, name, draw, show or set something, and there is no subject to
     // give back. Everything else returns its subject and chains (decision 4b).
     expect(void_.sort()).toEqual([
-      'call (x: Any) (n: Name)',
+      'call (x: Any) (n: new Any)',
       'distance between (p: Point) and (q: Point) is (d: Scalar)',
-      'new (ty: Name) (n: Name)',
+      'new (ty: Name) (n: new Any)',
       'print (x: Any)',
       'segment (p: Point) (q: Point)',
       'set (s: Name) off',

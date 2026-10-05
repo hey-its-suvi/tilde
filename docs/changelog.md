@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.3.55 — current
+## 0.3.56 — current
+
+- **Outputs in definitions are written `new`**: `define point (n: new Point) at (x: Scalar) (y: Scalar)`. The caller writes a name there and gets back, under that name, whatever the definition made — or chose, since it can name something that already exists (`point p = (3, 4)`, `triangle t with a b c`).
+- If a definition never makes one of its outputs, it gets a fresh one of the promised type. If it makes the wrong kind of thing, that is an error naming the definition.
+- A name that is already taken is refused at the line that tried to reuse it.
+- `(s: Name)` now means just a word — a setting's name, or a type's — and is passed into a definition's body as itself.
+
+## 0.3.55
 
 - **A definition's own names are its own.** Inside a body, any word can name something — including words that are also part of a pattern, like `set`, `on`, `origin` or `grid`. Before, those were quietly treated as pattern words and could not be used.
 - A body sees only its slots and the names it makes itself, never the program's names — as before, now for a clearer reason.

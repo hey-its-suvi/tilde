@@ -11,7 +11,7 @@ import core
 
 -- ─── Points ─────────────────────────────────────────────────────────────────
 
-define point (n: Name) at (x: Scalar) (y: Scalar) => Point:
+define point (n: new Point) at (x: Scalar) (y: Scalar) => Point:
     point n
     n at x y
     return n
@@ -20,7 +20,7 @@ define (p: Point) = (x: Scalar) (y: Scalar) => Point:
     p at x y
     return p
 
-define point (n: Name) = (x: Scalar) (y: Scalar) => Point:
+define point (n: new Point) = (x: Scalar) (y: Scalar) => Point:
     point n at x y
     return n
 
@@ -37,13 +37,13 @@ define (x: Scalar) , (y: Scalar) => Point:
 
 -- `point p = (3, 4)`: the group makes an unnamed point, and `call` gives it yours.
 
-define point (n: Name) = (q: Point) => Point:
+define point (n: new Point) = (q: Point) => Point:
     call q n
     return q
 
 -- ─── Lines ──────────────────────────────────────────────────────────────────
 
-define line (n: Name) through (p: Point) (q: Point) => Line:
+define line (n: new Line) through (p: Point) (q: Point) => Line:
     line n
     p on n
     q on n
@@ -51,17 +51,17 @@ define line (n: Name) through (p: Point) (q: Point) => Line:
 
 -- ─── Circles ────────────────────────────────────────────────────────────────
 
-define circle (n: Name) with center (p: Point) => Circle:
+define circle (n: new Circle) with center (p: Point) => Circle:
     circle n
     n with center p
     return n
 
-define circle (n: Name) with radius (r: Scalar) => Circle:
+define circle (n: new Circle) with radius (r: Scalar) => Circle:
     circle n
     n with radius r
     return n
 
-define circle (n: Name) with center (p: Point) and radius (r: Scalar) => Circle:
+define circle (n: new Circle) with center (p: Point) and radius (r: Scalar) => Circle:
     circle n with center p
     n with radius r
     return n
@@ -93,7 +93,7 @@ define type Triangle:
 -- Note `with`, not juxtaposition: `triangle a, b, c` distributes into three
 -- separate triangles, so the multi-vertex form must be lexically distinct.
 
-define triangle (t: Name) with (a: Name) (b: Name) (c: Name) => Triangle:
+define triangle (t: new Triangle) with (a: new Point) (b: new Point) (c: new Point) => Triangle:
     new Triangle t
     call t.point1 a
     call t.point2 b

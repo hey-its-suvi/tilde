@@ -17,7 +17,7 @@ const symbols = (entries: Record<string, string>): Store => {
   const globals = new Scope()
   for (const [name, type] of Object.entries(entries)) globals.add({ name, key: data.make(type).key })
   const program = { id: 0, labels: globals, form: 'the program' }
-  return { data, decls: prelude.types, globals, frames: new Map([[0, program]]), current: program, ended: [] }
+  return { data, decls: prelude.types, globals, current: program, ended: [] }
 }
 
 /** The surface form resolution settles on, so assertions read like the prelude
@@ -46,16 +46,16 @@ describe('type-directed dispatch', () => {
   })
 })
 
-describe('Name slots are declaration sites', () => {
-  it('accepts an undeclared name in a Name slot', () => {
-    expect(chosen('point p')).toBe('point (n: Name)')
+describe('output slots are declaration sites', () => {
+  it('accepts an undeclared name in an output slot', () => {
+    expect(chosen('point p')).toBe('point (n: new Point)')
   })
 
   it('picks the declaring form when the subject is a fresh name', () => {
-    expect(chosen('line l parallel m', { m: 'Line' })).toBe('line (n: Name) parallel (m: Line)')
+    expect(chosen('line l parallel m', { m: 'Line' })).toBe('line (n: new Line) parallel (m: Line)')
   })
 
-  it('rejects a literal in a Name slot', () => {
+  it('rejects a literal in an output slot', () => {
     expect(() => chosen('point 3')).toThrow(/no definition of "point 3" fits/)
   })
 })

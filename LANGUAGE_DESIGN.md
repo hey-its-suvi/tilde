@@ -598,6 +598,80 @@ there is no expression language — a separate and larger piece.
 
 ---
 
+### 18. Outputs are written `new`, and handed back to the caller
+
+Built (0.3.56). A slot written `(n: new Point)` is an **output**: the caller
+writes a name there, and gets back, under that name, whatever the body made or
+chose. It replaces using `Name` slots for names being given.
+
+```
+define point (n: new Point) at (x: Scalar) (y: Scalar) => Point:
+    point n
+    n at x y
+    return n
+
+define triangle (t: new Triangle) with (a: new Point) (b: new Point) (c: new Point) => Triangle:
+    new Triangle t
+    call t.point1 a
+    …
+```
+
+**Inside the body an output is just the body's own name.** `point n` labels `n`
+in the call's frame, like any local. The caller's word is never written into
+the body.
+
+**When the call ends, each output is handed back.** The caller labels the word
+it wrote with whatever the body's `n` points at — a call is destructuring:
+`point d at 3 4` is `[d] = point_at(3, 4)`. Nested calls hand back one level at
+a time, so a name passed through two definitions needs no special treatment:
+`inner` hands `m` back to `outer`, `outer` hands it to the program as `d`.
+
+**The body decides what an output is.** Usually something new (`point n`), but
+it may be something that already exists — `call t.point1 a`, or `point p = (3, 4)`
+naming the bracket's point. That is why the box is not made when the call
+starts: a name already pointing at a fresh box could not be pointed anywhere
+else (no reassignment), and `a` could never become `t.point1`.
+
+Rules:
+- The caller's word must be new where it is written — checked before the body
+  runs, so the error points at the right line.
+- If the body never labelled the output, a fresh element of the promised type is
+  made and handed back. `new Any` has no type to make, so leaving it unlabelled
+  is an error.
+- What is handed back must be the promised type ("promised a Point for `n` but
+  made a Line").
+- `=> T` and `return` are unchanged: they give the statement its *value*, for
+  brackets. Naming and value are separate — `triangle t with a b c` hands back
+  four names and returns `t`.
+- For dispatch an output is a plain word, whatever its type: nothing about a new
+  name tells `new Point` from `new Line`. So two definitions differing only in an
+  output's type are one signature — a redefinition, not an overload.
+
+**`Name` now means only "a word"** — a setting (`set (s: Name) on`) or a type
+(`new (ty: Name) (n: new Any)`), written into the body as itself. So
+`define make (ty: Name) (n: new Any): new ty n` passes `Triangle` on, while `n`
+stays the body's own.
+
+This retires the `@` marks of 0.3.55, where a Name-slot word was written into
+body lines as `d@0` so declaring it could reach the caller's frame. Nothing
+reaches into another frame now; the caller does its own labelling.
+
+**Once `=` can merge two elements, this should change.** Today the body has to
+*choose* what an output is, because a name cannot be re-pointed. With merging,
+the box can be made eagerly instead:
+
+- When a call starts, each `new T` slot gets a fresh box of type `T`, labelled at
+  once in both the caller's frame (its word) and the body's (the slot name).
+- Naming something that exists becomes `=`: `a = t.point1`, `n = q` — and
+  `call` is no longer needed.
+- Hand-back, the end-of-call type check and the "never made its `n`" error all
+  go: the box exists, with the right type, from the start, and the body can use
+  `n` from its first line.
+
+The merge this needs is mostly in evaluation — a "same as" link per key (union-
+find), with every key followed to its representative before solving — not the
+solver's set semantics. See "Possible values" for the larger picture.
+
 ## The big open question: how does a user write the maths?
 
 If a user defines `parallel`, they need to say what it *means*. `l parallel m`
@@ -754,7 +828,8 @@ define (l: Line) through (p: Point) => Line =
   keyword makes definitions skimmable.
 - `=> Type` for the return.
 - `tsx\`...\`` as the hatch to TypeScript — see below.
-- No `new` marker — superseded by `Name` slots, below.
+- No `new` marker — superseded by `Name` slots, below. (Reversed by 18: outputs
+  are written `new T` again, and `Name` means only a word.)
 - `[Point]` for list slots is the one bit that reads like a programming
   language rather than mathematics. Alternative: `many Point`. Unresolved.
 
@@ -1172,6 +1247,8 @@ Built recently, each covered by tests and the changelog:
   (`Point#1`); the program, each running call and each element's fields have a
   scope of labels. A call's names end when it returns; a local escapes only by
   being returned. Unlabelled shapes are kept but not drawn. (Revises 13.)
+- **Outputs are written `(n: new Point)`** and handed back to the caller when a
+  call ends; `Name` means only a plain word. (Decision 18.)
 - **No reassignment; primes in names** (decision 6, revised). `=` only narrows.
 - **Definition headers end in `:`**; `=` is an ordinary pattern word, defined
   per shape in the prelude.

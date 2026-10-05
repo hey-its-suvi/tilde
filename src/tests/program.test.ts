@@ -20,7 +20,7 @@ describe('a file holds definitions and statements together', () => {
     const parsed = parseFile(`
 import prelude
 
-define chord (n: Name) of (c: Circle) from (p: Point) to (q: Point) => Line:
+define chord (n: new Line) of (c: Circle) from (p: Point) to (q: Point) => Line:
     line n through p q
     p on c
     q on c
@@ -63,7 +63,7 @@ line l through a b
     const result = solve(`
 import prelude
 
-define right triangle (t: Name) with legs (u: Scalar) (v: Scalar) => Triangle:
+define right triangle (t: new Triangle) with legs (u: Scalar) (v: Scalar) => Triangle:
     triangle t with p q r
     p at 0 0
     q at u 0
@@ -122,7 +122,7 @@ describe('semicolons are optional line terminators', () => {
     const result = solve(`
 import prelude;
 
-define dot (n: Name) at (x: Scalar) (y: Scalar) => Circle:
+define dot (n: new Point) at (x: Scalar) (y: Scalar) => Circle:
     point n at x y;
     circle c with center n and radius 1;
     return c;
@@ -141,7 +141,7 @@ dot d at 3 4;
 
   it('rejects one on a define header, where the body is still to come', () => {
     expect(() =>
-      run('import prelude\n\ndefine twice (n: Name) => Point =;\n    point n\n    return n\n'),
+      run('import prelude\n\ndefine twice (n: new Point) => Point =;\n    point n\n    return n\n'),
     ).toThrow(/takes no ';'/)
   })
 })
@@ -150,7 +150,7 @@ describe('return says what comes back', () => {
   const dot = (bodyLines: string) => `
 import prelude
 
-define dot (n: Name) at (x: Scalar) (y: Scalar) => Circle:
+define dot (n: new Point) at (x: Scalar) (y: Scalar) => Circle:
 ${bodyLines}
 
 dot d at 3 4
@@ -190,7 +190,7 @@ dot d at 3 4
 
   it('requires a signature when the body returns', () => {
     expect(() =>
-      run('import prelude\n\ndefine mark (n: Name):\n    point n\n    return n\n'),
+      run('import prelude\n\ndefine mark (n: new Point):\n    point n\n    return n\n'),
     ).toThrow(/needs a `=> Type`/)
   })
 
@@ -204,7 +204,7 @@ describe('a body\'s own names belong to the call, not the program', () => {
   const dot = `
 import prelude
 
-define dot (n: Name) at (x: Scalar) (y: Scalar):
+define dot (n: new Point) at (x: Scalar) (y: Scalar):
     point n at x y
     circle c with center n and radius 1
 
@@ -230,7 +230,7 @@ dot e at 1 1
     // The circle still exists — the drawing may depend on it — but nothing
     // outside the call can name it again.
     expect(() => run(`${dot}c with radius 9\n`)).toThrow(
-      /"c" was local to `dot \(n: Name\) at \(x: Scalar\) \(y: Scalar\)` and ended when it returned/,
+      /"c" was local to `dot \(n: new Point\) at \(x: Scalar\) \(y: Scalar\)` and ended when it returned/,
     )
   })
 
@@ -248,14 +248,14 @@ dot e at 1 1
     // `corner` returns, the point is as unreachable as `corner`'s own locals.
     const src = `import prelude
 
-define corner (n: Name):
+define corner (n: new Point):
     point helper = (1, 1)
     point n = (2, 2)
 
 corner z
 `
     expect(() => run(src)).not.toThrow()
-    expect(() => run(`${src}helper at 5 5\n`)).toThrow(/"helper" was local to `corner \(n: Name\)`/)
+    expect(() => run(`${src}helper at 5 5\n`)).toThrow(/"helper" was local to `corner \(n: new Point\)`/)
   })
 
   it('lets a local be used freely while its call is running', () => {

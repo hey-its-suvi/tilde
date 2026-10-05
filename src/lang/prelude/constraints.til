@@ -27,22 +27,22 @@ define (l: Line) through (p: Point) => Line:
 
 -- ─── Declaring forms ────────────────────────────────────────────────────────
 
-define line (n: Name) parallel (m: Line) => Line:
+define line (n: new Line) parallel (m: Line) => Line:
     line n
     n parallel m
     return n
 
-define line (n: Name) perpendicular (m: Line) => Line:
+define line (n: new Line) perpendicular (m: Line) => Line:
     line n
     n perpendicular m
     return n
 
-define point (n: Name) on (l: Line) => Point:
+define point (n: new Point) on (l: Line) => Point:
     point n
     n on l
     return n
 
-define point (n: Name) on (c: Circle) => Point:
+define point (n: new Point) on (c: Circle) => Point:
     point n
     n on c
     return n
