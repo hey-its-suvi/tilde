@@ -18,6 +18,17 @@ marks
     expect(run(src).names().sort()).toEqual(['Point#1', 'Point#2', 'Point#3', 'Point#4'])
   })
 
+  it('does not blame a finished call for a word that was only its slot name', () => {
+    // `call` has a slot named `x`; that does not make `x` one of its locals.
+    // The real problem here is that `nope` is not a Point.
+    const src = `point p = (3, 4)
+define tp (n: new Point) = (p: Point) (q: Point):
+    point n
+tp x = p nope
+`
+    expect(() => run(src)).toThrow(/no definition of "tp x = p nope" fits/)
+  })
+
   it('does not let a body see the program’s names', () => {
     const src = `point g at 0 0
 define nudge:

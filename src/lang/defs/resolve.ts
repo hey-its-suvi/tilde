@@ -26,7 +26,14 @@ export class ResolutionError extends Error {
 /** Where names are looked up while something runs: the program's own frame, or
  *  one call's. A call's frame starts with its element slots and gains whatever
  *  names its body gives things; it ends when the call returns. */
-export type Frame = { id: number; labels: Scope; form: string }
+export type Frame = {
+  id: number
+  labels: Scope
+  form: string
+  /** The definition's slot names. Labels with these names are its parameters,
+   *  not names its body made, so they never count as locals that ended. */
+  slots: ReadonlySet<string>
+}
 
 /** Everything resolution needs to know about what exists. */
 export type Store = {
@@ -55,7 +62,7 @@ function endedProblem(statement: string, store: Store): string | null {
     if (token.kind !== 'WORD') continue
     const head = token.value.split('.')[0]!
     if (keyOf(head, store) !== undefined) continue
-    const frame = [...store.ended].reverse().find(f => f.labels.has(head))
+    const frame = [...store.ended].reverse().find(f => f.labels.has(head) && !f.slots.has(head))
     if (frame !== undefined) {
       return `"${head}" was local to \`${frame.form}\` and ended when it returned` +
         ` — to reach it from outside, return it or make it a field`

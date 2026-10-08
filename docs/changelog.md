@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.57 — current
+## 0.3.58 — current
+
+- Fixed a misleading error: a name that happened to match a slot of a definition that had already run (`x` in `call (x: Any) …`) was reported as "local to" that definition. Now the real problem is reported.
+
+## 0.3.57
 
 - **`(ty: Type)`**: a slot that takes the name of a type — a built-in (`Point`, `Line`, `Circle`, `Scalar`) or any `define type`. `new` uses it, so `new Triangel t` now says `there is no type called "Triangel"` on that line.
 

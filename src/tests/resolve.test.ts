@@ -16,7 +16,7 @@ const symbols = (entries: Record<string, string>): Store => {
   const data = new DataStore()
   const globals = new Scope()
   for (const [name, type] of Object.entries(entries)) globals.add({ name, key: data.make(type).key })
-  const program = { id: 0, labels: globals, form: 'the program' }
+  const program = { id: 0, labels: globals, form: 'the program', slots: new Set<string>() }
   return { data, decls: prelude.types, globals, current: program, ended: [] }
 }
 

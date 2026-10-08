@@ -133,7 +133,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, decls: TypeMap): Program {
 
   // The program's own frame: its labels are the globals.
   const globals = new Scope()
-  const program: Frame = { id: 0, labels: globals, form: 'the program' }
+  const program: Frame = { id: 0, labels: globals, form: 'the program', slots: new Set() }
   const ctx: Context = {
     store: { data, decls, globals, current: program, ended: [] },
     constraints, homeOf, frameCount: 0, prints: [], settings: new Map(),
@@ -265,7 +265,10 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   // the caller's. When it ends, its outputs are handed back to the caller under
   // the names the caller wrote, and the frame goes. What it made lives on in
   // the data store.
-  const frame: Frame = { id: ++ctx.frameCount, labels: new Scope(), form: form(m) }
+  const frame: Frame = {
+    id: ++ctx.frameCount, labels: new Scope(), form: form(m),
+    slots: new Set(m.bindings.map(b => b.slot)),
+  }
   for (const slot of elements) frame.labels.add({ name: slot, key: env.get(slot) as Key })
 
   ctx.store.current = frame
