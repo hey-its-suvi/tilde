@@ -659,6 +659,13 @@ same way, but their list is fixed in the TypeScript, so a `Setting` type would
 be privileged. The general form would be word lists anyone can declare
 (`define words Setting: grid axes origin subscripts`) — not built.
 
+**For now a `Type` slot is an enum, deliberately.** It asks one thing: is this
+word in the list of known types? That is enough while types are flat. It will
+likely have to change once there is a type hierarchy (`Square <: Polygon`): a
+slot may want "any kind of Polygon" rather than "any type at all", and `new ty n`
+may need to know what `ty` is bound by to type `n`. Not designed; noted so the
+enum is not mistaken for the final shape.
+
 This retires the `@` marks of 0.3.55, where a Name-slot word was written into
 body lines as `d@0` so declaring it could reach the caller's frame. Nothing
 reaches into another frame now; the caller does its own labelling.
@@ -1265,6 +1272,10 @@ Built recently, each covered by tests and the changelog:
 - **Text**, `"…"`, joined only to text. No implicit number-to-text conversion.
 
 ## Open — needs a decision
+
+- **`Type` slots under a type hierarchy.** Today a `Type` slot is an enum of
+  known type names (decision 18). With subtypes it may need a bound — "a type of
+  Polygon" — and outputs whose type follows a `Type` slot. Waits on the hierarchy.
 
 - **What `=` means.** Whether naming something and saying two things are the
   same are one feature or two. Leaning: one — declaring makes an empty shape and
