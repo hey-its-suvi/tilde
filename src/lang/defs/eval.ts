@@ -23,7 +23,7 @@ import { Scope, type Key } from './scope.js'
 import { DataStore } from './data.js'
 import { lexHeader, type Token } from './lexer.js'
 import { groupTokens, render, type Node } from './tree.js'
-import { resolveStatement, resolvePath, keyOf, NAME, TYPE, ANY, form, type Frame, type Store } from './resolve.js'
+import { resolveStatement, resolvePath, keyOf, NAME, TYPE, ANY, BUILT_IN_TYPES, form, type Frame, type Store } from './resolve.js'
 import type { Match } from './match.js'
 import { loadModule, type HomeMap, type Loaded, type Registry, type TypeMap } from './modules.js'
 import type { Definition, Statement } from './types.js'
@@ -535,6 +535,9 @@ function makeApi(ctx: Context): Api {
       }
       if (type === NAME) {
         throw new EvalError(`"${name}" cannot be declared as ${NAME} — that is a slot marker, not a type`)
+      }
+      if (!BUILT_IN_TYPES.includes(type) && !ctx.store.decls.has(type)) {
+        throw new EvalError(`there is no type called "${type}", so "${name}" cannot be one`)
       }
       const key = make(type, ctx)
       frame.labels.add({ name, key })

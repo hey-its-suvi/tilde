@@ -153,11 +153,11 @@ describe('the prelude parses', () => {
   it('splits roughly evenly between primitive and composed', () => {
     const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
 
-    // Measured, not aspirational: 25 primitive to 19 composed. The earlier claim
+    // Measured, not aspirational: 25 primitive to 20 composed. The earlier claim
     // that "most of the prelude composes" was wrong — it is an even split, and
     // the composed half has been growing as convenience forms are added.
     expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(25)
-    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(19)
+    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(20)
   })
 
   it('gives every definition a return type except the one that cannot have one', () => {

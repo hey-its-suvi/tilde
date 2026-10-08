@@ -227,7 +227,7 @@ parser can't finish without consulting the type table. Approach: parse to a
 For conflicts between two user definitions: longest match wins, ties are an
 error at definition time. Crude but fine — there are no users to break.
 
-### 10. Types are implicit tags (superseded in part by 15)
+### 10. Types are implicit tags (superseded: by 15, then fully in 0.3.59)
 
 A type does two separable jobs: **naming** (a slot says what kind of thing it
 accepts, a return says what kind it produces) and **declaring** (bringing the
@@ -261,6 +261,17 @@ was disturbed.
 Note this is *not* what direct field access waits on. Accessors are ordinary
 definitions and need no type declaration (see "How far Option A actually
 stretches"); a tag can stay a bare tag and still have accessors written for it.
+
+**Revised (0.3.59): a type must exist to be written.** A slot type, a return
+type or a field type must be a built-in or come from a `define type`; anything
+else is an error where it is written, with a suggestion when only the case is
+off (`point` → `Point`). Once `define type` gave types structure, a tag nobody
+declared could only ever be a box with a name — no fields, nothing the solver
+can place — so `=> Lin` meant nothing but a slip that surfaced far away. The
+check runs once every file is loaded, since types are shared by all of them; a
+`tsx` body's `declare` is held to the same rule. A bare tag with no fields
+cannot be declared today (`define type` needs a field); if one is ever wanted,
+allowing an empty `define type` is the way in.
 
 What stays genuinely privileged regardless: `Name` (hardcoded "this is a
 declaration site"), `Scalar` (hardcoded "numeric literals fill this"), and

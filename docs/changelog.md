@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.58 — current
+## 0.3.59 — current
+
+- **Every type has to exist.** A type written in a definition — a slot, a `=> Type`, or a field of `define type` — must be one of the built-ins or come from a `define type`. Otherwise it is an error on that line, with a suggestion when only the capitals are wrong: `there is no type called "point" — did you mean "Point"?`
+- **Two points can be said to be the same:** `n.a = p`. For now the two are held at no distance apart — they stay two points, drawn on top of each other — until `=` can merge them into one.
+
+## 0.3.58
 
 - Fixed a misleading error: a name that happened to match a slot of a definition that had already run (`x` in `call (x: Any) …`) was reported as "local to" that definition. Now the real problem is reported.
 

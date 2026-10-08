@@ -19,6 +19,16 @@ define (a: Line) perpendicular (b: Line) at (p: Point) => Line:
     p on b
     return a
 
+-- ─── Equality ───────────────────────────────────────────────────────────────
+-- `n.a = p`: the two points are the same point. For now that is said as a
+-- constraint — two points held at no distance apart — not one point under two
+-- names: they are still two points, drawn on top of each other. When `=` can
+-- merge two elements into one, this becomes a merge (decision 18).
+
+define (p: Point) = (q: Point) => Point:
+    distance between p and q is 0
+    return p
+
 -- ─── Incidence ──────────────────────────────────────────────────────────────
 
 define (l: Line) through (p: Point) => Line:

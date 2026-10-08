@@ -23,7 +23,8 @@
 // would export nothing. Rust spells this `pub use`, JS `export * from`.
 
 import { parseFile } from './parser.js'
-import { DefinitionError, signature, type Definition, type Statement, type TypeDecl } from './types.js'
+import { DefinitionError, signature, type Definition, type Statement, type TypeDecl, type TypeRef } from './types.js'
+import { BUILT_IN_TYPES, NAME, TYPE, ANY } from './resolve.js'
 
 /** Module name → source text. Supplied by the caller so the prelude, a test
  *  fixture and (later) a user's own files all load the same way. */
@@ -32,6 +33,8 @@ export type Registry = Readonly<Record<string, string>>
 export type Module = {
   name: string
   own: Definition[]
+  /** The `define type` declarations written in this file. */
+  types: TypeDecl[]
   exports: Definition[]
   scope: Definition[]
   /** Program lines in this file. Any module may have them, entry or not. */
@@ -73,7 +76,32 @@ export function loadModule(entry: string, registry: Registry): Loaded {
   const types: TypeMap = new Map()
   const order: Module[] = []
   const module = load(entry, registry, modules, homeOf, types, order, [])
+  checkTypes(order, types)
   return { scope: module.scope, order, homeOf, types, modules }
+}
+
+/** Every type a definition mentions must exist: a built-in, or something a
+ *  `define type` declared. A type nobody declared would be a box with a name and
+ *  nothing else — no fields, nothing the solver can place — so writing one is
+ *  almost always a slip (`point` for `Point`, `=> Lin`), and it is caught here,
+ *  where it was written, rather than as "nothing fits" somewhere else. Checked
+ *  once everything is loaded, since types are shared by every file. */
+function checkTypes(order: readonly Module[], types: TypeMap): void {
+  const known = new Set([...BUILT_IN_TYPES, ANY, 'Text', NAME, TYPE, ...types.keys()])
+  const check = (t: TypeRef, module: string, line: number) => {
+    if (known.has(t.name)) return
+    const near = [...known].find(k => k.toLowerCase() === t.name.toLowerCase())
+    throw new ModuleError(
+      `[${module}:${line}] there is no type called "${t.name}"` + (near ? ` — did you mean "${near}"?` : ''),
+    )
+  }
+  for (const m of order) {
+    for (const def of m.own) {
+      for (const part of def.pattern) if (part.part === 'slot') check(part.type, m.name, def.line)
+      if (def.returns !== null) check(def.returns, m.name, def.line)
+    }
+    for (const decl of m.types) for (const field of decl.fields) check(field.type, m.name, decl.line)
+  }
 }
 
 function load(
@@ -132,7 +160,7 @@ function load(
     if (imp.reexport) exports.push(...dep.exports)
   }
 
-  const module: Module = { name, own, exports, scope, statements: parsed.statements }
+  const module: Module = { name, own, types: parsed.types, exports, scope, statements: parsed.statements }
   modules.set(name, module)
   order.push(module)
   for (const def of own) {
