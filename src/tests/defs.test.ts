@@ -172,7 +172,7 @@ describe('the prelude parses', () => {
     expect(void_.sort()).toEqual([
       'call (x: Any) (n: new Any)',
       'distance between (p: Point) and (q: Point) is (d: Scalar)',
-      'new (ty: Name) (n: new Any)',
+      'new (ty: Type) (n: new Any)',
       'print (x: Any)',
       'segment (p: Point) (q: Point)',
       'set (s: Name) off',

@@ -218,11 +218,11 @@ define distance between (p: Point) and (q: Point) is (d: Scalar):
 -- name to something that already exists. Between them a composite is definable
 -- in Tilde with no tsx of its own.
 --
--- The type name sits in a `Name` slot, which is just "a bare word"; the new
--- element's name is an output, `new Any` because it can be any type. So
--- `new Triangle t` needs no keyword.
+-- The type sits in a `Type` slot, which takes a word only if it names a known
+-- type; the new element's name is an output, `new Any` because it can be any
+-- type. So `new Triangle t` needs no keyword, and `new Triangel t` is caught.
 
-define new (ty: Name) (n: new Any):
+define new (ty: Type) (n: new Any):
     tsx`
     declare(n, ty)
     `

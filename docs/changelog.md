@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.56 — current
+## 0.3.57 — current
+
+- **`(ty: Type)`**: a slot that takes the name of a type — a built-in (`Point`, `Line`, `Circle`, `Scalar`) or any `define type`. `new` uses it, so `new Triangel t` now says `there is no type called "Triangel"` on that line.
+
+## 0.3.56
 
 - **Outputs in definitions are written `new`**: `define point (n: new Point) at (x: Scalar) (y: Scalar)`. The caller writes a name there and gets back, under that name, whatever the definition made — or chose, since it can name something that already exists (`point p = (3, 4)`, `triangle t with a b c`).
 - If a definition never makes one of its outputs, it gets a fresh one of the promised type. If it makes the wrong kind of thing, that is an error naming the definition.

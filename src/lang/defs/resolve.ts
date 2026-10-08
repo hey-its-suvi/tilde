@@ -113,9 +113,31 @@ function pathProblem(name: string, store: Store): string | null {
   return null
 }
 
-/** The magic type meaning "this slot is a declaration site" — the token here is
- *  a name being introduced, so it is not expected to be in the table yet. */
+/** A slot that takes just a word — a setting's name, say — and passes it on as
+ *  itself. It names nothing: a name being given is an output (`new Point`). */
 export const NAME = 'Name'
+
+/** A slot that takes the name of a type: one of the built-ins, or anything a
+ *  `define type` declared. Like `Name` it passes the word on as itself, but only
+ *  a known type fits — so `new Triangel t` is caught where it is written. */
+export const TYPE = 'Type'
+
+/** The types the solver itself knows. Everything else comes from `define type`. */
+export const BUILT_IN_TYPES: readonly string[] = ['Point', 'Line', 'Circle', 'Scalar']
+
+const isType = (word: string, store: Store) => BUILT_IN_TYPES.includes(word) || store.decls.has(word)
+
+/** A word in a Type slot that is not a type, if that is why nothing fits. */
+function unknownType(candidates: readonly Match[], store: Store): string | null {
+  for (const c of candidates) {
+    for (const b of c.bindings) {
+      if (b.type.name === TYPE && b.token.kind === 'WORD' && !isType(b.token.value, store)) {
+        return `there is no type called "${b.token.value}"`
+      }
+    }
+  }
+  return null
+}
 
 /** Render a candidate's surface form, for error messages. */
 export const form = (m: Match) =>
@@ -158,6 +180,8 @@ export function resolveStatement(
 
   if (viable.length === 0) {
     ended()
+    const typo = unknownType(candidates, store)
+    if (typo !== null) throw new ResolutionError(typo)
     throw new ResolutionError(
       `no definition of "${shown}" fits the argument types (tried ${list(candidates)})`,
     )
@@ -170,14 +194,18 @@ export function resolveStatement(
 }
 
 /** Every value slot must be filled by a declared name of a compatible type, or
- *  by a literal the slot accepts. `Name` slots are declaration sites, so their
- *  token need only be an identifier — whether introducing it is legal is
- *  evaluation's call, since only the body knows. */
+ *  by a literal the slot accepts. An output or a `Name` slot takes any word —
+ *  whether giving that name is legal is evaluation's call. A `Type` slot takes a
+ *  word that is a known type. */
 function typesFit(m: Match, store: Store): boolean {
   for (const b of m.bindings) {
     // An output or a Name slot takes a word: a name being given, or just a word.
     if (b.type.output || b.type.name === NAME) {
       if (b.token.kind !== 'WORD') return false
+      continue
+    }
+    if (b.type.name === TYPE) {
+      if (b.token.kind !== 'WORD' || !isType(b.token.value, store)) return false
       continue
     }
     if (b.token.kind === 'NUMBER') {

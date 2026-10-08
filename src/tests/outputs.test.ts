@@ -59,14 +59,23 @@ vague v
   })
 })
 
-describe('a Name slot is a plain word', () => {
+describe('a Type slot takes the name of a type', () => {
   it('is written into the body as itself', () => {
     // `ty` is a word to pass on, not a name to give — so `new ty n` runs as
     // `new Triangle n`.
-    const src = `define make (ty: Name) (n: new Any):
+    const src = `define make (ty: Type) (n: new Any):
     new ty n
 make Triangle t
 `
     expect(run(src).typeOf('t')).toBe('Triangle')
+  })
+
+  it('takes a built-in type or a declared one', () => {
+    expect(run('new Point p\n').typeOf('p')).toBe('Point')
+    expect(run('new Triangle t\n').typeOf('t')).toBe('Triangle')
+  })
+
+  it('refuses a word that is not a type, where it is written', () => {
+    expect(() => run('new Triangel t\n')).toThrow(/there is no type called "Triangel"/)
   })
 })

@@ -647,10 +647,17 @@ Rules:
   name tells `new Point` from `new Line`. So two definitions differing only in an
   output's type are one signature — a redefinition, not an overload.
 
-**`Name` now means only "a word"** — a setting (`set (s: Name) on`) or a type
-(`new (ty: Name) (n: new Any)`), written into the body as itself. So
-`define make (ty: Name) (n: new Any): new ty n` passes `Triangle` on, while `n`
-stays the body's own.
+**`Name` now means only "a word"** — a setting (`set (s: Name) on`) — written
+into the body as itself. A type's name has its own slot type, `Type`, which
+takes a word only if it is a known type: a built-in, or anything a `define type`
+declared. So `new (ty: Type) (n: new Any)` catches `new Triangel t` where it is
+written, and `define make (ty: Type) (n: new Any): new ty n` passes `Triangle`
+on, while `n` stays the body's own.
+
+A `Type` slot is a word list that grows as files load. Settings could work the
+same way, but their list is fixed in the TypeScript, so a `Setting` type would
+be privileged. The general form would be word lists anyone can declare
+(`define words Setting: grid axes origin subscripts`) — not built.
 
 This retires the `@` marks of 0.3.55, where a Name-slot word was written into
 body lines as `d@0` so declaring it could reach the caller's frame. Nothing

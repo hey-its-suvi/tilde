@@ -23,7 +23,7 @@ import { Scope, type Key } from './scope.js'
 import { DataStore } from './data.js'
 import { lexHeader, type Token } from './lexer.js'
 import { groupTokens, render, type Node } from './tree.js'
-import { resolveStatement, resolvePath, keyOf, NAME, ANY, form, type Frame, type Store } from './resolve.js'
+import { resolveStatement, resolvePath, keyOf, NAME, TYPE, ANY, form, type Frame, type Store } from './resolve.js'
 import type { Match } from './match.js'
 import { loadModule, type HomeMap, type Loaded, type Registry, type TypeMap } from './modules.js'
 import type { Definition, Statement } from './types.js'
@@ -226,8 +226,8 @@ function settleGroups(
 function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: number): Value {
   const caller = ctx.store.current
 
-  // What each slot holds. A number or text is itself, and so is a Name slot's
-  // word; an output slot is a name the caller will get back; anything else is
+  // What each slot holds. A number or text is itself, and so is the word in a
+  // Name or Type slot; an output slot is a name the caller will get back; anything else is
   // the element it points at, by key.
   const env = new Map<string, Value>()
   const elements = new Set<string>()
@@ -242,7 +242,7 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
       // Inside the body the output is just the slot's own name — a label it
       // gives in its own frame, handed back when it ends.
       env.set(b.slot, b.slot)
-    } else if (b.type.name === NAME) {
+    } else if (b.type.name === NAME || b.type.name === TYPE) {
       env.set(b.slot, b.token.value)
     } else {
       // A path binds the element it points at, so a body never sees the dots.
