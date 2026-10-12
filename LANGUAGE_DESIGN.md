@@ -59,7 +59,12 @@ a subset of:
 - Brackets override.
 
 So `l parallel m rotated 60 at 5` will mean `((l parallel m) rotated 60) at 5`.
-One rule, no table to memorise. Starting with brackets-only is compatible —
+One rule, no table to memorise.
+
+**Revised by 19.** The left-to-right part is decided, as a fold with longest
+match first. There is no precedence level for pattern operations or for `=`:
+`=` returns nothing, and a restart from a later word finds `line n = (l rotated
+60)`. Precedence among arithmetic operations is still open. Starting with brackets-only is compatible —
 it's this rule with the left-to-right part switched off.
 
 ### 4. Declaring forms are written explicitly (not derived)
@@ -90,6 +95,10 @@ not the signature. It's inferrable for composed definitions and *not* for
 `primitive` bodies, which can't be inspected — so automatic derivation needs a
 tag plus an exception. Not worth it.
 
+**Mostly moot after 19.** Nothing is derived, but composition reads
+`line l parallel m` as `(line l) parallel m`, so most declaring forms can simply
+be deleted — see decision 19.
+
 Write both forms by hand in the prelude. Once there are twenty of them and the
 shared shape is visible, automate it then. Deriving from two examples is how the
 first attempt went wrong.
@@ -115,6 +124,9 @@ line l parallel m through p
 Under the left-to-right rule (decision 3) that groups as
 `((line l parallel m) through p)` with no brackets needed. Brackets are only
 for when you want something *other* than left-to-right.
+
+Under 4b as first written, this never worked: a line was matched against whole
+patterns. Decision 19 is what makes it true.
 
 So nearly everything has a return type, and "has a return type" is **not** a
 useful discriminator between constraints and producers. What differs is whether
@@ -200,6 +212,9 @@ A bare predicate as a statement means **check and error if false**. So the pair
 is: `l parallel m` *makes* it true, `is l parallel m` *checks* it. That's the
 "prove that" style of program, and it's worth having.
 
+**For now, kept — see decision 19.** Asking forms are separate definitions
+starting with `is`. The alternatives below were weighed there and parked.
+
 **Likely superseded — see the roadmap's "Asking as well as asserting".** The
 convention here is that a predicate is an *unrelated* definition that happens to
 start with `is`. The better shape is `is` as an ordinary definition taking a
@@ -223,6 +238,9 @@ since `is a parallel b` is meaningless until a statement can contain another.
 `point p parallel m` fails because no definition matches those types — so the
 parser can't finish without consulting the type table. Approach: parse to a
 *set* of candidate matches, then pick by specificity, error if ambiguous.
+
+Decision 19 extends "longest match wins" to the start of each step of a
+left-to-right fold.
 
 For conflicts between two user definitions: longest match wins, ties are an
 error at definition time. Crude but fine — there are no users to break.
@@ -696,6 +714,174 @@ the box can be made eagerly instead:
 The merge this needs is mostly in evaluation — a "same as" link per key (union-
 find), with every key followed to its representative before solving — not the
 solver's set semantics. See "Possible values" for the larger picture.
+
+### 19. Reading a line: left to right, longest match first
+
+Decided, not built. Replaces "a line is matched word for word against whole
+patterns", which is why `line l parallel m through p` — decision 4b's own
+example — has never actually worked: no single pattern spans it.
+
+**The fold.** Take the longest pattern that matches from the start of the line.
+Its result goes into the *first* slot of the next pattern, and so on until the
+line is used up. Every other slot takes one word, one number, or a bracket.
+
+```
+line l                          a line l
+line l parallel m               (line l) parallel m
+line l parallel m through p     ((line l) parallel m) through p
+```
+
+`line l` only ever makes a line. Everything after it is said about the line it
+made, through ordinary definitions like `(a: Line) parallel (b: Line)`.
+
+**Longest match is how an override wins.** Write
+`define line (l: new Line) parallel (m: Line)` and `line l parallel m` matches it
+whole, rather than `line l` and then `… parallel m`. This is decisions 2 and 9's
+"longest match wins", applied to the start of each step rather than to the whole
+line. It replaces counting calls, which was considered and gives the same
+answers here less legibly.
+
+**Backing off.** The longest match fits the *words*; it may not fit the *types*,
+or what is left of the line may not be able to continue from its result. Then
+the next shorter match is tried. With a user's
+`define line (n: new Line) parallel (c: Circle)` and `m` a Line,
+`line l parallel m` fits the words of the override, fails its types, and backs
+off to `(line l) parallel m`. Without backing off it would be an error, despite
+an obvious reading.
+
+**Restarting from a later word.** If no reading works from the first word, start
+again from the second, then the third. Whatever folds into a value there takes
+the place of those words, and the line is read again from the start. This is the
+only way a call reaches a slot other than the first without brackets, and it
+runs only when the plain left-to-right reading has failed — so a line that reads
+left to right is never touched by it. When everything fails, the error comes
+from the plain left-to-right attempt, since that is what the writer most likely
+meant.
+
+**`=` returns nothing, and that is all the precedence there is.** The first
+version of this needed `=` to bind loosest, and `line n = l rotated 60` shows
+why: left to right it is `(line n = l) rotated 60`, which names `n` as `l` and
+throws a rotated line away. A precedence level for `=` would have privileged a
+pattern word. Instead, `=` hands back nothing, so the fold fails at `rotated`, and
+the restart finds the right reading:
+
+```
+line n = l rotated 60
+  from word 1:  (line n) = l → nothing; `rotated` has nothing to take   ✗
+  from word 4:  l rotated 60 → a Line
+  again:        (line n) = ⟨Line⟩                                       ✓
+```
+
+"Returns nothing" ends up meaning "binds loosest", which any definition can opt
+into — nothing is privileged. `scalar k = 2 + 3`, `a + b = c` and
+`5 = length of s` all read as meant. `line l = m through p` reads as
+`l = (m through p)`; once `=` merges `l` and `m` they are one line, so which side
+a relation lands on cannot matter. It only matters for things that make
+something new, like `rotated`, and those the restart gets right.
+
+The planned general equality is `(n: Any) = (m: Any)`, merging the two (decision
+18's last section), with templating to say both sides have the same type. So
+`line l = m` is `(line l) = m`: make a line, then merge it with `m`. Wasteful,
+and deliberately not worried about.
+
+Accepted consequences:
+
+- **A relation that returns a value folds left.** If `l is perpendicular to m`
+  returned a Line, `line n is perpendicular to l rotated 60` would read as
+  "make n perpendicular to l, then rotate it" — which is what left to right
+  says. Only definitions returning nothing get the restart's protection.
+- **`a = b = c` is an error for now.** Neither half has a value, so brackets
+  cannot help. A three-part `(a: Any) = (b: Any) = (c: Any)` would win by longest
+  match if it is ever wanted.
+- **`return` followed by an `=` statement hands back nothing.** Write the
+  statement, then `return k`.
+- **The prelude's `=` forms that return a value must stop doing so**, or be
+  replaced by the general `=`; otherwise longest match picks them and
+  `point p = q rotated 60` folds left again.
+- **A slip can occasionally find a reading** where an error was expected, since
+  the restart looks for one. It still has to fit every type, so this is rare.
+- **Adding a definition can change how an existing line reads**, if it creates a
+  longer match. That is what makes overriding work; the cost is that it is
+  silent.
+
+**A line is a list of pieces, and a piece is a word or a value.** Brackets used
+to be worked out, written back into the line as text (`line l through Point#1
+Point#2`) and matched again — which is why `#` was a word character, and why
+typing `Point#1` worked. Now a bracket's result, and a restart's, stays a value:
+
+```
+line l through (1,2) (3,4)   →   [line] [l] [through] ⟨Point⟩ ⟨Point⟩
+```
+
+A keyword matches only a word piece. A word in a slot is looked up as a name. A
+value piece goes into a slot as it is: its type is known, so there is nothing to
+look up and nothing re-read. `substitute`, which writes a call's numbers and
+words into its body lines as text, is the same trick inside bodies; removing it
+is a separate step.
+
+**Same pattern, different return type.** A definition's return type is part of
+its signature, so `(x: Scalar) , (y: Scalar) => Point` and `… => Line` are two
+definitions, not a duplicate, and a file's own definition shadows only the
+imported one with the same return type. When a group could be several of them,
+every one that fits is kept and exactly one must remain: in a Point slot the
+Point one does, and `2 , 1` alone is an error. There is no preference by order or
+by position, so a line means the same standing alone as inside another.
+
+An `Any` slot cannot pick. `print (2, 1)` with both overloads is an error asking
+for the value to be named first. `=`'s two `Any` slots will pick once templating
+says both sides share a type: the left side of `point p = (2, 1)` is a Point, so
+the right is the Point overload. Until then it is the same error.
+
+**No default value.** A call has a value only if its definition says `=> T` and
+`return`s it. One with an output and no `=> T` still cannot stand in a slot. An
+implied return type would now take part in dispatch invisibly.
+
+**Asking forms are their own definitions, starting with `is`, for now.**
+
+```
+define (a: Line) parallel (b: Line) => Line:          makes it true
+define is (a: Line) parallel (b: Line) => Boolean:    asks
+```
+
+This keeps return-type overloads out of the assert/ask pair, which is where they
+could not be told apart: a bare `l parallel m` would fit a `=> Line` and a
+`=> Boolean` version equally. Considered and parked:
+
+- *Definition order* — the first overload that makes the line work. Definitions
+  stop being a table: moving one silently turns a bare `l parallel m` from making
+  it true into checking it, and overloads in different files need an order of
+  their own.
+- *`=> Line?`* — marking the overload that may stand on its own. Needed on
+  nearly every constraint, and it describes the caller ignoring a result, which
+  is not the definition's concern.
+- *Position* — a line on its own takes the non-Boolean overload. Rejected: a line
+  should mean the same alone as inside another.
+- *`is` taking a statement* — one definition per relation; inside `is`, its facts
+  become checks tested after solving, `=` compares instead of merging, and making
+  or drawing anything is an error. The most composable (`is triangle t
+  equilateral` for free) and the likely direction, since a Boolean cannot be
+  worked out before solving anyway. Could be unprivileged through a slot type
+  meaning "a statement, as a question". Parked, not rejected.
+
+Switching later is small: drop the `is …` definitions and add whatever `is`
+becomes. The pressure to switch will come from `if`: `if l parallel m` should
+read without `is`, and with `is` in patterns every relation would need an `if`
+copy as well.
+
+**Declaring forms mostly go.** Decision 4 still stands — nothing is derived. But
+its objection was that deriving `line l X` binds `l` to the *result* of `l X`; in
+`(line l) parallel m`, `l` is named by `line l` and the result just flows on. So
+the prelude's "make it, then say this about it" forms are redundant and can be
+deleted: `point … at`, `point … on`, `circle … with center`, `circle … with
+radius`, `line … parallel`, `line … perpendicular`, `scalar … is`. Those that mean
+something more stay: `line n through p q` and `circle … with center … and radius`
+(no subject form exists yet), `triangle`, and the `point … =` / `scalar … =`
+forms until `=` merges.
+
+**Settled by this as well.** The open item "using a no-argument definition's
+result" falls out of the restart: in `print greeting`, `greeting` is not a name,
+so the fold fails, the restart reads `greeting` as a call, and its value is
+printed.
 
 ## The big open question: how does a user write the maths?
 
@@ -1291,11 +1477,16 @@ Built recently, each covered by tests and the changelog:
 - **What `=` means.** Whether naming something and saying two things are the
   same are one feature or two. Leaning: one — declaring makes an empty shape and
   every `=` narrows it — but not settled. On the roadmap.
-- **Letting the slot decide (brackets piece 2).** `(2, 1)` as a point in one slot
-  and a line in another. Planned shape: groups report the set of types they could
-  produce, the outer statement picks, the choice passes back down (how Ada does
-  it). Needs definitions that differ only by return type to stop colliding, and
-  groups resolved before any run. Also what `is a parallel b` needs.
+- ~~**Letting the slot decide (brackets piece 2).**~~ Decided by 19: return type
+  joins the signature, every overload that fits is kept, exactly one must
+  remain. `Any` slots cannot pick; `=` waits on templating. Not built.
+- **Templating for `=`.** `(n: Any) = (m: Any)` needs to say both sides are the
+  same type, which is also what lets `point p = (2, 1)` pick the Point overload
+  (decision 19).
+- **Precedence for mixed arithmetic.** Under the fold (decision 19) `1 + 2 * 3`
+  reads as `(1 + 2) * 3`. Today it is refused for want of brackets; once lines
+  fold it would be silently 9. Needs either precedence or an error for two
+  different operations side by side without brackets.
 - **Arithmetic on named numbers.** `k + 1` is refused today: evaluation only
   builds facts, and the solver decides `k` later. Needs arithmetic the solver runs
   in both directions, and care with numbers that have several possible values.
@@ -1308,7 +1499,8 @@ Built recently, each covered by tests and the changelog:
 - **`draw`.** Agreed design, not built: top-level names draw by default; inside a
   definition `draw` is needed, and may only draw what the caller can reach (the
   `Name`-slot thing or its fields), so labels are always unique and usable.
-- **Using a no-argument definition's result.** `define greeting => Text` runs as a
+- ~~**Using a no-argument definition's result.**~~ Settled by decision 19's
+  restart. `define greeting => Text` runs as a
   statement, but its value cannot be passed anywhere.
 
 ## Smaller, whenever
