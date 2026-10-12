@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchStatement, type Match } from '../lang/defs/match.js'
+import { matchStatement, pieceText, type Match } from '../lang/defs/match.js'
 import { typeText, type Definition } from '../lang/defs/types.js'
 
 import { loadModule } from '../lang/defs/modules.js'
@@ -22,7 +22,7 @@ const forms = (stmt: string) => matchStatement(stmt, table).map(show)
 const bindings = (stmt: string) => {
   const ms = matchStatement(stmt, table)
   expect(ms).toHaveLength(1)
-  return Object.fromEntries(ms[0]!.bindings.map(b => [b.slot, b.token.value]))
+  return Object.fromEntries(ms[0]!.bindings.map(b => [b.slot, pieceText(b.piece)]))
 }
 
 describe('single unambiguous matches', () => {

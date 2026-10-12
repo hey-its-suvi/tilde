@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.59 — current
+## 0.3.60 — current
+
+- **What a bracket works out stays a value.** `line l through (1,2) (3,4)` puts the two points straight into the line's slots instead of writing them back into the line as text and reading it again. Nothing reads differently; errors now show what was written — `"l parallel (1 , 2)"` — rather than an internal name for the point.
+- `#` is no longer a character a name can contain: `point Point#1` now stops at the `#` with `unexpected character '#'`.
+
+## 0.3.59
 
 - **Every type has to exist.** A type written in a definition — a slot, a `=> Type`, or a field of `define type` — must be one of the built-ins or come from a `define type`. Otherwise it is an error on that line, with a suggestion when only the capitals are wrong: `there is no type called "point" — did you mean "Point"?`
 - **Two points can be said to be the same:** `n.a = p`. For now the two are held at no distance apart — they stay two points, drawn on top of each other — until `=` can merge them into one.

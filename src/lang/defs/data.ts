@@ -6,7 +6,7 @@
 //
 // Each piece of data gets a key the store makes up — `Point#1`, `Triangle#2` —
 // counted per type, so a key says what it is and which one. A program never
-// writes a key: `#` cannot appear in a name. It writes labels, which point at
+// writes a key: `#` is not a character a name can have. It writes labels, which point at
 // keys; the key is what errors and debugging show when there is no label to use.
 //
 // A piece of data has its own scope, holding its fields. A Triangle's holds
@@ -34,13 +34,6 @@ export class DataStore {
     const data = { key: `${type}#${n}` as Key, type, scope }
     this.byKey.set(data.key, data)
     return data
-  }
-
-  /** The key `s` spells, if it spells one. Statements are text, so a key that
-   *  was written into one — a slot's value, a bracket's result — comes back as a
-   *  string, and this is how it is recognised as a key again. */
-  key(s: string): Key | undefined {
-    return this.byKey.has(s as Key) ? (s as Key) : undefined
   }
 
   get(key: Key): Data | undefined {

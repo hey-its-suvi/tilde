@@ -50,12 +50,6 @@ const isIndented = (s: string) => /^[ \t]/.test(s)
 function checkNames(text: string, lineNo: number): void {
   for (const token of lexHeader(text, lineNo)) {
     if (token.kind !== 'WORD') continue
-    if (token.value.includes('#')) {
-      throw new DefinitionError(
-        `'${token.value}' has a '#' — the language uses that for its own bookkeeping, not in names`,
-        lineNo,
-      )
-    }
     for (const part of token.value.split('.')) {
       const bare = part.replace(/'+$/, '')
       const problem =

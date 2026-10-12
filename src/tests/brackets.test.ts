@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupTokens, render } from '../lang/defs/tree.js'
+import { groupTokens } from '../lang/defs/tree.js'
 import { lexHeader } from '../lang/defs/lexer.js'
 import { runSource } from '../lang/defs/eval.js'
 import { solveSource } from '../lang/solver/index.js'
@@ -16,10 +16,6 @@ describe('brackets nest', () => {
     const outer = nodes[1]!
     if (outer.kind !== 'group') throw new Error('expected a group')
     expect(outer.children.map(n => n.kind)).toEqual(['group', 'token', 'token'])
-  })
-
-  it('writes a tree back out as text', () => {
-    expect(render(tree('line l through (1,2) (3,4)'))).toBe('line l through ( 1 , 2 ) ( 3 , 4 )')
   })
 
   it('reports an unclosed bracket where it opened', () => {
@@ -82,5 +78,29 @@ define unit square corner (n: new Point) => Point:
 unit square corner z
 `)
     expect(scene.points).toMatchObject([{ label: 'z', x: 1, y: 1 }])
+  })
+})
+
+describe('a group stays a value, never text', () => {
+  it('fills the slot with the value itself', () => {
+    expect(run('print (2 + 3)\n').prints).toEqual([5])
+  })
+
+  it('keeps text as text, quotes and all', () => {
+    expect(run('print ("say \\"hi\\"" + "!")\n').prints).toEqual([{ text: 'say "hi"!' }])
+  })
+
+  it('cannot be a name being given', () => {
+    // An output takes a word as written; a value is never one.
+    expect(() => run('point (1, 2)\n')).toThrow(/no definition of "point \(1 , 2\)" fits/)
+  })
+
+  it('cannot be a keyword, whatever it holds', () => {
+    // `("on")` is text, not the word `on`.
+    expect(() => run('point a\nline l\na ("on") l\n')).toThrow(/no definition matches/)
+  })
+
+  it('shows what was written in errors, not a key', () => {
+    expect(() => run('line l\nl parallel (1, 2)\n')).toThrow(/"l parallel \(1 , 2\)"/)
   })
 })

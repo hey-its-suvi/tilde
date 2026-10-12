@@ -22,9 +22,10 @@
 import { Scope, type Key } from './scope.js'
 import { DataStore } from './data.js'
 import { lexHeader, type Token } from './lexer.js'
-import { groupTokens, render, type Node } from './tree.js'
+import { groupTokens, type Node } from './tree.js'
 import { resolveStatement, resolvePath, keyOf, NAME, TYPE, ANY, BUILT_IN_TYPES, form, type Frame, type Store } from './resolve.js'
-import type { Match } from './match.js'
+import { piecesOf, showPieces, type Match, type Piece } from './match.js'
+import { isText, type Text, type Value } from './values.js'
 import { loadModule, type HomeMap, type Loaded, type Registry, type TypeMap } from './modules.js'
 import type { Definition, Statement } from './types.js'
 import { segKey } from '../solver/model.js'
@@ -36,20 +37,10 @@ export class EvalError extends Error {
   }
 }
 
-/** A runtime value. Elements are their key in the ConstraintSet; literals are
- *  numbers. Definitions with no return type produce `null`. */
-export type Value = string | number | Text | null
+export { isText, type Text, type Value }
 
-/** A piece of text. Wrapped rather than a bare string, because a bare string is
- *  already how a value names an element — `"p"` the text and `p` the point have
- *  to stay different things. */
-export type Text = { text: string }
-export const isText = (v: unknown): v is Text =>
-  typeof v === 'object' && v !== null && 'text' in v
-
-/** How a value is written back into a statement: an element by its key, a
- *  number as itself, text quoted — so substituting it and re-reading the line
- *  gives back the same value. */
+/** How a value is written into a body line by `substitute`: a number as itself,
+ *  text quoted — so re-reading the line gives back the same value. */
 const valueSource = (v: Value): string =>
   isText(v) ? JSON.stringify(v.text) : String(v)
 
@@ -181,13 +172,25 @@ function evalStatement(
   }
 
   const tokens = lexHeader(statement, 0)
-  if (tokens.some(t => t.kind === 'LPAREN' || t.kind === 'RPAREN')) {
-    statement = render(settleGroups(groupTokens(tokens), statement, scope, ctx, depth))
-  }
-  return evalMatch(resolveStatement(statement, ctx.store, scope), scope, ctx, depth)
+  const pieces = tokens.some(t => t.kind === 'LPAREN' || t.kind === 'RPAREN')
+    ? settleGroups(groupTokens(tokens), statement, scope, ctx, depth)
+    : piecesOf(statement)
+  return evalPieces(pieces, scope, ctx, depth)
+}
+
+/** Resolve a line already broken into pieces, and run what it means. */
+function evalPieces(
+  pieces: readonly Piece[],
+  scope: readonly Definition[],
+  ctx: Context,
+  depth: number,
+): Value {
+  return evalMatch(resolveStatement(pieces, ctx.store, scope), scope, ctx, depth)
 }
 
 /** Replace every bracketed group with the value it produces, innermost first.
+ *  The value stays a value — it is never written back into the line as text —
+ *  so the outer line is matched with it in place, as it is.
  *
  *  For now a group is worked out from the inside alone, so it must mean exactly
  *  one thing — the ordinary rule for any statement. Later the slot a group sits
@@ -199,27 +202,25 @@ function settleGroups(
   scope: readonly Definition[],
   ctx: Context,
   depth: number,
-): Node[] {
-  return nodes.map(node => {
-    if (node.kind === 'token') return node
+): Piece[] {
+  return nodes.map((node): Piece => {
+    if (node.kind === 'token') return { kind: 'word', token: node.token }
 
     const settled = settleGroups(node.children, whole, scope, ctx, depth)
     // Brackets only group: around a single name or number they change nothing.
     if (settled.length === 1) return settled[0]!
 
-    const inner = render(settled)
-    const value = evalStatement(inner, scope, ctx, depth + 1)
+    const inner = showPieces(settled)
+    if (depth + 1 > MAX_DEPTH) {
+      throw new EvalError(`"${inner}" expanded more than ${MAX_DEPTH} levels deep — recursive definition?`)
+    }
+    const value = evalPieces(settled, scope, ctx, depth + 1)
     if (value === null) {
       throw new EvalError(
         `\`(${inner})\` in "${whole}" produces nothing, so it cannot stand where a value is expected`,
       )
     }
-    const token: Token = typeof value === 'number'
-      ? { kind: 'NUMBER', value: String(value), col: node.col }
-      : isText(value)
-      ? { kind: 'STRING', value: JSON.stringify(value.text), col: node.col }
-      : { kind: 'WORD', value, col: node.col }
-    return { kind: 'token', token }
+    return { kind: 'value', value, text: `(${inner})`, col: node.col }
   })
 }
 
@@ -233,20 +234,28 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   const elements = new Set<string>()
   const outputs: Output[] = []
   for (const b of m.bindings) {
-    if (b.token.kind === 'NUMBER') {
-      env.set(b.slot, Number(b.token.value))
-    } else if (b.token.kind === 'STRING') {
-      env.set(b.slot, textOf(b.token))
+    if (b.piece.kind === 'value') {
+      // Worked out already: a number or text is itself, and an element is its key.
+      const value = b.piece.value
+      env.set(b.slot, value)
+      if (typeof value === 'string') elements.add(b.slot)
+      continue
+    }
+    const token = b.piece.token
+    if (token.kind === 'NUMBER') {
+      env.set(b.slot, Number(token.value))
+    } else if (token.kind === 'STRING') {
+      env.set(b.slot, textOf(token))
     } else if (b.type.output) {
-      outputs.push(output(b.slot, b.token.value, b.type.name, caller, ctx))
+      outputs.push(output(b.slot, token.value, b.type.name, caller, ctx))
       // Inside the body the output is just the slot's own name — a label it
       // gives in its own frame, handed back when it ends.
       env.set(b.slot, b.slot)
     } else if (b.type.name === NAME || b.type.name === TYPE) {
-      env.set(b.slot, b.token.value)
+      env.set(b.slot, token.value)
     } else {
       // A path binds the element it points at, so a body never sees the dots.
-      env.set(b.slot, resolvePath(b.token.value, ctx.store)!.key)
+      env.set(b.slot, resolvePath(token.value, ctx.store)!.key)
       elements.add(b.slot)
     }
   }
@@ -363,7 +372,7 @@ function checkReturn(m: Match, value: Value, ctx: Context): void {
   const actual =
     typeof value === 'number' ? 'Scalar'
     : isText(value) ? 'Text'
-    : typeof value === 'string' ? typeOfWord(value, ctx.store)
+    : typeof value === 'string' ? ctx.store.data.typeOf(value as Key)
     : undefined
 
   if (actual === undefined) {
@@ -495,10 +504,6 @@ function make(type: string, ctx: Context): Key {
   return key
 }
 
-const typeOfWord = (word: string, store: Store): string | undefined => {
-  const key = keyOf(word, store)
-  return key === undefined ? undefined : store.data.typeOf(key)
-}
 
 /** What to call each element when showing it: the name the program gave it, or
  *  failing that a path through a named thing's fields (`t.point1`). Names the
@@ -559,7 +564,9 @@ function makeApi(ctx: Context): Api {
       if (frame.labels.has(name)) {
         throw new EvalError(`"${name}" is already declared`)
       }
-      const key = keyOf(String(existing), ctx.store)
+      // A slot hands a body the element's key; a name is looked up in the frame.
+      const given = String(existing) as Key
+      const key = ctx.store.data.get(given) !== undefined ? given : keyOf(given, ctx.store)
       if (key === undefined) {
         throw new EvalError(`"${existing}" is not declared, so nothing can be called "${name}"`)
       }
