@@ -44,8 +44,7 @@ const isIndented = (s: string) => /^[ \t]/.test(s)
 /** `_` inside a name marks a subscript — `t_1` reads t₁ — so it must have
  *  something on both sides. A name may not start with one either: that is
  *  where evaluation keeps names of its own (`_<local>_<n>`), and a user's name
- *  must never collide with them. Checked here, on what was written, rather than
- *  in the lexer, which also re-reads statements after those names are filled in.
+ *  must never collide with them. Checked here, once, on what a file says.
  *  Each part of a path is its own name: `t_1.point_2` is fine, `t._a` is not. */
 function checkNames(text: string, lineNo: number): void {
   for (const token of lexHeader(text, lineNo)) {

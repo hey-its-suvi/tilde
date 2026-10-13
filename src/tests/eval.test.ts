@@ -57,7 +57,7 @@ describe('primitives emit solver constraints', () => {
 })
 
 describe('composed bodies expand', () => {
-  it('substitutes slots into each body line', () => {
+  it('reads its slots in each body line', () => {
     // `point p at 3 5` is `point p` then `p at 3 5`.
     const { constraints, typeOf } = run('point p at 3 5')
     expect(typeOf('p')).toBe('Point')

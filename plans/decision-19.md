@@ -8,8 +8,8 @@ next starts.
 | # | Step | Status |
 |---|------|--------|
 | 1 | A bracket's result stays a value, never text | done — `7c3f240` |
-| 2 | Remove `substitute`: a call's frame holds its values | next |
-| 3 | Return type joins the signature; every fitting overload kept, exactly one must remain | |
+| 2 | Remove `substitute`: a call's frame holds its values | done — see below |
+| 3 | Return type joins the signature; every fitting overload kept, exactly one must remain | next |
 | 4 | The fold and the restart (one search) | |
 | 5 | `=` returns nothing | |
 | 6 | The slot picks between return-type overloads; `Any` slots error | |
@@ -128,36 +128,70 @@ file-by-file record, like step 1's, once its commit lands.
 
 ## Step 2 — remove `substitute`: a call's frame holds its values
 
-**Before.** When a composed definition runs, each body line is text, and
-`substitute` rewrites slot names in it with the caller's numbers, text and
-`Name`/`Type` words (`n at x y` → `n at 3 4`), then the line is lexed again.
-Elements are already frame labels and are not rewritten.
+**Before.** When a composed definition ran, `substitute` rewrote each body line
+as text: a slot holding a number, text or a `Name`/`Type` word had its name
+replaced by that value (`n at x y` → `n at 3 4`), and the line was lexed again.
+Element slots were already labels in the call's frame and were not rewritten.
 
-**After.** The frame holds every parameter: elements as keys (as now), numbers
-and text as values, `Name`/`Type` words as words. A body line is lexed as
-written; a word that is a parameter holding a number or text becomes a value
-piece (step 1's mechanism). Nothing is written into the line.
+**After.** The frame holds every parameter that is not an element in a new
+`params` map. A body line is read as written; when it is resolved, a word that
+names a param stands for it — a number or text becomes a value piece (step 1's
+mechanism), a `Name`/`Type` word becomes the word the caller wrote. Nothing is
+written into a line.
 
-**Planned changes**
-- `resolve.ts` — `Frame` gains the parameter values (a map beside `labels`).
-  Before matching, a word naming a value parameter becomes a value piece.
-- `resolve.ts` / `eval.ts` — a word in a `Name` or `Type` slot that names a
-  parameter of the running call means that parameter's word:
-  `define toggle (s: Name): set s on`, called `toggle grid`, sets `grid`.
-  Same for `new ty n` with `ty → Triangle`.
-- `eval.ts` — `runComposed` stops calling `substitute`; `return x` with `x` a
-  value parameter returns the value. `substitute` and `valueSource` deleted.
-- `eval.ts` — the path-rooted-at-a-`Name`-slot case (`n.from`) goes; since
-  decision 18 a `Name` slot is only a word and has no fields. Confirm no test
-  relies on it.
-- `parser.ts` — fix the `checkNames` comment that says statements are re-read
-  after names are filled in.
+**Behaviour that must not change:** everything. No changelog entry — no
+language behaviour changed.
 
-**Tests to add:** a number parameter reaching a nested composed call; text
-parameter passed on; a `Name` parameter passed on to `set`; a `Type`
-parameter passed on to `new`; `return x` of a number parameter; a slot named
-like a word inside a longer word is untouched (the old reason `substitute` was
-token-level).
+### File by file
+
+**`src/lang/defs/resolve.ts`**
+- `Frame` gains `params: ReadonlyMap<string, Param>`.
+- New exported `Param` type: `{ kind: 'value'; value: number | Text }` or
+  `{ kind: 'word'; word: string }`.
+
+**`src/lang/defs/eval.ts`**
+- The program's frame starts with an empty `params`.
+- `evalPieces` maps every piece through new `withParam` before resolving: a
+  word naming a param becomes a value piece (number/text, with the slot name as
+  its `text` for errors) or a word piece holding the caller's word.
+- `evalMatch` fills `params` while binding slots: numbers and text (written or
+  from a bracket) as values; `Name`/`Type` slots as words. Elements and outputs
+  are unchanged. The new frame is built with these `params`.
+- `runComposed` takes the frame instead of `env` + `elements`; body lines go to
+  `evalStatement` untouched. `return x` with `x` a param returns what the caller
+  passed (a value, or the word).
+- `substitute` and `valueSource` deleted, along with the "path rooted at a Name
+  slot" case (`n.from`) — dead since decision 18, as a `Name` slot is only a
+  word and a body cannot see the caller's names.
+- Header comment rewritten: bodies run in a frame holding their slots.
+
+**`src/lang/defs/parser.ts`**
+- `checkNames` comment no longer claims statements are re-read after names
+  are filled in.
+
+**Tests**
+- New `params.test.ts`, six tests: a number passed on to a nested call; text
+  passed on; a `Name` word passed on to `set`; a `Type` word passed on to
+  `new`; `return x` of a number; a slot `x` leaves the name `xs` alone.
+  Checked that five fail with the param lookup disabled (the sixth goes
+  through `runComposed`'s own lookup).
+- `resolve.test.ts`: its hand-built frame gets `params: new Map()`.
+- Renamed, no logic change: `types.test.ts` "substitutes the root of a dotted
+  path" → "reaches a field through a path rooted at a slot" (and two
+  comments); `eval.test.ts` "substitutes slots into each body line" → "reads
+  its slots in each body line".
+
+**`LANGUAGE_DESIGN.md`**
+- Decision 19's pieces section says bodies now read params too.
+- The old "Built so far" note on substitution marked as replaced.
+
+### Things worth a reviewer's eye
+- A `Name`/`Type` param is turned into a word piece holding the caller's word —
+  so it can also match a keyword, exactly as the rewritten text could before.
+  Same behaviour, but it is the one place a word is still swapped.
+- A slot named like a pattern word (a slot called `at`) would shadow that
+  keyword inside the body. Also true before; no prelude definition does it.
+- tsx bodies are unaffected: they still receive `env` directly.
 
 ## Step 3 — return type joins the signature
 

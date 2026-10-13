@@ -11,7 +11,7 @@
 // to know that is to run `point a`, `point b`, `point c`, `t holds a b c`.
 
 import { matchStatement, piecesOf, showPieces, literalType, type Match, type Piece } from './match.js'
-import type { Value } from './values.js'
+import type { Text, Value } from './values.js'
 import type { TypeMap } from './modules.js'
 import { typeText, type Definition } from './types.js'
 import type { Key, Scope } from './scope.js'
@@ -33,7 +33,16 @@ export type Frame = {
   /** The definition's slot names. Labels with these names are its parameters,
    *  not names its body made, so they never count as locals that ended. */
   slots: ReadonlySet<string>
+  /** Parameters that are not elements, by slot name: a number or text the
+   *  caller passed, or the word it wrote in a `Name` or `Type` slot. A body line
+   *  is read with these in place of the slot's name — never written into it. */
+  params: ReadonlyMap<string, Param>
 }
+
+/** A parameter that is not an element. */
+export type Param =
+  | { kind: 'value'; value: number | Text }
+  | { kind: 'word'; word: string }
 
 /** Everything resolution needs to know about what exists. */
 export type Store = {

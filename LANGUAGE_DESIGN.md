@@ -816,9 +816,14 @@ line l through (1,2) (3,4)   →   [line] [l] [through] ⟨Point⟩ ⟨Point⟩
 
 A keyword matches only a word piece. A word in a slot is looked up as a name. A
 value piece goes into a slot as it is: its type is known, so there is nothing to
-look up and nothing re-read. `substitute`, which writes a call's numbers and
-words into its body lines as text, is the same trick inside bodies; removing it
-is a separate step.
+look up and nothing re-read.
+
+Bodies get the same treatment. `substitute` used to write a call's numbers,
+text and `Name`/`Type` words into each body line as text before reading it. Now
+a call's frame holds them as its *params*, and a body line reads them where it
+names them: a number or text becomes a value piece, and a `Name` or `Type` word
+becomes the word the caller wrote, so `set s on` inside a definition called with
+`grid` sets `grid`. Nothing is written into a line any more.
 
 **Same pattern, different return type.** A definition's return type is part of
 its signature, so `(x: Scalar) , (y: Scalar) => Point` and `… => Line` are two
@@ -1371,6 +1376,8 @@ no-fit / ambiguity. It is stateless apart from the symbol table handed to it.
 Evaluation drives the program and owns the symbol table. Composed bodies expand
 by substituting slot values token-by-token and evaluating each line; the body's
 value is its last line's, which is how a composed form returns its subject.
+(Both since replaced: `return` designates the result — decision 12 — and a
+call's frame holds its values rather than writing them in — decision 19.)
 `tsx` bodies run through `new Function` with the slots bound as parameters and a
 three-call API in scope: `declare(name, type)`, `constrain(c)`, `segment(a, b)`.
 

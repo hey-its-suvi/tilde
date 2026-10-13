@@ -5,9 +5,10 @@
 //
 // Two body kinds, one rule each:
 //
-//   • A composed body is a list of Tilde statements. Substitute the slot values
-//     into each line, then evaluate it like any other statement. The body's
-//     value is its last line's value.
+//   • A composed body is a list of Tilde statements, run in a frame of its own
+//     that holds the slots: elements as labels, numbers, text and words as
+//     params. Each line is evaluated like any other statement; `return` says
+//     what the body's value is.
 //   • A tsx body is TypeScript, run with the slots bound as parameters and a
 //     small helper API in scope. Its return value is the definition's value.
 //
@@ -23,7 +24,7 @@ import { Scope, type Key } from './scope.js'
 import { DataStore } from './data.js'
 import { lexHeader, type Token } from './lexer.js'
 import { groupTokens, type Node } from './tree.js'
-import { resolveStatement, resolvePath, keyOf, NAME, TYPE, ANY, BUILT_IN_TYPES, form, type Frame, type Store } from './resolve.js'
+import { resolveStatement, resolvePath, keyOf, NAME, TYPE, ANY, BUILT_IN_TYPES, form, type Frame, type Param, type Store } from './resolve.js'
 import { piecesOf, showPieces, type Match, type Piece } from './match.js'
 import { isText, type Text, type Value } from './values.js'
 import { loadModule, type HomeMap, type Loaded, type Registry, type TypeMap } from './modules.js'
@@ -38,11 +39,6 @@ export class EvalError extends Error {
 }
 
 export { isText, type Text, type Value }
-
-/** How a value is written into a body line by `substitute`: a number as itself,
- *  text quoted — so re-reading the line gives back the same value. */
-const valueSource = (v: Value): string =>
-  isText(v) ? JSON.stringify(v.text) : String(v)
 
 /** A string token's value, quotes and escapes removed. */
 const textOf = (token: Token): Text => ({ text: JSON.parse(token.value) as string })
@@ -124,7 +120,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, decls: TypeMap): Program {
 
   // The program's own frame: its labels are the globals.
   const globals = new Scope()
-  const program: Frame = { id: 0, labels: globals, form: 'the program', slots: new Set() }
+  const program: Frame = { id: 0, labels: globals, form: 'the program', slots: new Set(), params: new Map() }
   const ctx: Context = {
     store: { data, decls, globals, current: program, ended: [] },
     constraints, homeOf, frameCount: 0, prints: [], settings: new Map(),
@@ -185,7 +181,21 @@ function evalPieces(
   ctx: Context,
   depth: number,
 ): Value {
-  return evalMatch(resolveStatement(pieces, ctx.store, scope), scope, ctx, depth)
+  const read = pieces.map(p => withParam(p, ctx.store.current.params))
+  return evalMatch(resolveStatement(read, ctx.store, scope), scope, ctx, depth)
+}
+
+/** A word naming one of the running call's parameters stands for what the
+ *  caller passed: a number or text becomes that value, and a `Name` or `Type`
+ *  word becomes the word the caller wrote — so `set s on` inside a definition
+ *  called with `grid` sets `grid`. Anything else is left as written. */
+function withParam(p: Piece, params: ReadonlyMap<string, Param>): Piece {
+  if (p.kind !== 'word' || p.token.kind !== 'WORD') return p
+  const param = params.get(p.token.value)
+  if (param === undefined) return p
+  return param.kind === 'value'
+    ? { kind: 'value', value: param.value, text: p.token.value, col: p.token.col }
+    : { kind: 'word', token: { ...p.token, value: param.word } }
 }
 
 /** Replace every bracketed group with the value it produces, innermost first.
@@ -232,6 +242,7 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   // the element it points at, by key.
   const env = new Map<string, Value>()
   const elements = new Set<string>()
+  const params = new Map<string, Param>()
   const outputs: Output[] = []
   for (const b of m.bindings) {
     if (b.piece.kind === 'value') {
@@ -239,13 +250,16 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
       const value = b.piece.value
       env.set(b.slot, value)
       if (typeof value === 'string') elements.add(b.slot)
+      else if (value !== null) params.set(b.slot, { kind: 'value', value })
       continue
     }
     const token = b.piece.token
     if (token.kind === 'NUMBER') {
       env.set(b.slot, Number(token.value))
+      params.set(b.slot, { kind: 'value', value: Number(token.value) })
     } else if (token.kind === 'STRING') {
       env.set(b.slot, textOf(token))
+      params.set(b.slot, { kind: 'value', value: textOf(token) })
     } else if (b.type.output) {
       outputs.push(output(b.slot, token.value, b.type.name, caller, ctx))
       // Inside the body the output is just the slot's own name — a label it
@@ -253,6 +267,7 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
       env.set(b.slot, b.slot)
     } else if (b.type.name === NAME || b.type.name === TYPE) {
       env.set(b.slot, token.value)
+      params.set(b.slot, { kind: 'word', word: token.value })
     } else {
       // A path binds the element it points at, so a body never sees the dots.
       env.set(b.slot, resolvePath(token.value, ctx.store)!.key)
@@ -269,14 +284,14 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   }
 
   // Anything else runs in a frame of its own. It sees its slots — the elements
-  // as labels in the frame, numbers and words written into each line, outputs
-  // as names it gives itself — and nothing else: not the program's names, not
+  // as labels in the frame, numbers, text and words as its params, outputs as
+  // names it gives itself — and nothing else: not the program's names, not
   // the caller's. When it ends, its outputs are handed back to the caller under
   // the names the caller wrote, and the frame goes. What it made lives on in
   // the data store.
   const frame: Frame = {
     id: ++ctx.frameCount, labels: new Scope(), form: form(m),
-    slots: new Set(m.bindings.map(b => b.slot)),
+    slots: new Set(m.bindings.map(b => b.slot)), params,
   }
   for (const slot of elements) frame.labels.add({ name: slot, key: env.get(slot) as Key })
 
@@ -288,7 +303,7 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
     // may use everything its own file imported, and nothing the caller did.
     value = m.def.body.body === 'tsx'
       ? runTsx(m, env, ctx)
-      : runComposed(m.def.body, env, elements, ctx.homeOf.get(m.def) ?? scope, ctx, depth)
+      : runComposed(m.def.body, frame, ctx.homeOf.get(m.def) ?? scope, ctx, depth)
     for (const out of outputs) handBack(out, frame, caller, ctx)
   } finally {
     ctx.store.current = caller
@@ -339,27 +354,30 @@ function handBack(out: Output, frame: Frame, caller: Frame, ctx: Context): void 
  *  lines up. */
 function runComposed(
   body: { lines: string[]; result: string | null },
-  env: Map<string, Value>,
-  elements: ReadonlySet<string>,
+  frame: Frame,
   scope: readonly Definition[],
   ctx: Context,
   depth: number,
 ): Value {
-  for (const line of body.lines) evalStatement(substitute(line, env, elements), scope, ctx, depth + 1)
+  for (const line of body.lines) evalStatement(line, scope, ctx, depth + 1)
   if (body.result === null) return null
 
-  const result = substitute(body.result, env, elements)
   // A bare name or number is the value itself; anything longer is a statement
   // whose value comes back, so `return circle c with radius 2` works too. A name
-  // goes back as the key it labels — the label itself ends with this frame.
-  const tokens = lexHeader(result, 0).filter(t => t.kind !== 'EOF')
+  // goes back as the key it labels — the label itself ends with this frame — and
+  // a parameter as what the caller passed.
+  const tokens = lexHeader(body.result, 0).filter(t => t.kind !== 'EOF')
   if (tokens.length === 1) {
     const only = tokens[0]!
     if (only.kind === 'NUMBER') return Number(only.value)
     if (only.kind === 'STRING') return textOf(only)
-    if (only.kind === 'WORD') return resolvePath(only.value, ctx.store)?.key ?? only.value
+    if (only.kind === 'WORD') {
+      const param = frame.params.get(only.value)
+      if (param !== undefined) return param.kind === 'value' ? param.value : param.word
+      return resolvePath(only.value, ctx.store)?.key ?? only.value
+    }
   }
-  return evalStatement(result, scope, ctx, depth + 1)
+  return evalStatement(body.result, scope, ctx, depth + 1)
 }
 
 /** What came back must be what was promised. Without this a body could be
@@ -386,35 +404,6 @@ function checkReturn(m: Match, value: Value, ctx: Context): void {
         (typeof value === 'string' ? ` (\`${value}\`)` : ''),
     )
   }
-}
-
-/** Write a body line's slot values into it, token by token. Elements are not
- *  written in — they are labels in the call's frame — so this is numbers, text
- *  and Name-slot words. Token-level rather than textual so a slot named `n` can
- *  never rewrite the `n` inside a longer word. Re-joining with single spaces is
- *  lossless: a statement is a sequence of atoms and keywords, and nothing reads
- *  its layout. */
-function substitute(line: string, env: Map<string, Value>, elements: ReadonlySet<string>): string {
-  const written = (slot: string) => (elements.has(slot) ? undefined : env.get(slot))
-  return lexHeader(line, 0)
-    .filter(t => t.kind !== 'EOF')
-    .map(t => {
-      if (t.kind !== 'WORD') return t.value
-
-      const bound = written(t.value)
-      if (bound !== undefined) return valueSource(bound)
-
-      // A path rooted at a Name slot — `n.from` — writes in its root and keeps
-      // the rest, so it reaches a field of whatever the caller named.
-      const dot = t.value.indexOf('.')
-      if (dot > 0) {
-        const root = written(t.value.slice(0, dot))
-        if (root !== undefined) return valueSource(root) + t.value.slice(dot)
-      }
-
-      return t.value
-    })
-    .join(' ')
 }
 
 // ─── The TypeScript hatch ────────────────────────────────────────────────────
