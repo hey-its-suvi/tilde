@@ -5,9 +5,10 @@
 //
 // Two body kinds, one rule each:
 //
-//   • A composed body is a list of Tilde statements. Substitute the slot values
-//     into each line, then evaluate it like any other statement. The body's
-//     value is its last line's value.
+//   • A composed body is a list of Tilde statements, run in a frame of its own
+//     that holds the slots: elements as labels, numbers, text and words as
+//     params. Each line is evaluated like any other statement; `return` says
+//     what the body's value is.
 //   • A tsx body is TypeScript, run with the slots bound as parameters and a
 //     small helper API in scope. Its return value is the definition's value.
 //
@@ -22,11 +23,13 @@
 import { Scope, type Key } from './scope.js'
 import { DataStore } from './data.js'
 import { lexHeader, type Token } from './lexer.js'
-import { groupTokens, render, type Node } from './tree.js'
-import { resolveStatement, resolvePath, keyOf, NAME, TYPE, ANY, BUILT_IN_TYPES, form, type Frame, type Store } from './resolve.js'
-import type { Match } from './match.js'
+import { groupTokens, type Node } from './tree.js'
+import { resolveStatement, resolvePath, keyOf, ResolutionError, NAME, TYPE, ANY, BUILT_IN_TYPES, form, type Frame, type Param, type Store } from './resolve.js'
+import { readLine, foldFromStart, type Call } from './read.js'
+import { piecesOf, showPieces, type Match, type Piece } from './match.js'
+import { isText, type Text, type Value } from './values.js'
 import { loadModule, type HomeMap, type Loaded, type Registry, type TypeMap } from './modules.js'
-import type { Definition, Statement } from './types.js'
+import { signature, type Definition, type Statement } from './types.js'
 import { segKey } from '../solver/model.js'
 import type { ConstraintSet, ResolvedConstraint } from '../solver/interface.js'
 
@@ -36,22 +39,7 @@ export class EvalError extends Error {
   }
 }
 
-/** A runtime value. Elements are their key in the ConstraintSet; literals are
- *  numbers. Definitions with no return type produce `null`. */
-export type Value = string | number | Text | null
-
-/** A piece of text. Wrapped rather than a bare string, because a bare string is
- *  already how a value names an element — `"p"` the text and `p` the point have
- *  to stay different things. */
-export type Text = { text: string }
-export const isText = (v: unknown): v is Text =>
-  typeof v === 'object' && v !== null && 'text' in v
-
-/** How a value is written back into a statement: an element by its key, a
- *  number as itself, text quoted — so substituting it and re-reading the line
- *  gives back the same value. */
-const valueSource = (v: Value): string =>
-  isText(v) ? JSON.stringify(v.text) : String(v)
+export { isText, type Text, type Value }
 
 /** A string token's value, quotes and escapes removed. */
 const textOf = (token: Token): Text => ({ text: JSON.parse(token.value) as string })
@@ -133,7 +121,7 @@ function run(units: readonly Unit[], homeOf: HomeMap, decls: TypeMap): Program {
 
   // The program's own frame: its labels are the globals.
   const globals = new Scope()
-  const program: Frame = { id: 0, labels: globals, form: 'the program', slots: new Set() }
+  const program: Frame = { id: 0, labels: globals, form: 'the program', slots: new Set(), params: new Map() }
   const ctx: Context = {
     store: { data, decls, globals, current: program, ended: [] },
     constraints, homeOf, frameCount: 0, prints: [], settings: new Map(),
@@ -181,13 +169,102 @@ function evalStatement(
   }
 
   const tokens = lexHeader(statement, 0)
-  if (tokens.some(t => t.kind === 'LPAREN' || t.kind === 'RPAREN')) {
-    statement = render(settleGroups(groupTokens(tokens), statement, scope, ctx, depth))
+  const pieces = tokens.some(t => t.kind === 'LPAREN' || t.kind === 'RPAREN')
+    ? settleGroups(groupTokens(tokens), statement, scope, ctx, depth)
+    : piecesOf(statement)
+  return evalPieces(pieces, scope, ctx, depth)
+}
+
+/** Resolve a line already broken into pieces, and run what it means. */
+function evalPieces(
+  pieces: readonly Piece[],
+  scope: readonly Definition[],
+  ctx: Context,
+  depth: number,
+): Value {
+  const read = pieces.map(p => withParam(p, ctx.store.current.params))
+  const call = readLine(read, ctx.store, scope)
+  if (call === null) throw noReading(read, ctx.store, scope)
+  settled(call)
+  return runCall(call, scope, ctx, depth)
+}
+
+/** Why a line has no reading. First as a whole, as one pattern — the errors
+ *  that always described a bad line. If no pattern spans it at all, then from as
+ *  far as reading left to right got: in `point p on q` with `q` unknown, that is
+ *  `(point p) on q`, where both `on`s match the words and neither fits `q`. */
+function noReading(pieces: readonly Piece[], store: Store, scope: readonly Definition[]): unknown {
+  try {
+    resolveStatement(pieces, store, scope)
+  } catch (whole) {
+    const folded = foldFromStart(pieces, store, scope)
+    const nothingSpans = whole instanceof ResolutionError && /no definition matches/.test(whole.message)
+    if (!nothingSpans || folded === null || folded.length === pieces.length) return whole
+    try {
+      resolveStatement(folded, store, scope)
+    } catch (stuck) {
+      return stuck
+    }
+    return whole
   }
-  return evalMatch(resolveStatement(statement, ctx.store, scope), scope, ctx, depth)
+  // Cannot happen: a line one pattern spans is always read.
+  return new EvalError(`"${showPieces(pieces)}" could not be read`)
+}
+
+/** Every call in a reading must mean one definition. Checked before anything
+ *  runs, so an ambiguous line adds nothing to the drawing. */
+function settled(call: Call, slot?: string): void {
+  if (call.matches.length > 1) {
+    if (differsOnlyByReturn(call.matches)) {
+      // Sorted, so the message does not depend on which file defined what first.
+      const types = call.matches.map(m => m.def.returns!.name).sort().join(' or a ')
+      throw new ResolutionError(
+        `"${call.text}" is ambiguous: it could give a ${types}, and nothing around it says which` +
+          (slot === ANY ? ` — give it a name first` : ''),
+      )
+    }
+    const list = call.matches.map(m => `\`${form(m)}\``).join(', ')
+    throw new ResolutionError(`"${call.text}" is ambiguous: ${list}`)
+  }
+  for (const b of call.matches[0]!.bindings) if (b.piece.kind === 'call') settled(b.piece, b.type.name)
+}
+
+/** Overloads that are the same words and slots, told apart only by what they
+ *  give back — the ones a slot can choose between. */
+function differsOnlyByReturn(matches: readonly Match[]): boolean {
+  if (matches.some(m => m.def.returns === null)) return false
+  const shape = (m: Match) => signature({ pattern: m.def.pattern, returns: null })
+  return matches.every(m => shape(m) === shape(matches[0]!))
+}
+
+/** Run a call read from a line: the calls in its slots first, left to right,
+ *  each handing its value on as a value piece; then the call itself. */
+function runCall(call: Call, scope: readonly Definition[], ctx: Context, depth: number): Value {
+  const m = call.matches[0]!
+  const bindings = m.bindings.map(b => {
+    if (b.piece.kind !== 'call') return b
+    const value = runCall(b.piece, scope, ctx, depth + 1)
+    return { ...b, piece: { kind: 'value' as const, value, text: b.piece.text, col: b.piece.col } }
+  })
+  return evalMatch({ def: m.def, bindings }, scope, ctx, depth)
+}
+
+/** A word naming one of the running call's parameters stands for what the
+ *  caller passed: a number or text becomes that value, and a `Name` or `Type`
+ *  word becomes the word the caller wrote — so `set s on` inside a definition
+ *  called with `grid` sets `grid`. Anything else is left as written. */
+function withParam(p: Piece, params: ReadonlyMap<string, Param>): Piece {
+  if (p.kind !== 'word' || p.token.kind !== 'WORD') return p
+  const param = params.get(p.token.value)
+  if (param === undefined) return p
+  return param.kind === 'value'
+    ? { kind: 'value', value: param.value, text: p.token.value, col: p.token.col }
+    : { kind: 'word', token: { ...p.token, value: param.word } }
 }
 
 /** Replace every bracketed group with the value it produces, innermost first.
+ *  The value stays a value — it is never written back into the line as text —
+ *  so the outer line is matched with it in place, as it is.
  *
  *  For now a group is worked out from the inside alone, so it must mean exactly
  *  one thing — the ordinary rule for any statement. Later the slot a group sits
@@ -199,27 +276,35 @@ function settleGroups(
   scope: readonly Definition[],
   ctx: Context,
   depth: number,
-): Node[] {
-  return nodes.map(node => {
-    if (node.kind === 'token') return node
+): Piece[] {
+  return nodes.map((node): Piece => {
+    if (node.kind === 'token') return { kind: 'word', token: node.token }
 
     const settled = settleGroups(node.children, whole, scope, ctx, depth)
     // Brackets only group: around a single name or number they change nothing.
     if (settled.length === 1) return settled[0]!
 
-    const inner = render(settled)
-    const value = evalStatement(inner, scope, ctx, depth + 1)
+    const inner = showPieces(settled)
+    if (depth + 1 > MAX_DEPTH) {
+      throw new EvalError(`"${inner}" expanded more than ${MAX_DEPTH} levels deep — recursive definition?`)
+    }
+
+    // A group that could be several overloads, told apart only by what they give
+    // back, is read but not run: the slot it lands in picks one (decision 19).
+    // Any other group runs now, from the inside alone, as it always has.
+    const read = settled.map(p => withParam(p, ctx.store.current.params))
+    const call = readLine(read, ctx.store, scope)
+    if (call !== null && call.matches.length > 1 && differsOnlyByReturn(call.matches)) {
+      return { ...call, text: `(${inner})`, col: node.col }
+    }
+
+    const value = evalPieces(settled, scope, ctx, depth + 1)
     if (value === null) {
       throw new EvalError(
         `\`(${inner})\` in "${whole}" produces nothing, so it cannot stand where a value is expected`,
       )
     }
-    const token: Token = typeof value === 'number'
-      ? { kind: 'NUMBER', value: String(value), col: node.col }
-      : isText(value)
-      ? { kind: 'STRING', value: JSON.stringify(value.text), col: node.col }
-      : { kind: 'WORD', value, col: node.col }
-    return { kind: 'token', token }
+    return { kind: 'value', value, text: `(${inner})`, col: node.col }
   })
 }
 
@@ -231,22 +316,36 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   // the element it points at, by key.
   const env = new Map<string, Value>()
   const elements = new Set<string>()
+  const params = new Map<string, Param>()
   const outputs: Output[] = []
   for (const b of m.bindings) {
-    if (b.token.kind === 'NUMBER') {
-      env.set(b.slot, Number(b.token.value))
-    } else if (b.token.kind === 'STRING') {
-      env.set(b.slot, textOf(b.token))
+    if (b.piece.kind === 'value') {
+      // Worked out already: a number or text is itself, and an element is its key.
+      const value = b.piece.value
+      env.set(b.slot, value)
+      if (typeof value === 'string') elements.add(b.slot)
+      else if (value !== null) params.set(b.slot, { kind: 'value', value })
+      continue
+    }
+    if (b.piece.kind === 'call') throw new EvalError(`"${b.piece.text}" was never run`)
+    const token = b.piece.token
+    if (token.kind === 'NUMBER') {
+      env.set(b.slot, Number(token.value))
+      params.set(b.slot, { kind: 'value', value: Number(token.value) })
+    } else if (token.kind === 'STRING') {
+      env.set(b.slot, textOf(token))
+      params.set(b.slot, { kind: 'value', value: textOf(token) })
     } else if (b.type.output) {
-      outputs.push(output(b.slot, b.token.value, b.type.name, caller, ctx))
+      outputs.push(output(b.slot, token.value, b.type.name, caller, ctx))
       // Inside the body the output is just the slot's own name — a label it
       // gives in its own frame, handed back when it ends.
       env.set(b.slot, b.slot)
     } else if (b.type.name === NAME || b.type.name === TYPE) {
-      env.set(b.slot, b.token.value)
+      env.set(b.slot, token.value)
+      params.set(b.slot, { kind: 'word', word: token.value })
     } else {
       // A path binds the element it points at, so a body never sees the dots.
-      env.set(b.slot, resolvePath(b.token.value, ctx.store)!.key)
+      env.set(b.slot, resolvePath(token.value, ctx.store)!.key)
       elements.add(b.slot)
     }
   }
@@ -260,14 +359,14 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
   }
 
   // Anything else runs in a frame of its own. It sees its slots — the elements
-  // as labels in the frame, numbers and words written into each line, outputs
-  // as names it gives itself — and nothing else: not the program's names, not
+  // as labels in the frame, numbers, text and words as its params, outputs as
+  // names it gives itself — and nothing else: not the program's names, not
   // the caller's. When it ends, its outputs are handed back to the caller under
   // the names the caller wrote, and the frame goes. What it made lives on in
   // the data store.
   const frame: Frame = {
     id: ++ctx.frameCount, labels: new Scope(), form: form(m),
-    slots: new Set(m.bindings.map(b => b.slot)),
+    slots: new Set(m.bindings.map(b => b.slot)), params,
   }
   for (const slot of elements) frame.labels.add({ name: slot, key: env.get(slot) as Key })
 
@@ -279,7 +378,7 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
     // may use everything its own file imported, and nothing the caller did.
     value = m.def.body.body === 'tsx'
       ? runTsx(m, env, ctx)
-      : runComposed(m.def.body, env, elements, ctx.homeOf.get(m.def) ?? scope, ctx, depth)
+      : runComposed(m.def.body, frame, ctx.homeOf.get(m.def) ?? scope, ctx, depth)
     for (const out of outputs) handBack(out, frame, caller, ctx)
   } finally {
     ctx.store.current = caller
@@ -330,27 +429,30 @@ function handBack(out: Output, frame: Frame, caller: Frame, ctx: Context): void 
  *  lines up. */
 function runComposed(
   body: { lines: string[]; result: string | null },
-  env: Map<string, Value>,
-  elements: ReadonlySet<string>,
+  frame: Frame,
   scope: readonly Definition[],
   ctx: Context,
   depth: number,
 ): Value {
-  for (const line of body.lines) evalStatement(substitute(line, env, elements), scope, ctx, depth + 1)
+  for (const line of body.lines) evalStatement(line, scope, ctx, depth + 1)
   if (body.result === null) return null
 
-  const result = substitute(body.result, env, elements)
   // A bare name or number is the value itself; anything longer is a statement
   // whose value comes back, so `return circle c with radius 2` works too. A name
-  // goes back as the key it labels — the label itself ends with this frame.
-  const tokens = lexHeader(result, 0).filter(t => t.kind !== 'EOF')
+  // goes back as the key it labels — the label itself ends with this frame — and
+  // a parameter as what the caller passed.
+  const tokens = lexHeader(body.result, 0).filter(t => t.kind !== 'EOF')
   if (tokens.length === 1) {
     const only = tokens[0]!
     if (only.kind === 'NUMBER') return Number(only.value)
     if (only.kind === 'STRING') return textOf(only)
-    if (only.kind === 'WORD') return resolvePath(only.value, ctx.store)?.key ?? only.value
+    if (only.kind === 'WORD') {
+      const param = frame.params.get(only.value)
+      if (param !== undefined) return param.kind === 'value' ? param.value : param.word
+      return resolvePath(only.value, ctx.store)?.key ?? only.value
+    }
   }
-  return evalStatement(result, scope, ctx, depth + 1)
+  return evalStatement(body.result, scope, ctx, depth + 1)
 }
 
 /** What came back must be what was promised. Without this a body could be
@@ -363,7 +465,7 @@ function checkReturn(m: Match, value: Value, ctx: Context): void {
   const actual =
     typeof value === 'number' ? 'Scalar'
     : isText(value) ? 'Text'
-    : typeof value === 'string' ? typeOfWord(value, ctx.store)
+    : typeof value === 'string' ? ctx.store.data.typeOf(value as Key)
     : undefined
 
   if (actual === undefined) {
@@ -377,35 +479,6 @@ function checkReturn(m: Match, value: Value, ctx: Context): void {
         (typeof value === 'string' ? ` (\`${value}\`)` : ''),
     )
   }
-}
-
-/** Write a body line's slot values into it, token by token. Elements are not
- *  written in — they are labels in the call's frame — so this is numbers, text
- *  and Name-slot words. Token-level rather than textual so a slot named `n` can
- *  never rewrite the `n` inside a longer word. Re-joining with single spaces is
- *  lossless: a statement is a sequence of atoms and keywords, and nothing reads
- *  its layout. */
-function substitute(line: string, env: Map<string, Value>, elements: ReadonlySet<string>): string {
-  const written = (slot: string) => (elements.has(slot) ? undefined : env.get(slot))
-  return lexHeader(line, 0)
-    .filter(t => t.kind !== 'EOF')
-    .map(t => {
-      if (t.kind !== 'WORD') return t.value
-
-      const bound = written(t.value)
-      if (bound !== undefined) return valueSource(bound)
-
-      // A path rooted at a Name slot — `n.from` — writes in its root and keeps
-      // the rest, so it reaches a field of whatever the caller named.
-      const dot = t.value.indexOf('.')
-      if (dot > 0) {
-        const root = written(t.value.slice(0, dot))
-        if (root !== undefined) return valueSource(root) + t.value.slice(dot)
-      }
-
-      return t.value
-    })
-    .join(' ')
 }
 
 // ─── The TypeScript hatch ────────────────────────────────────────────────────
@@ -495,10 +568,6 @@ function make(type: string, ctx: Context): Key {
   return key
 }
 
-const typeOfWord = (word: string, store: Store): string | undefined => {
-  const key = keyOf(word, store)
-  return key === undefined ? undefined : store.data.typeOf(key)
-}
 
 /** What to call each element when showing it: the name the program gave it, or
  *  failing that a path through a named thing's fields (`t.point1`). Names the
@@ -559,7 +628,9 @@ function makeApi(ctx: Context): Api {
       if (frame.labels.has(name)) {
         throw new EvalError(`"${name}" is already declared`)
       }
-      const key = keyOf(String(existing), ctx.store)
+      // A slot hands a body the element's key; a name is looked up in the frame.
+      const given = String(existing) as Key
+      const key = ctx.store.data.get(given) !== undefined ? given : keyOf(given, ctx.store)
       if (key === undefined) {
         throw new EvalError(`"${existing}" is not declared, so nothing can be called "${name}"`)
       }

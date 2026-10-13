@@ -16,7 +16,7 @@ const symbols = (entries: Record<string, string>): Store => {
   const data = new DataStore()
   const globals = new Scope()
   for (const [name, type] of Object.entries(entries)) globals.add({ name, key: data.make(type).key })
-  const program = { id: 0, labels: globals, form: 'the program', slots: new Set<string>() }
+  const program = { id: 0, labels: globals, form: 'the program', slots: new Set<string>(), params: new Map() }
   return { data, decls: prelude.types, globals, current: program, ended: [] }
 }
 
@@ -52,7 +52,9 @@ describe('output slots are declaration sites', () => {
   })
 
   it('picks the declaring form when the subject is a fresh name', () => {
-    expect(chosen('line l parallel m', { m: 'Line' })).toBe('line (n: new Line) parallel (m: Line)')
+    expect(chosen('line l through p q', { p: 'Point', q: 'Point' })).toBe(
+      'line (n: new Line) through (p: Point) (q: Point)',
+    )
   })
 
   it('rejects a literal in an output slot', () => {

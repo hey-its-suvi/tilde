@@ -58,11 +58,3 @@ export function groupTokens(tokens: readonly Token[]): Node[] {
 
 export const hasGroups = (nodes: readonly Node[]): boolean =>
   nodes.some(n => n.kind === 'group')
-
-/** Write nodes back out as statement text. Only meaningful once every group has
- *  been replaced by the token standing for its value. */
-export function render(nodes: readonly Node[]): string {
-  return nodes
-    .map(n => (n.kind === 'token' ? n.token.value : `( ${render(n.children)} )`))
-    .join(' ')
-}

@@ -45,6 +45,7 @@ export default withMermaid(defineConfig({
           { text: 'Constraints', link: '/constraints' },
           { text: 'Pick', link: '/pick' },
           { text: 'Settings', link: '/settings' },
+          { text: 'Reading a Line', link: '/reading' },
         ],
       },
       {

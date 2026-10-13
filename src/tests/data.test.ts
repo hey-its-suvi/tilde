@@ -24,7 +24,7 @@ describe('elements are data, names are labels', () => {
   })
 
   it('refuses a key written as a name', () => {
-    expect(() => run('point Point#1\n')).toThrow(/has a '#'/)
+    expect(() => run('point Point#1\n')).toThrow(/unexpected character '#'/)
   })
 
   it('refuses declaring a path', () => {

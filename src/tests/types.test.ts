@@ -158,10 +158,9 @@ distance between s.from and s.to is 5
 })
 
 describe('a body can reach a field of something in a slot', () => {
-  it('substitutes the root of a dotted path', () => {
-    // The bug this exists for: `n.p` is one token, so matching whole tokens
-    // against the slot `n` never rewrote it, and the body looked for a name
-    // spelled "n.p" that nothing had declared.
+  it('reaches a field through a path rooted at a slot', () => {
+    // The bug this exists for: `n.p` is one token, and the body once looked
+    // for a name spelled "n.p" that nothing had declared.
     const result = solve(`
 import prelude
 
@@ -182,7 +181,7 @@ dot b 4 5
 
   it('does not depend on the caller using the slot’s own name', () => {
     // Every earlier triangle test named it `t`, which is also the slot name —
-    // so the substitution was never actually exercised.
+    // so the slot's name and the caller's were never told apart.
     const named = (n: string) => run(`import prelude\ntriangle ${n} with a b c\n`).names()
     expect(named('q').sort()).toEqual(['a', 'b', 'c', 'q'])
     expect(named('t').sort()).toEqual(['a', 'b', 'c', 't'])

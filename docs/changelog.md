@@ -1,6 +1,45 @@
 # Changelog
 
-## 0.3.59 — current
+## 0.3.66 — current
+
+- **The prelude no longer defines `point p at x y`, `point p on l`, `circle c with center p`, `circle c with radius r`, `line l parallel m` or `line l perpendicular m`.** They all still work, exactly as before: each reads as `point p` (or `line l`, `circle c`) and then what is said about it. Your own definition of any of them now wins simply by being longer.
+- A line that cannot be read now says why from as far as it got: `point p on q`, with `q` unknown, reports that no `on` fits `point p on q`, listing the ones it tried.
+
+## 0.3.65
+
+- **Where something lands decides what it is.** Two definitions may share their words and differ only in what they give back — a pair of numbers as a point or as a line. In a point's slot it is the point, in a line's slot the line, with or without brackets: `l parallel (2, 1)` and `l parallel 2 , 1` both use the line.
+- Where nothing says which — the pair alone, or in a slot that takes anything, like `print` — the line is refused with `… could give a Line or a Point, and nothing around it says which`, and asked to name it first where that would help.
+
+## 0.3.64
+
+- **`=` takes everything after it.** `scalar k = 2 + 3` makes `k` 5, with no brackets: `=` gives nothing back, so the line is read with `2 + 3` worked out first. Likewise `point p = (3, 4) on l` names the point and puts it on `l`.
+- `a = b = c` is refused — neither half gives anything back to chain. Write it as two lines.
+
+## 0.3.63
+
+- **The editor colours a chained line all the way through.** `line l parallel m through p` marks `l`, `m` and `p` as values, not just the first part. Symbols in patterns (`=`, `+`) count as pattern words, and what is inside brackets is coloured the same way.
+- New docs page, **Reading a Line**: how a statement in the definition syntax is read, left to right.
+
+## 0.3.62
+
+- **A line is read left to right.** The longest definition that matches from the start is taken, and what it gives fills the first slot of whatever comes next. So statements chain: `line l parallel m through p` is `((line l) parallel m) through p`, and `l parallel m through p` works on lines that already exist.
+- **A longer definition wins.** Write your own `define line (n: new Line) parallel (m: Line)` and `line l parallel m` uses it, rather than `line l` and then `… parallel m`. If yours does not fit the types — say it takes a Circle — the shorter reading is used instead.
+- **When nothing reads from the start, a later word is tried.** `print 1 + 2` prints 3: `print 1` cannot be followed by `+ 2`, so `1 + 2` is read first and printed. This is also how a definition that takes nothing is used: `print greeting`.
+- **Arithmetic reads left to right** until it has precedence: `2 + 3 * 4` is 20, no longer an error asking for brackets.
+- `scalar r = 2 + 3` now reads as `(scalar r = 2) + 3` and is refused for adding to a named number. That changes once `=` stops handing back what it names.
+
+## 0.3.61
+
+- **The same words can be defined with different return types.** `define pair (x: Scalar) (y: Scalar) => Point` and `… => Scalar` are two definitions rather than one defined twice. Standing alone, a line that fits both is ambiguous; choosing by where it is used comes later.
+- Shadowing follows suit: your own `… => Point` replaces an imported `… => Point`, but not an imported `… => Line`.
+- "Defined twice" errors now show the return type: ``defines `twice «Name» => Point` twice``.
+
+## 0.3.60
+
+- **What a bracket works out stays a value.** `line l through (1,2) (3,4)` puts the two points straight into the line's slots instead of writing them back into the line as text and reading it again. Nothing reads differently; errors now show what was written — `"l parallel (1 , 2)"` — rather than an internal name for the point.
+- `#` is no longer a character a name can contain: `point Point#1` now stops at the `#` with `unexpected character '#'`.
+
+## 0.3.59
 
 - **Every type has to exist.** A type written in a definition — a slot, a `=> Type`, or a field of `define type` — must be one of the built-ins or come from a `define type`. Otherwise it is an error on that line, with a suggestion when only the capitals are wrong: `there is no type called "point" — did you mean "Point"?`
 - **Two points can be said to be the same:** `n.a = p`. For now the two are held at no distance apart — they stay two points, drawn on top of each other — until `=` can merge them into one.

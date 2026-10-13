@@ -134,7 +134,7 @@ describe('the prelude parses', () => {
   it('reads every definition in constraints.til', () => {
     const forms = parseFile(prelude('constraints')).definitions.map(d => show(d.pattern))
 
-    expect(forms).toContain('line (n: new Line) parallel (m: Line)')
+    expect(forms).toContain('(a: Line) perpendicular (b: Line) at (p: Point)')
     expect(forms).toContain('(l: Line) through (p: Point)')
   })
 
@@ -150,17 +150,17 @@ describe('the prelude parses', () => {
     expect(hatched('constraints')).toBe(0)
   })
 
-  it('splits roughly evenly between primitive and composed', () => {
+  it('is mostly primitives, now that declaring forms are read rather than defined', () => {
     const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
 
-    // Measured, not aspirational: 25 primitive to 20 composed. The earlier claim
-    // that "most of the prelude composes" was wrong — it is an even split, and
-    // the composed half has been growing as convenience forms are added.
+    // Measured, not aspirational: 25 primitive to 13 composed. It was 25 to 20
+    // until the declaring forms went — `line l parallel m` reads as
+    // `(line l) parallel m` and needs no definition of its own (decision 19).
     expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(25)
-    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(20)
+    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(13)
   })
 
-  it('gives every definition a return type except the one that cannot have one', () => {
+  it('gives every definition a return type except those with a reason not to', () => {
     const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
     const void_ = all.filter(d => d.returns === null).map(d => show(d.pattern))
 
@@ -168,12 +168,19 @@ describe('the prelude parses', () => {
     // returning one, because the solver stores a length for a pair of points but
     // cannot hand a measurement back. The rest are acts rather than relations —
     // they make, name, draw, show or set something, and there is no subject to
-    // give back. Everything else returns its subject and chains (decision 4b).
+    // give back. Every `=` gives nothing back so that it binds loosest
+    // (decision 19). Everything else returns its subject and chains (4b).
     expect(void_.sort()).toEqual([
+      '(p: Point) = (q: Point)',
+      '(p: Point) = (x: Scalar) (y: Scalar)',
+      '(s: Scalar) = (v: Scalar)',
       'call (x: Any) (n: new Any)',
       'distance between (p: Point) and (q: Point) is (d: Scalar)',
       'new (ty: Type) (n: new Any)',
+      'point (n: new Point) = (q: Point)',
+      'point (n: new Point) = (x: Scalar) (y: Scalar)',
       'print (x: Any)',
+      'scalar (n: new Scalar) = (v: Scalar)',
       'segment (p: Point) (q: Point)',
       'set (s: Name) off',
       'set (s: Name) on',

@@ -51,10 +51,17 @@ describe('arithmetic on written numbers', () => {
     expect([p.x, p.y]).toEqual([2, 2])
   })
 
-  it('needs brackets, since there is no precedence yet', () => {
-    // A slot takes one word, number or group, so neither form matches.
-    expect(fails('scalar r = 2 + 3\n')).toThrow(/no definition matches "scalar r = 2 \+ 3"/)
-    expect(fails('scalar r = (2 + 3 * 4)\n')).toThrow(/no definition matches "2 \+ 3 \* 4"/)
+  it('folds left to right, since there is no precedence yet', () => {
+    // Decided as the interim rule (decision 19): `2 + 3 * 4` is `(2 + 3) * 4`.
+    expect(value('scalar r = (2 + 3 * 4)\n')).toBe(20)
+    expect(value('scalar r = (10 - 2 - 3)\n')).toBe(5)
+  })
+
+  it('works the arithmetic out before `=`, with no brackets', () => {
+    // `=` gives nothing back, so `(scalar r = 2) + 3` has nothing to add to; the
+    // line is read again with `2 + 3` first (decision 19).
+    expect(value('scalar r = 2 + 3\n')).toBe(5)
+    expect(value('scalar r = 2 + 3 * 4\n')).toBe(20)
   })
 
   it('refuses a named number rather than guessing', () => {
