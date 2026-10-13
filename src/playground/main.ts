@@ -1,11 +1,7 @@
 // ─── Tilde Playground ─────────────────────────────────────────────────────────
 
-import { createEditor, setSyntaxMode, type SyntaxMode } from './editor.js'
-import { lex, LexError } from '../lang/lexer.js'
-import { parse, ParseError } from '../lang/parser.js'
-import { solve, solveSource, setPick, getPick, PICK_NAMES, PickName } from '../lang/solver/index.js'
-import { ConstraintError } from '../lang/solver/interface.js'
-import { ElaborationError } from '../lang/elaborate.js'
+import { createEditor } from './editor.js'
+import { solveSource, setPick, getPick, PICK_NAMES, PickName } from '../lang/solver/index.js'
 import { Canvas2DRenderer } from '../renderer/canvas2d.js'
 import { labelRuns } from '../renderer/label.js'
 import { DEFAULT_CONFIG } from '../renderer/interface.js'
@@ -65,100 +61,53 @@ function compile(source: string) {
   clearConsole()
   subscripts = DEFAULT_CONFIG.subscripts
   try {
-    if (mode === 'definitions') {
-      const { scene, config, printed } = solveSource(source)
-      subscripts = config.subscripts
-      renderer.render(scene, config)
-      for (const line of printed) log(line)
-      log('OK')
-    } else {
-      const ast = parse(lex(source))
-      const { scene, config } = solve(ast)
-      subscripts = config.subscripts
-      renderer.render(scene, config)
-      log(`OK — ${ast.statements.length} statement(s)`)
-    }
+    const { scene, config, printed } = solveSource(source)
+    subscripts = config.subscripts
+    renderer.render(scene, config)
+    for (const line of printed) log(line)
+    log('OK')
   } catch (e) {
-    if (e instanceof LexError || e instanceof ParseError || e instanceof ConstraintError || e instanceof ElaborationError) {
-      log(e.message, 'error')
-    } else if (e instanceof Error) {
-      log(e.message, 'error')
-    } else {
-      log(String(e), 'error')
-    }
+    log(e instanceof Error ? e.message : String(e), 'error')
   }
 }
 
 // ─── Editor ───────────────────────────────────────────────────────────────────
 
-// Each syntax keeps its own buffer, so switching modes never destroys what is
-// in the other one.
-const MODE_KEY = 'tilde_playground_mode'
-const STORAGE_KEY: Record<SyntaxMode, string> = {
-  classic: 'tilde_playground_source',
-  definitions: 'tilde_playground_source_defs',
-}
+// The key is the one the definition syntax always used, so a program written in
+// it before the classic syntax went is still there.
+const STORAGE_KEY = 'tilde_playground_source_defs'
 
-const DEFAULT_SOURCE: Record<SyntaxMode, string> = {
-  classic: `# try it out
-let segment ab = 5
-`,
-  definitions: `-- Everything below is defined in the prelude, in this syntax.
--- \`right triangle ... with legs ...\` is not built in.
+const DEFAULT_SOURCE = `-- Everything below is defined in the prelude, in this same syntax.
+-- \`right triangle … with legs …\` is not built in: it is defined here.
 import prelude
 
-define right triangle (t: Name) with legs (u: Scalar) (v: Scalar) => Triangle =
-    point p at 0 0
-    point q at u 0
-    point r at 0 v
-    t holds p q r
+define right triangle (t: new Triangle) with legs (u: Scalar) (v: Scalar) => Triangle:
+    triangle t with a b c
+    a at 0 0
+    b at u 0
+    c at 0 v
+    return t
 
 right triangle t with legs 3 4
-circle c with center p and radius 1
-`,
-}
+circle c with center t.point1 and radius 1
+line l through t.point2 t.point3
+line m parallel l through (0, 2)
+print 2 + 3
+`
 
-let mode: SyntaxMode = (localStorage.getItem(MODE_KEY) as SyntaxMode | null) ?? 'classic'
-setSyntaxMode(mode)
+const initialSource = localStorage.getItem(STORAGE_KEY) ?? DEFAULT_SOURCE
 
-const sourceFor = (m: SyntaxMode) => localStorage.getItem(STORAGE_KEY[m]) ?? DEFAULT_SOURCE[m]
-
-const editor = createEditor(editorEl, sourceFor(mode), (value) => {
-  localStorage.setItem(STORAGE_KEY[mode], value)
+const editor = createEditor(editorEl, initialSource, (value) => {
+  localStorage.setItem(STORAGE_KEY, value)
   compile(value)
 })
 
-compile(sourceFor(mode))
+compile(initialSource)
 
 resetBtn.addEventListener('click', () => {
-  localStorage.removeItem(STORAGE_KEY[mode])
-  editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: DEFAULT_SOURCE[mode] } })
+  localStorage.removeItem(STORAGE_KEY)
+  editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: DEFAULT_SOURCE } })
 })
-
-// ─── Syntax picker (dev) ──────────────────────────────────────────────────────
-// Two front ends side by side while the definition pipeline catches up. Classic
-// stays the default so nothing that worked before changes.
-
-{
-  const header = document.querySelector('header > div:last-child') ?? document.querySelector('header')!
-  const picker = document.createElement('select')
-  picker.id = 'syntax-picker'
-  picker.style.cssText = 'font-family: monospace; font-size: 0.8rem; margin-right: 12px; background: #2a2a3e; color: #f5f5f0; border: 1px solid #444; padding: 2px 6px; border-radius: 3px;'
-  for (const name of ['classic', 'definitions'] as SyntaxMode[]) {
-    const opt = document.createElement('option')
-    opt.value = name
-    opt.textContent = `syntax: ${name}`
-    picker.appendChild(opt)
-  }
-  picker.value = mode
-  picker.addEventListener('change', () => {
-    mode = picker.value as SyntaxMode
-    localStorage.setItem(MODE_KEY, mode)
-    setSyntaxMode(mode)
-    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: sourceFor(mode) } })
-  })
-  header.insertBefore(picker, header.firstChild)
-}
 
 // ─── Pick picker (dev) ────────────────────────────────────────────────────────
 // Gated behind a literal `true` so it can be hidden on the public playground

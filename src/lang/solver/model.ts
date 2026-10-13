@@ -1,10 +1,14 @@
 // ─── Tilde GeomModel ──────────────────────────────────────────────────────────
 
-import { LengthUnit, ShapeKind } from '../ast.js'
 import {
   WorkingPoint, WorkingLine, WorkingCircle, WorkingScalar,
   makeWorkingPoint, makeWorkingLine,
 } from './types.js'
+
+// Units and named shape kinds came in through the classic syntax, which is
+// gone; the model keeps room for them until they come back (see the roadmap).
+export type LengthUnit = 'unit' | 'cm' | 'mm' | 'm' | 'in' | 'inches'
+export type ShapeKind = 'triangle' | 'square' | 'rectangle' | 'segment' | 'polygon'
 
 export type RegisteredShape = { kind: ShapeKind; vertexCount: number }
 

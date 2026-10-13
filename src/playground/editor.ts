@@ -5,8 +5,6 @@ import { EditorState } from '@codemirror/state'
 import { StreamLanguage, syntaxHighlighting, HighlightStyle } from '@codemirror/language'
 import { linter, Diagnostic } from '@codemirror/lint'
 import { tags } from '@lezer/highlight'
-import { lex, LexError } from '../lang/lexer.js'
-import { parse, ParseError } from '../lang/parser.js'
 import { runSource } from '../lang/defs/eval.js'
 import { loadModule } from '../lang/defs/modules.js'
 import { parseFile } from '../lang/defs/parser.js'
@@ -14,21 +12,9 @@ import { slotColumns } from '../lang/defs/highlight.js'
 import { PRELUDE } from '../lang/prelude/index.js'
 import { DefinitionError, type Definition } from '../lang/defs/types.js'
 
-// ─── Syntax mode ──────────────────────────────────────────────────────────────
-// Two front ends live side by side while the definition pipeline catches up
-// with the classic one. The linter has to know which it is checking, or every
-// line of the other reads as an error.
-
-export type SyntaxMode = 'classic' | 'definitions'
-
-let syntaxMode: SyntaxMode = 'classic'
-export const setSyntaxMode = (mode: SyntaxMode) => { syntaxMode = mode }
-
 // ─── Tilde syntax highlighting ────────────────────────────────────────────────
-// Classic mode keeps its hardcoded keyword list — that language really does have
-// keywords.
-//
-// Definition mode has four, and only four: `define`, `import`, `export`, `tsx`.
+// Tilde has four words of its own, and only four: `define`, `import`, `export`,
+// `tsx`.
 // Everything else a program says — `point`, `parallel`, `with` — comes from the
 // prelude, and a user can define or redefine it with the same tools, so
 // colouring those like built-ins would claim a privilege they do not have.
@@ -43,14 +29,6 @@ export const setSyntaxMode = (mode: SyntaxMode) => { syntaxMode = mode }
 //     slot fillers — names, numbers    the values, in purple
 //     pattern words                    the sentence around them
 //     punctuation, comments, types     scaffolding
-
-const CLASSIC_KEYWORDS = new Set([
-  'let', 'triangle', 'square', 'rectangle', 'segment', 'polygon', 'point',
-  'parallel', 'perpendicular', 'angle',
-  'print', 'set', 'unit', 'length', 'anchor', 'winding',
-  'clockwise', 'counterclockwise', 'degrees', 'radians',
-  'with', 'and', 'grid', 'on', 'off', 'pick', 'line',
-])
 
 /** The whole of Tilde's own vocabulary. Everything else is defined, not built in. */
 const TILDE_WORDS = new Set(['define', 'import', 'export', 'tsx'])
@@ -95,17 +73,6 @@ const tildeLanguage = StreamLanguage.define<TokenState>({
   token(stream, state) {
     if (stream.sol()) startLine(stream.string, state)
     if (stream.eatSpace()) return null
-
-    if (syntaxMode === 'classic') {
-      if (stream.match(/#.*/)) return 'comment'
-      if (stream.match(/[0-9]+(\.[0-9]+)?(cm|mm|m|in|inches|deg|rad)?/)) return 'number'
-      if (stream.match(/[=]/)) return 'operator'
-      if (stream.match(/[a-zA-Z_][a-zA-Z0-9_]*/)) {
-        return CLASSIC_KEYWORDS.has(stream.current()) ? 'keyword' : 'variableName'
-      }
-      stream.next()
-      return null
-    }
 
     // A tsx body is TypeScript. Highlighting it as Tilde would be nonsense, so
     // it reads as scaffolding until the closing backtick.
@@ -198,13 +165,7 @@ function startLine(line: string, state: TokenState) {
 }
 
 const tildeHighlight = HighlightStyle.define([
-  { tag: tags.keyword,       color: '#5c7cfa', fontWeight: 'bold' },
-  { tag: tags.number,        color: '#f08c00' },
   { tag: tags.comment,       color: '#868e96', fontStyle: 'italic' },
-  { tag: tags.variableName,  color: '#2f9e44' },
-  { tag: tags.operator,      color: '#aaa' },
-  // Definition mode only. Every bucket gets its own tag rather than reusing
-  // classic's, so classic's palette stays exactly as it was.
   { tag: tags.definitionKeyword, color: '#2f9e44', fontWeight: 'bold' }, // define, import, export, tsx
   { tag: tags.propertyName,  color: '#c2255c' }, // slot fillers: names and numbers
   { tag: tags.atom,          color: '#343a40' }, // pattern words
@@ -239,18 +200,10 @@ const tildeLinter = linter((view) => {
   }
 
   try {
-    if (syntaxMode === 'definitions') {
-      refreshTable(source)
-      runSource(source, PRELUDE)
-    } else {
-      parse(lex(source))
-    }
+    refreshTable(source)
+    runSource(source, PRELUDE)
   } catch (e) {
-    if (e instanceof LexError || e instanceof ParseError) {
-      report(e.line, e.col, e.message)
-    } else if (syntaxMode === 'definitions' && e instanceof Error) {
-      report(definitionErrorLine(e), 1, e.message)
-    }
+    if (e instanceof Error) report(definitionErrorLine(e), 1, e.message)
   }
   return diagnostics
 })
