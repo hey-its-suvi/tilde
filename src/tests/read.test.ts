@@ -95,6 +95,38 @@ print greeting
   })
 })
 
+describe('`=` gives nothing back, so it binds loosest', () => {
+  // A stand-in for a rotation: what matters is that it makes a *new* line.
+  const rotated = `define (l: Line) rotated (s: Scalar) => Line:
+    line r
+    r parallel l
+    return r
+define line (n: new Line) = (m: Line):
+    call m n
+`
+
+  it('names what the right-hand side makes, not what it started from', () => {
+    // Left to right this would be `(line n = l) rotated 60`. `=` gives nothing
+    // back, so that fails, and `l rotated 60` is read first.
+    const program = runSource(`import core\n${rotated}line l\nline n = l rotated 60\n`, PRELUDE)
+    const l = program.globals.get('l')!
+    const n = program.globals.get('n')!
+    expect(program.data.typeOf(n)).toBe('Line')
+    expect(n).not.toBe(l)
+    expect(program.constraints.constraints).toContainEqual({ kind: 'parallel', l1: n, l2: l })
+  })
+
+  it('reads a relation after `=` as said about the right-hand side', () => {
+    const { constraints, typeOf } = run('line l\npoint p = (3, 4) on l\n')
+    expect(typeOf('p')).toBe('Point')
+    expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 'p', line: 'l' })
+  })
+
+  it('cannot chain two `=`, since neither half has a value', () => {
+    expect(() => run('scalar a\nscalar b\nscalar c\na = b = c\n')).toThrow(/no definition matches "a = b = c"/)
+  })
+})
+
 describe('what a line cannot mean', () => {
   it('reports a line with no reading as it did before', () => {
     expect(() => run('line m\nline l\nl frobnicates m\n')).toThrow(/no definition matches "l frobnicates m"/)

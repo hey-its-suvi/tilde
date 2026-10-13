@@ -11,8 +11,8 @@ next starts.
 | 2 | Remove `substitute`: a call's frame holds its values | done — see below |
 | 3 | Return type joins the signature; every fitting overload kept, exactly one must remain | done — see below |
 | 4 | The fold and the restart (one search) | done — see below |
-| 5 | `=` returns nothing | next |
-| 6 | The slot picks between return-type overloads; `Any` slots error | |
+| 5 | `=` returns nothing | done — see below |
+| 6 | The slot picks between return-type overloads; `Any` slots error | next |
 | 7 | Shrink the prelude: delete the "make it, then say this about it" forms | |
 
 ---
@@ -373,16 +373,52 @@ on the page was run. Linked from `limitations.md`. Changelog 0.3.63.
 
 ## Step 5 — `=` returns nothing
 
-**After.** The prelude's `=` definitions stop returning a value:
-`(s: Scalar) = (v: Scalar)`, `(p: Point) = (q: Point)`, `(p: Point) = (x) (y)`,
-and the declaring `point … =` / `scalar … =` forms. The restart then reads
-`scalar k = 2 + 3` and `line n = l rotated 60` as meant.
+**Before.** Every `=` in the prelude returned its subject. Under the fold,
+`scalar r = 2 + 3` read as `(scalar r = 2) + 3` and failed on adding to a named
+number; a user `line n = l rotated 60` would silently make `n` the same as `l`.
 
-**Planned changes:** `core.til`, `shapes.til`, `constraints.til`; any body that
-relied on `=` handing something back (`return` after an `=` line) adjusted.
+**After.** Every `=` returns nothing. The fold `(scalar r = 2) + 3` then has
+nothing for `+` to take, so the restart reads `2 + 3` first. No change to the
+reader — only to the prelude.
 
-**Tests to add:** `scalar k = 2 + 3`; `line n = l rotated 60` with a fixture
-`rotated`; `a = b = c` is an error; `point p = (3, 4) on l`.
+**Behaviour that changes:** `scalar k = 2 + 3` works without brackets;
+`point p = (3, 4) on l` reads as *p is that point, and it is on l*; `a = b = c`
+is refused; an `=` line can no longer stand in a slot or be `return`ed as a
+statement (nothing in the prelude or tests did either).
+
+### File by file
+
+**`src/lang/prelude/core.til`**
+- `(s: Scalar) = (v: Scalar)` and `scalar (n: new Scalar) = (v: Scalar)`: `=> Scalar`
+  and `return` removed. The equality comment says why `=` gives nothing back.
+
+**`src/lang/prelude/shapes.til`**
+- `(p: Point) = (x) (y)`, `point (n: new Point) = (x) (y)`,
+  `point (n: new Point) = (q: Point)`: `=> Point` and `return` removed.
+
+**`src/lang/prelude/constraints.til`**
+- `(p: Point) = (q: Point)`: `=> Point` and `return` removed.
+
+**Tests**
+- `defs.test.ts`: the list of prelude definitions with no return type gains the
+  six `=` forms; its comment gives the reason.
+- `arithmetic.test.ts`: the test pinning `scalar r = 2 + 3` as a failure now
+  checks it is 5, and `scalar r = 2 + 3 * 4` is 20.
+- `read.test.ts`, three new: `line n = l rotated 60` (with a stand-in `rotated`
+  that makes a new line, and a `line … =` that names it) names the new line,
+  not `l`; `point p = (3, 4) on l`; `a = b = c` refused with the plain error.
+- Checked by hand: with that `line … =` returning its Line instead, `n` comes
+  out as `l` — the silent wrong reading decision 19 describes.
+
+**Docs:** `docs/reading.md` gains "`=` takes everything after it"; changelog
+0.3.64; version bump.
+
+### Things worth a reviewer's eye
+- **`is` is unchanged.** `(s: Scalar) is (v: Scalar)` and `scalar n is v` still
+  return their subject, so `scalar k is 2 + 3` still reads as
+  `(scalar k is 2) + 3`. Whether `is` follows `=` was asked and left open.
+- **There is still no `=` for lines or circles** in the prelude; the general
+  `(n: Any) = (m: Any)` waits on merging and templating.
 
 ## Step 6 — the slot picks between return-type overloads
 

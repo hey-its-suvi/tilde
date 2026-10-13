@@ -160,7 +160,7 @@ describe('the prelude parses', () => {
     expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(20)
   })
 
-  it('gives every definition a return type except the one that cannot have one', () => {
+  it('gives every definition a return type except those with a reason not to', () => {
     const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
     const void_ = all.filter(d => d.returns === null).map(d => show(d.pattern))
 
@@ -168,12 +168,19 @@ describe('the prelude parses', () => {
     // returning one, because the solver stores a length for a pair of points but
     // cannot hand a measurement back. The rest are acts rather than relations —
     // they make, name, draw, show or set something, and there is no subject to
-    // give back. Everything else returns its subject and chains (decision 4b).
+    // give back. Every `=` gives nothing back so that it binds loosest
+    // (decision 19). Everything else returns its subject and chains (4b).
     expect(void_.sort()).toEqual([
+      '(p: Point) = (q: Point)',
+      '(p: Point) = (x: Scalar) (y: Scalar)',
+      '(s: Scalar) = (v: Scalar)',
       'call (x: Any) (n: new Any)',
       'distance between (p: Point) and (q: Point) is (d: Scalar)',
       'new (ty: Type) (n: new Any)',
+      'point (n: new Point) = (q: Point)',
+      'point (n: new Point) = (x: Scalar) (y: Scalar)',
       'print (x: Any)',
+      'scalar (n: new Scalar) = (v: Scalar)',
       'segment (p: Point) (q: Point)',
       'set (s: Name) off',
       'set (s: Name) on',

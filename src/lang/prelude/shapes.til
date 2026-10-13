@@ -16,13 +16,11 @@ define point (n: new Point) at (x: Scalar) (y: Scalar) => Point:
     n at x y
     return n
 
-define (p: Point) = (x: Scalar) (y: Scalar) => Point:
+define (p: Point) = (x: Scalar) (y: Scalar):
     p at x y
-    return p
 
-define point (n: new Point) = (x: Scalar) (y: Scalar) => Point:
+define point (n: new Point) = (x: Scalar) (y: Scalar):
     point n at x y
-    return n
 
 -- A pair of numbers is a point. Written bare here; used in brackets, since a slot
 -- takes one word, one number, or one bracketed group — so `line l through (1,2)
@@ -37,9 +35,8 @@ define (x: Scalar) , (y: Scalar) => Point:
 
 -- `point p = (3, 4)`: the group makes an unnamed point, and `call` gives it yours.
 
-define point (n: new Point) = (q: Point) => Point:
+define point (n: new Point) = (q: Point):
     call q n
-    return q
 
 -- ─── Lines ──────────────────────────────────────────────────────────────────
 

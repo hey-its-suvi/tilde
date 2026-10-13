@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.63 — current
+## 0.3.64 — current
+
+- **`=` takes everything after it.** `scalar k = 2 + 3` makes `k` 5, with no brackets: `=` gives nothing back, so the line is read with `2 + 3` worked out first. Likewise `point p = (3, 4) on l` names the point and puts it on `l`.
+- `a = b = c` is refused — neither half gives anything back to chain. Write it as two lines.
+
+## 0.3.63
 
 - **The editor colours a chained line all the way through.** `line l parallel m through p` marks `l`, `m` and `p` as values, not just the first part. Symbols in patterns (`=`, `+`) count as pattern words, and what is inside brackets is coloured the same way.
 - New docs page, **Reading a Line**: how a statement in the definition syntax is read, left to right.

@@ -118,15 +118,17 @@ define (a: Text) + (b: Text) => Text:
 --
 -- So `r = 2` followed by `r = 3` is not a change of mind. It says the number is
 -- both, which it cannot be, and leaves it with no possible value.
+--
+-- Every `=` hands back nothing. That is what makes it bind loosest: in
+-- `scalar k = 2 + 3`, `(scalar k = 2)` has nothing for `+` to take, so the line
+-- is read again with `2 + 3` worked out first (decision 19).
 
-define (s: Scalar) = (v: Scalar) => Scalar:
+define (s: Scalar) = (v: Scalar):
     s is v
-    return s
 
-define scalar (n: new Scalar) = (v: Scalar) => Scalar:
+define scalar (n: new Scalar) = (v: Scalar):
     scalar n
     n is v
-    return n
 
 -- ─── Placement ──────────────────────────────────────────────────────────────
 -- A Scalar slot takes either a number written down or a named scalar, and the

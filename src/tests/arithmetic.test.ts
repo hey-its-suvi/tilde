@@ -57,10 +57,11 @@ describe('arithmetic on written numbers', () => {
     expect(value('scalar r = (10 - 2 - 3)\n')).toBe(5)
   })
 
-  it('reads `=` before arithmetic for now, since `=` still returns its subject', () => {
-    // `scalar r = 2 + 3` is `(scalar r = 2) + 3`, which adds to a named number.
-    // Once `=` returns nothing the restart reads it as `scalar r = (2 + 3)`.
-    expect(fails('scalar r = 2 + 3\n')).toThrow(/arithmetic on a named number is not supported yet/)
+  it('works the arithmetic out before `=`, with no brackets', () => {
+    // `=` gives nothing back, so `(scalar r = 2) + 3` has nothing to add to; the
+    // line is read again with `2 + 3` first (decision 19).
+    expect(value('scalar r = 2 + 3\n')).toBe(5)
+    expect(value('scalar r = 2 + 3 * 4\n')).toBe(20)
   })
 
   it('refuses a named number rather than guessing', () => {

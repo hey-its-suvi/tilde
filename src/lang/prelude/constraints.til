@@ -25,9 +25,8 @@ define (a: Line) perpendicular (b: Line) at (p: Point) => Line:
 -- names: they are still two points, drawn on top of each other. When `=` can
 -- merge two elements into one, this becomes a merge (decision 18).
 
-define (p: Point) = (q: Point) => Point:
+define (p: Point) = (q: Point):
     distance between p and q is 0
-    return p
 
 -- ─── Incidence ──────────────────────────────────────────────────────────────
 
