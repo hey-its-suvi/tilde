@@ -76,13 +76,13 @@ between them. Two gaps:
 
 ---
 
-## Definition syntax
+## The language
 
-The newer syntax — the playground's `syntax: definitions` — is younger than the
-classic one and does less. How it reads a line is described in
-[Reading a Line](/reading).
+How a line is read is described in [Reading a Line](/reading).
 
-**Not available at all:** `pick`, `set unit` and `set grid`.
+**Not available at all:** `pick`, units, angles, lines by equation, and the other
+things that went with the classic syntax — listed on the
+[roadmap](/roadmap#to-bring-back-from-the-classic-syntax).
 
 **Arithmetic works only on numbers written out.** `scalar r = ((2 + 3) * 4)` is
 20, but `(k + 1)` with a named `k` is refused — a named number is worked out after
@@ -115,10 +115,3 @@ not give you what *it* imported. This is deliberate, and matches how most
 languages work, but it means a shape you got from elsewhere may not be one you
 can say anything about without importing more.
 
----
-
-## Two syntaxes
-
-The classic and definition syntaxes both work, and a program is written in one or
-the other — they cannot be mixed in a file. The classic syntax is the default and
-is what the rest of these docs describe.

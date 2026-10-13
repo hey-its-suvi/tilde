@@ -46,9 +46,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { lex } from '../../../src/lang/lexer.js'
-import { parse } from '../../../src/lang/parser.js'
-import { solve } from '../../../src/lang/solver/index.js'
+import { solveSource } from '../../../src/lang/solver/index.js'
 import { Canvas2DRenderer } from '../../../src/renderer/canvas2d.js'
 import type { HoverInfo } from '../../../src/renderer/interface.js'
 
@@ -167,9 +165,10 @@ function run() {
   if (!renderer) return
   error.value = null
   try {
-    const tokens = lex(editableSource.value)
-    const ast    = parse(tokens)
-    const { scene, config } = solve(ast)
+    // A sketch is a program against the prelude; it may say so itself or not.
+    const source = editableSource.value
+    const program = /^\s*import\b/m.test(source) ? source : `import prelude\n${source}`
+    const { scene, config } = solveSource(program)
     renderer.render(scene, config)
     if (!initialized) {
       renderer.setView(props.cx, props.cy, props.zoom)
