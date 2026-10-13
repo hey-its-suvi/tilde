@@ -279,6 +279,6 @@ export const ANY = 'Any'
 
 /** Type compatibility. Exact-match apart from `Any` — real subtyping
  *  (`Square <: Polygon`) is deferred until there is a hierarchy to model. */
-function compatible(actual: string, expected: string): boolean {
+export function compatible(actual: string, expected: string): boolean {
   return expected === ANY || actual === expected
 }

@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.64 — current
+## 0.3.65 — current
+
+- **Where something lands decides what it is.** Two definitions may share their words and differ only in what they give back — a pair of numbers as a point or as a line. In a point's slot it is the point, in a line's slot the line, with or without brackets: `l parallel (2, 1)` and `l parallel 2 , 1` both use the line.
+- Where nothing says which — the pair alone, or in a slot that takes anything, like `print` — the line is refused with `… could give a Line or a Point, and nothing around it says which`, and asked to name it first where that would help.
+
+## 0.3.64
 
 - **`=` takes everything after it.** `scalar k = 2 + 3` makes `k` 5, with no brackets: `=` gives nothing back, so the line is read with `2 + 3` worked out first. Likewise `point p = (3, 4) on l` names the point and puts it on `l`.
 - `a = b = c` is refused — neither half gives anything back to chain. Write it as two lines.

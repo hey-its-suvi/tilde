@@ -29,7 +29,7 @@ import { readLine, type Call } from './read.js'
 import { piecesOf, showPieces, type Match, type Piece } from './match.js'
 import { isText, type Text, type Value } from './values.js'
 import { loadModule, type HomeMap, type Loaded, type Registry, type TypeMap } from './modules.js'
-import type { Definition, Statement } from './types.js'
+import { signature, type Definition, type Statement } from './types.js'
 import { segKey } from '../solver/model.js'
 import type { ConstraintSet, ResolvedConstraint } from '../solver/interface.js'
 
@@ -194,12 +194,28 @@ function evalPieces(
 
 /** Every call in a reading must mean one definition. Checked before anything
  *  runs, so an ambiguous line adds nothing to the drawing. */
-function settled(call: Call): void {
+function settled(call: Call, slot?: string): void {
   if (call.matches.length > 1) {
+    if (differsOnlyByReturn(call.matches)) {
+      // Sorted, so the message does not depend on which file defined what first.
+      const types = call.matches.map(m => m.def.returns!.name).sort().join(' or a ')
+      throw new ResolutionError(
+        `"${call.text}" is ambiguous: it could give a ${types}, and nothing around it says which` +
+          (slot === ANY ? ` — give it a name first` : ''),
+      )
+    }
     const list = call.matches.map(m => `\`${form(m)}\``).join(', ')
     throw new ResolutionError(`"${call.text}" is ambiguous: ${list}`)
   }
-  for (const b of call.matches[0]!.bindings) if (b.piece.kind === 'call') settled(b.piece)
+  for (const b of call.matches[0]!.bindings) if (b.piece.kind === 'call') settled(b.piece, b.type.name)
+}
+
+/** Overloads that are the same words and slots, told apart only by what they
+ *  give back — the ones a slot can choose between. */
+function differsOnlyByReturn(matches: readonly Match[]): boolean {
+  if (matches.some(m => m.def.returns === null)) return false
+  const shape = (m: Match) => signature({ pattern: m.def.pattern, returns: null })
+  return matches.every(m => shape(m) === shape(matches[0]!))
 }
 
 /** Run a call read from a line: the calls in its slots first, left to right,
@@ -253,6 +269,16 @@ function settleGroups(
     if (depth + 1 > MAX_DEPTH) {
       throw new EvalError(`"${inner}" expanded more than ${MAX_DEPTH} levels deep — recursive definition?`)
     }
+
+    // A group that could be several overloads, told apart only by what they give
+    // back, is read but not run: the slot it lands in picks one (decision 19).
+    // Any other group runs now, from the inside alone, as it always has.
+    const read = settled.map(p => withParam(p, ctx.store.current.params))
+    const call = readLine(read, ctx.store, scope)
+    if (call !== null && call.matches.length > 1 && differsOnlyByReturn(call.matches)) {
+      return { ...call, text: `(${inner})`, col: node.col }
+    }
+
     const value = evalPieces(settled, scope, ctx, depth + 1)
     if (value === null) {
       throw new EvalError(

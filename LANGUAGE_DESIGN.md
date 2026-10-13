@@ -1487,9 +1487,11 @@ Built recently, each covered by tests and the changelog:
 - **What `=` means.** Whether naming something and saying two things are the
   same are one feature or two. Leaning: one — declaring makes an empty shape and
   every `=` narrows it — but not settled. On the roadmap.
-- ~~**Letting the slot decide (brackets piece 2).**~~ Decided by 19: return type
-  joins the signature, every overload that fits is kept, exactly one must
-  remain. `Any` slots cannot pick; `=` waits on templating. Not built.
+- ~~**Letting the slot decide (brackets piece 2).**~~ Decided by 19 and built:
+  return type joins the signature, every overload that fits is kept, the slot it
+  lands in narrows them, and exactly one must remain. `Any` slots cannot pick;
+  `=` waits on templating. A bracket that could be several overloads is read but
+  not run until its slot picks; any other bracket still runs first.
 - **Templating for `=`.** `(n: Any) = (m: Any)` needs to say both sides are the
   same type, which is also what lets `point p = (2, 1)` pick the Point overload
   (decision 19).

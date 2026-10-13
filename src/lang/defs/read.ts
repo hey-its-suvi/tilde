@@ -24,7 +24,7 @@
 // tried only once every fold from the first word has failed.
 
 import { matchAt, showPieces, callTypes, type Match, type Piece } from './match.js'
-import { typesFit, ANY, type Store } from './resolve.js'
+import { typesFit, compatible, ANY, type Store } from './resolve.js'
 import type { Definition } from './types.js'
 
 export type Call = Extract<Piece, { kind: 'call' }>
@@ -122,12 +122,29 @@ class Reader {
       // A pattern of one slot taking a call already read would wrap it forever.
       if (length === 1 && state.pieces[k]!.kind === 'call') continue
       if (!typesFit(match, this.store, state.given)) continue
-      byLength.set(length, [...(byLength.get(length) ?? []), match])
+      byLength.set(length, [...(byLength.get(length) ?? []), narrowed(match)])
     }
     return [...byLength.entries()]
       .sort(([a], [b]) => b - a)
       .map(([length, matches]) => ({ matches, length }))
   }
+}
+
+/** The slot decides. A call that could be several overloads, differing in what
+ *  they return, keeps only those whose return fits the slot it landed in — so
+ *  `(2, 1)` in a Point slot is the Point one. An `Any` slot says nothing, so
+ *  there the choice stays open, and is reported as ambiguous before anything
+ *  runs. */
+function narrowed(match: Match): Match {
+  let changed = false
+  const bindings = match.bindings.map(b => {
+    if (b.piece.kind !== 'call' || b.piece.matches.length < 2 || b.type.name === ANY) return b
+    const fitting = b.piece.matches.filter(m => m.def.returns !== null && compatible(m.def.returns.name, b.type.name))
+    if (fitting.length === b.piece.matches.length) return b
+    changed = true
+    return { ...b, piece: { ...b.piece, matches: fitting } }
+  })
+  return changed ? { ...match, bindings } : match
 }
 
 /** The names a call will give, added to those given already. Only when the call

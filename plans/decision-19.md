@@ -12,8 +12,8 @@ next starts.
 | 3 | Return type joins the signature; every fitting overload kept, exactly one must remain | done — see below |
 | 4 | The fold and the restart (one search) | done — see below |
 | 5 | `=` returns nothing | done — see below |
-| 6 | The slot picks between return-type overloads; `Any` slots error | next |
-| 7 | Shrink the prelude: delete the "make it, then say this about it" forms | |
+| 6 | The slot picks between return-type overloads; `Any` slots error | done — see below |
+| 7 | Shrink the prelude: delete the "make it, then say this about it" forms | next |
 
 ---
 
@@ -422,18 +422,62 @@ statement (nothing in the prelude or tests did either).
 
 ## Step 6 — the slot picks between return-type overloads
 
-**After.** When a value piece or a restart span could be produced by several
-overloads differing only in return type, the slot it lands in decides. An
-`Any` slot cannot decide: an error asking for the value to be named first.
-`=` stays on that error until templating exists.
+**Before.** Overloads differing only by return type could be written (step 3),
+but a call that fit several stayed ambiguous wherever it was. Brackets ran
+before the slot around them was known, so a group had to mean one thing on its
+own.
 
-**Planned changes:** the search in `read.ts` carries the expected slot type
-into a group or span before it is settled. Brackets go through the same path,
-so `(2, 1)` with Point and Line overloads becomes possible.
+**After.** Types flow both ways. Inside-out (step 4): a call's type is what its
+definition promises. Outside-in (this step): when such a call lands in a typed
+slot, only the overloads whose return fits are kept. A bracket that could be
+several overloads differing only by return type is read but not run, so its slot
+can pick; any other bracket still runs first, as before. An `Any` slot cannot
+pick — the error asks for a name.
 
-**Tests to add:** fixture `(x) , (y) => Point` and `=> Line`;
-`line l through (1,2) (3,4)` picks Point; a Line slot picks Line; `2 , 1` alone
-is ambiguous; `print (2, 1)` asks for a name.
+### File by file
+
+**`src/lang/defs/read.ts`**
+- `matchesAt` passes each fitting match through new `narrowed`: for each binding
+  holding a call with several matches, in a slot that is not `Any`, keep the
+  matches whose return type is compatible with the slot.
+
+**`src/lang/defs/resolve.ts`**
+- `compatible` exported for the reader.
+
+**`src/lang/defs/eval.ts`**
+- `settled` takes the slot type it is checking under. For overloads that differ
+  only by return type it says `"…" is ambiguous: it could give a Line or a
+  Point, and nothing around it says which`, adding `— give it a name first` in
+  an `Any` slot. Types are sorted so the message does not depend on load order.
+  Other ambiguity keeps the old message listing the forms.
+- New `differsOnlyByReturn(matches)`: same signature with the return left out,
+  and every match returns something.
+- `settleGroups`: before running a group, reads it; if its root is overloads
+  differing only by return type, returns that call piece unrun (text
+  `(inner)`), for the outer line to narrow. Otherwise runs it as before.
+
+**Tests**
+- New `slot.test.ts` (6), with a `(m) , (k) => Line` beside the prelude's
+  Point one: `line k through (1, 2) (3, 4)` takes points; `l parallel (2, 1)`
+  takes the line; `l parallel 2 , 1` likewise, with no brackets;
+  `point p = (2, 1)` names a point; `2 , 1` alone is ambiguous;
+  `print (2, 1)` asks for a name.
+- Checked by breaking it: with narrowing off, the four choosing tests fail.
+
+**Docs:** `reading.md` — "Where it lands decides what it is" and the rewritten
+"When a line can mean two things", examples run; `limitations.md` — the
+"worked out from the inside alone" limitation replaced by the `Any`/`=` one;
+`roadmap.md` — *Letting the slot decide* marked built, *Asking as well as
+asserting* explains why asking forms stay `is …` definitions; decision 19's
+open item marked built; changelog 0.3.65.
+
+### Things worth a reviewer's eye
+- **Only return-type overloads at a group's root are deferred.** A group whose
+  inside is ambiguous for any other reason still errors when it is read.
+- **A deferred group runs when the line around it runs**, not before. Lines
+  that mixed a two-way group with a name made by an earlier group on the same
+  line would see a different order; nothing in the prelude or tests does.
+- **`=` does not pass a type across** — `(n: Any) = (m: Any)` needs templating.
 
 ## Step 7 — shrink the prelude
 

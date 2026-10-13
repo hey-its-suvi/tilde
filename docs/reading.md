@@ -101,8 +101,27 @@ print 2 + (3 * 4)
 
 What is inside a bracket is worked out first and stands in for it.
 
+## Where it lands decides what it is
+
+Two definitions can share their words and differ only in what they give back. A
+pair of numbers, say, could be a point `(x, y)` — the prelude's reading — or, if
+you add one, a line in slope-intercept form `(m, k)`:
+
+```
+define (m: Scalar) , (k: Scalar) => Line:
+    line l
+    return l
+```
+
+Tilde does not guess between them: the place a pair lands decides.
+
+```
+line k through (1, 2) (3, 4)   -- through wants points: two points
+l parallel (2, 1)              -- parallel wants a line: the line
+```
+
 ## When a line can mean two things
 
-If two definitions fit the same words equally well and nothing around them says
-which is meant, the line is refused rather than guessed at — and nothing it
-mentions is drawn. Naming the thing first, or bracketing, settles it.
+If nothing around a thing says which it is — it stands alone, or it lands where
+anything would do, like `print` — the line is refused rather than guessed at, and
+nothing in it runs. Name it first (`point p = (2, 1)`), then use the name.

@@ -90,11 +90,11 @@ the arithmetic runs, so there is nothing to add yet. There is also no precedence
 yet: arithmetic is read left to right like the rest of a line, so `2 + 3 * 4` is
 `(2 + 3) * 4`, which is 20. Brackets say otherwise: `2 + (3 * 4)`.
 
-**Brackets are worked out from the inside alone.** `line l through (1,2) (3,4)`
-works, because each group can only mean one thing. A group that could mean two —
-a pair of numbers read as a point *or* as a line in slope-intercept form — cannot
-yet be settled by the slot it sits in, so only one of those readings can be
-defined at a time.
+**Where anything would do, a two-way group has to be named first.** If a pair of
+numbers can mean a point or a line, the slot it lands in decides — but `print`
+takes anything, so `print (2, 1)` is refused until the pair is named
+(`point p = (2, 1)`, then `print p`). `=` cannot pass a type across from one side
+to the other yet either.
 
 **You can reach a shape's parts but not a shape's numbers.** `t.point1` gives you
 a triangle's corner, because a corner is a whole point. There is no `p.x` — see

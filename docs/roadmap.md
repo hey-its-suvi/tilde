@@ -106,15 +106,15 @@ asserting one.
 Two things make it harder than it looks:
 
 - **It is overloading by *answer*, not by arguments.** Both definitions above
-  take two lines; only what they hand back differs. Choosing between them means
-  knowing what the surrounding statement expects — `is` wants a Boolean, so the
-  inner one must be the Boolean form. Working that out means carrying an
-  expectation inward, where today a statement is settled purely by the kinds of
-  things named in it. Two definitions that differ only in their answer can now
-  both be written; what is missing is the expectation that picks one.
-- **It needs the slot to decide.** Brackets now nest, but a group is worked out
-  from the inside alone. `is (a parallel b)` needs the outer `is` to say which
-  `parallel` it wants — see *Letting the slot decide* below.
+  take two lines; only what they hand back differs. Inside `is`, the slot now
+  picks — `is` wants a Boolean, so the Boolean form is used (see *Letting the
+  slot decide*).
+- **A line on its own has no slot.** `l parallel m` by itself would fit both
+  forms equally, and nothing around it says which. Every rule considered for
+  that — definition order, a marker on the asserting form, treating a bare line
+  differently — had a real cost, so for now asking forms are separate
+  definitions that start with `is` (`is (a: Line) parallel (b: Line)`), and the
+  composable version waits.
 
 ### Arithmetic
 `+ - * /` exist as ordinary definitions and work on numbers written out:
@@ -139,18 +139,13 @@ writing one is a reasonable answer, and probably the right one. The shape of the
 language does not depend on which.
 
 ### Letting the slot decide
-Brackets nest: `line l through (1,2) (3,4)` works, and groups can sit inside
-groups. But each group is worked out on its own, before the statement around it,
-so it has to mean exactly one thing. A pair of numbers can reasonably mean two —
-a point `(x, y)` or a line in slope-intercept form `(m, k)` — and only the slot
-it sits in knows which.
-
-The planned approach: each group reports the kinds of thing it *could* produce,
-the surrounding statement picks the definition whose slot accepts one of them,
-and that choice is passed back down to settle the group. The same step is what
-lets `is a parallel b` choose between the asserting and asking forms of
-`parallel`. Needs definitions that differ only in what they return to stop being
-rejected as duplicates, and groups to be settled before any of them run.
+**Built.** Two definitions may share their words and differ only in what they give
+back — a pair of numbers as a point `(x, y)`, or as a line in slope-intercept
+form `(m, k)`. Where such a thing lands decides which it is: in a point's slot it
+is the point, in a line's slot the line. A slot that takes anything (`print`)
+cannot decide, and asks for the thing to be named first. Still to come: `=` passing
+the type of one side across to the other, which needs `=` to say both sides are
+the same kind of thing.
 
 ### Settings and picking
 `pick` and `set unit` work in the classic syntax and have no definition-syntax
