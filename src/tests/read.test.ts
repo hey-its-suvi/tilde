@@ -123,13 +123,24 @@ define line (n: new Line) = (m: Line):
   })
 
   it('cannot chain two `=`, since neither half has a value', () => {
-    expect(() => run('scalar a\nscalar b\nscalar c\na = b = c\n')).toThrow(/no definition matches "a = b = c"/)
+    // Read left to right, `(a = b)` gives nothing back for the second `=`.
+    expect(() => run('scalar a\nscalar b\nscalar c\na = b = c\n')).toThrow(
+      /no definition of "a = b = c" fits the argument types/,
+    )
   })
 })
 
 describe('what a line cannot mean', () => {
   it('reports a line with no reading as it did before', () => {
     expect(() => run('line m\nline l\nl frobnicates m\n')).toThrow(/no definition matches "l frobnicates m"/)
+  })
+
+  it('says why from as far as reading left to right got', () => {
+    // No single pattern spans the line; after `point p`, both `on`s match the
+    // words and neither fits `q`, which is the useful thing to say.
+    expect(() => run('line m\npoint p on q\n')).toThrow(
+      /no definition of "point p on q" fits the argument types \(tried `\(p: Point\) on \(l: Line\)`/,
+    )
   })
 
   it('gives the plain error for a long line with no reading, rather than giving up', () => {

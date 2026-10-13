@@ -53,6 +53,16 @@ export function readLine(pieces: readonly Piece[], store: Store, defs: readonly 
   return reader.read({ pieces, given: new Map() })
 }
 
+/** How far a plain left-to-right reading gets before it is stuck: the line with
+ *  its longest first fold done, or null if nothing matches at the start. Only
+ *  for errors — when a line has no reading, what stopped this one is what its
+ *  writer most likely needs to hear. */
+export function foldFromStart(pieces: readonly Piece[], store: Store, defs: readonly Definition[]): Piece[] | null {
+  const reader = new Reader(store, defs, showPieces(pieces))
+  for (const state of reader.fold({ pieces, given: new Map() }, 0)) return [...state.pieces]
+  return null
+}
+
 class Reader {
   private left = BUDGET
   /** Half-read lines already known to have no reading. Different routes reach

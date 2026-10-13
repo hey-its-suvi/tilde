@@ -881,7 +881,8 @@ its objection was that deriving `line l X` binds `l` to the *result* of `l X`; i
 `(line l) parallel m`, `l` is named by `line l` and the result just flows on. So
 the prelude's "make it, then say this about it" forms are redundant and can be
 deleted: `point … at`, `point … on`, `circle … with center`, `circle … with
-radius`, `line … parallel`, `line … perpendicular`, `scalar … is`. Those that mean
+radius`, `line … parallel`, `line … perpendicular`, `scalar … is`. (Done in
+0.3.66, except `scalar … is`, left alone with the rest of `is`.) Those that mean
 something more stay: `line n through p q` and `circle … with center … and radius`
 (no subject form exists yet), `triangle`, and the `point … =` / `scalar … =`
 forms until `=` merges.

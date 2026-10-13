@@ -13,7 +13,7 @@ next starts.
 | 4 | The fold and the restart (one search) | done — see below |
 | 5 | `=` returns nothing | done — see below |
 | 6 | The slot picks between return-type overloads; `Any` slots error | done — see below |
-| 7 | Shrink the prelude: delete the "make it, then say this about it" forms | next |
+| 7 | Shrink the prelude: delete the "make it, then say this about it" forms | done — see below |
 
 ---
 
@@ -481,14 +481,70 @@ open item marked built; changelog 0.3.65.
 
 ## Step 7 — shrink the prelude
 
-**After.** Delete the forms that only mean "make it, then say this about it",
-now read as composition: `point … at`, `point … on` (Line and Circle),
-`circle … with center`, `circle … with radius`, `line … parallel`,
-`line … perpendicular`, `scalar … is`. Keep `line n through p q`,
-`circle … with center … and radius`, `triangle`, and the `=` forms until `=`
-merges.
+**Before.** The prelude defined seven declaring forms that only made a thing and
+then said something about it. Under the fold each reads the same without its own
+definition.
 
-**Planned changes:** `shapes.til`, `constraints.til`, `core.til`; the
-tsx/composed ratio test in `defs.test.ts`; `docs/` pages that list the forms.
+**After.** Deleted:
 
-**Tests:** every program using a deleted form still reads and solves the same.
+| Deleted | Now reads as | via |
+|---|---|---|
+| `point (n: new Point) at (x) (y)` | `(point n) at x y` | `(p: Point) at (x) (y)` |
+| `circle (n: new Circle) with center (p)` | `(circle n) with center p` | `(c: Circle) with center (p)` |
+| `circle (n: new Circle) with radius (r)` | `(circle n) with radius r` | `(c: Circle) with radius (r)` |
+| `line (n: new Line) parallel (m)` | `(line n) parallel m` | `(a: Line) parallel (b: Line)` |
+| `line (n: new Line) perpendicular (m)` | `(line n) perpendicular m` | `(a: Line) perpendicular (b: Line)` |
+| `point (n: new Point) on (l: Line)` | `(point n) on l` | `(p: Point) on (l: Line)` |
+| `point (n: new Point) on (c: Circle)` | `(point n) on c` | `(p: Point) on (c: Circle)` |
+
+Kept: `line n through p q` and `circle … with center … and radius` (no subject
+form covers them), `triangle`, the `=` forms (until `=` merges), and
+`scalar n is v` (left alone with the rest of `is`, as asked).
+
+**Checked before and after:** 17 programs using these forms — placements,
+circles, chains, triangles, a redeclaration and an unknown name — were run
+before the deletion and after, comparing constraints, solved positions and
+errors. All identical except one error message (below).
+
+### File by file
+
+**`src/lang/prelude/shapes.til`** — `point … at`, `circle … with center`,
+`circle … with radius` deleted; a comment says why the circle forms need no
+definitions and the combined one does.
+
+**`src/lang/prelude/constraints.til`** — the "Declaring forms" section (four
+definitions) deleted; the header comment now explains that `line l parallel m`
+reads as `(line l) parallel m`.
+
+**`src/lang/defs/read.ts`** — new `foldFromStart`: the line after its longest
+first fold, for errors only.
+
+**`src/lang/defs/eval.ts`** — new `noReading`. The error for a line with no
+reading is still the whole-line one first; but when no pattern spans the line
+at all, it reports from as far as left to right got. Found by the comparison:
+`point p on q` with `q` unknown had fallen back to "no definition matches"; it
+now says no `on` fits `point p on q`, listing `(p: Point) on (l: Line)` and
+`(p: Point) on (c: Circle)` — the same message as before, naming the general
+forms instead of the deleted ones. Also improves any chained line failing
+partway.
+
+**Tests**
+- Updated to name forms that still exist: `defs.test.ts` (constraints.til
+  contents; the split is now 25 primitive to 13 composed),
+  `modules.test.ts` (prelude has 38 definitions, not 45), `resolve.test.ts`
+  and `match.test.ts` (whole-line examples use `line l through p q` and
+  `p at 3 5`).
+- `match.test.ts`: "every composed body line matches something" became
+  "starts a reading" — `point n at x y` is now read by folding.
+- `read.test.ts`: `a = b = c` now fails with "no definition of … fits"; new
+  test for the `point p on q` error.
+
+**Docs:** `reading.md` says `line l` only makes a line and the rest is said
+about it; decision 19 marks the deletion done; changelog 0.3.66.
+
+### Things worth a reviewer's eye
+- **`point p at 3 4` now runs as two calls** at the top level instead of one
+  call with its own frame. No difference in what is made or named — the
+  comparison covered it.
+- **Error messages name the general forms** (`(p: Point) on (l: Line)`) where
+  they used to name declaring ones.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchStatement, pieceText, type Match } from '../lang/defs/match.js'
+import { matchStatement, matchAt, piecesOf, pieceText, type Match } from '../lang/defs/match.js'
 import { typeText, type Definition } from '../lang/defs/types.js'
 
 import { loadModule } from '../lang/defs/modules.js'
@@ -31,10 +31,10 @@ describe('single unambiguous matches', () => {
   })
 
   it('matches a prefix-keyword declaring form', () => {
-    // `line l parallel m` can only be the declaring form. The bare
-    // `(a: Line) parallel (b: Line)` fails: its first slot would eat `line`,
-    // then the keyword `parallel` meets `l` and the match dies.
-    expect(forms('line l parallel m')).toEqual(['line (n: new Line) parallel (m: Line)'])
+    // `line l through p q` can only be the declaring form. The bare
+    // `(l: Line) through (p: Point)` fails: its first slot would eat `line`,
+    // then the keyword `through` meets `l` and the match dies.
+    expect(forms('line l through p q')).toEqual(['line (n: new Line) through (p: Point) (q: Point)'])
   })
 
   it('matches a mixfix measurement', () => {
@@ -44,8 +44,8 @@ describe('single unambiguous matches', () => {
   })
 
   it('matches adjacent slots', () => {
-    expect(forms('point p at 3 5')).toEqual(['point (n: new Point) at (x: Scalar) (y: Scalar)'])
-    expect(bindings('point p at 3 5')).toEqual({ n: 'p', x: '3', y: '5' })
+    expect(forms('p at 3 5')).toEqual(['(p: Point) at (x: Scalar) (y: Scalar)'])
+    expect(bindings('p at 3 5')).toEqual({ p: 'p', x: '3', y: '5' })
   })
 
   it('matches the longest keyword run, not a prefix of it', () => {
@@ -88,12 +88,14 @@ describe('non-matches', () => {
   })
 })
 
-describe('every composed prelude body line matches something', () => {
-  it('has a candidate for each statement the prelude composes from', () => {
+describe('every composed prelude body line starts a reading', () => {
+  it('has a pattern matching the start of each statement the prelude composes from', () => {
+    // Not necessarily the whole line: `point n at x y` reads as
+    // `(point n) at x y`, so only its start has to match (decision 19).
     const composed = table.flatMap(d => (d.body.body === 'tilde' ? d.body.lines : []))
     expect(composed.length).toBeGreaterThan(0)
 
-    const unmatched = composed.filter(line => matchStatement(line, table).length === 0)
+    const unmatched = composed.filter(line => matchAt(piecesOf(line), 0, table).length === 0)
     expect(unmatched).toEqual([])
   })
 })

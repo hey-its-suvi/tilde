@@ -2,12 +2,12 @@
 --
 -- Each returns its subject so statements chain left to right:
 --     line l parallel m through p
--- groups as ((line l parallel m) through p).
+-- reads as ((line l) parallel m) through p — `line l` makes the line, and
+-- everything after it is said about the line it made (decision 19). So there
+-- are no declaring forms here: `line l parallel m` needs no definition of its
+-- own, and anyone wanting a different one can write it and win by being longer.
 --
--- All composed, no tsx. The declaring forms (`line l parallel m`) are written
--- out by hand rather than derived: whether a definition constrains its subject
--- or produces a new element is a property of the body, not the signature, so
--- there is nothing reliable to derive from.
+-- All composed, no tsx.
 
 import core
 
@@ -33,25 +33,3 @@ define (p: Point) = (q: Point):
 define (l: Line) through (p: Point) => Line:
     p on l
     return l
-
--- ─── Declaring forms ────────────────────────────────────────────────────────
-
-define line (n: new Line) parallel (m: Line) => Line:
-    line n
-    n parallel m
-    return n
-
-define line (n: new Line) perpendicular (m: Line) => Line:
-    line n
-    n perpendicular m
-    return n
-
-define point (n: new Point) on (l: Line) => Point:
-    point n
-    n on l
-    return n
-
-define point (n: new Point) on (c: Circle) => Point:
-    point n
-    n on c
-    return n

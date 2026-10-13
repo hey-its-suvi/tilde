@@ -134,7 +134,7 @@ describe('the prelude parses', () => {
   it('reads every definition in constraints.til', () => {
     const forms = parseFile(prelude('constraints')).definitions.map(d => show(d.pattern))
 
-    expect(forms).toContain('line (n: new Line) parallel (m: Line)')
+    expect(forms).toContain('(a: Line) perpendicular (b: Line) at (p: Point)')
     expect(forms).toContain('(l: Line) through (p: Point)')
   })
 
@@ -150,14 +150,14 @@ describe('the prelude parses', () => {
     expect(hatched('constraints')).toBe(0)
   })
 
-  it('splits roughly evenly between primitive and composed', () => {
+  it('is mostly primitives, now that declaring forms are read rather than defined', () => {
     const all = ['core', 'shapes', 'constraints'].flatMap(n => parseFile(prelude(n)).definitions)
 
-    // Measured, not aspirational: 25 primitive to 20 composed. The earlier claim
-    // that "most of the prelude composes" was wrong — it is an even split, and
-    // the composed half has been growing as convenience forms are added.
+    // Measured, not aspirational: 25 primitive to 13 composed. It was 25 to 20
+    // until the declaring forms went — `line l parallel m` reads as
+    // `(line l) parallel m` and needs no definition of its own (decision 19).
     expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(25)
-    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(20)
+    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(13)
   })
 
   it('gives every definition a return type except those with a reason not to', () => {

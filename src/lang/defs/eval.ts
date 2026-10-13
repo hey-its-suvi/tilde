@@ -25,7 +25,7 @@ import { DataStore } from './data.js'
 import { lexHeader, type Token } from './lexer.js'
 import { groupTokens, type Node } from './tree.js'
 import { resolveStatement, resolvePath, keyOf, ResolutionError, NAME, TYPE, ANY, BUILT_IN_TYPES, form, type Frame, type Param, type Store } from './resolve.js'
-import { readLine, type Call } from './read.js'
+import { readLine, foldFromStart, type Call } from './read.js'
 import { piecesOf, showPieces, type Match, type Piece } from './match.js'
 import { isText, type Text, type Value } from './values.js'
 import { loadModule, type HomeMap, type Loaded, type Registry, type TypeMap } from './modules.js'
@@ -184,12 +184,31 @@ function evalPieces(
 ): Value {
   const read = pieces.map(p => withParam(p, ctx.store.current.params))
   const call = readLine(read, ctx.store, scope)
-  // No reading at all: say what is wrong with the line read plainly, as a whole
-  // — that is what its writer most likely meant, and what today's errors
-  // describe.
-  if (call === null) return evalMatch(resolveStatement(read, ctx.store, scope), scope, ctx, depth)
+  if (call === null) throw noReading(read, ctx.store, scope)
   settled(call)
   return runCall(call, scope, ctx, depth)
+}
+
+/** Why a line has no reading. First as a whole, as one pattern — the errors
+ *  that always described a bad line. If no pattern spans it at all, then from as
+ *  far as reading left to right got: in `point p on q` with `q` unknown, that is
+ *  `(point p) on q`, where both `on`s match the words and neither fits `q`. */
+function noReading(pieces: readonly Piece[], store: Store, scope: readonly Definition[]): unknown {
+  try {
+    resolveStatement(pieces, store, scope)
+  } catch (whole) {
+    const folded = foldFromStart(pieces, store, scope)
+    const nothingSpans = whole instanceof ResolutionError && /no definition matches/.test(whole.message)
+    if (!nothingSpans || folded === null || folded.length === pieces.length) return whole
+    try {
+      resolveStatement(folded, store, scope)
+    } catch (stuck) {
+      return stuck
+    }
+    return whole
+  }
+  // Cannot happen: a line one pattern spans is always read.
+  return new EvalError(`"${showPieces(pieces)}" could not be read`)
 }
 
 /** Every call in a reading must mean one definition. Checked before anything

@@ -11,11 +11,6 @@ import core
 
 -- ─── Points ─────────────────────────────────────────────────────────────────
 
-define point (n: new Point) at (x: Scalar) (y: Scalar) => Point:
-    point n
-    n at x y
-    return n
-
 define (p: Point) = (x: Scalar) (y: Scalar):
     p at x y
 
@@ -48,15 +43,9 @@ define line (n: new Line) through (p: Point) (q: Point) => Line:
 
 -- ─── Circles ────────────────────────────────────────────────────────────────
 
-define circle (n: new Circle) with center (p: Point) => Circle:
-    circle n
-    n with center p
-    return n
-
-define circle (n: new Circle) with radius (r: Scalar) => Circle:
-    circle n
-    n with radius r
-    return n
+-- `circle c with center p` and `circle c with radius r` need no definitions:
+-- they read as `(circle c) with center p`, using `core`. Saying both at once
+-- does, since nothing continues a line with `and radius`.
 
 define circle (n: new Circle) with center (p: Point) and radius (r: Scalar) => Circle:
     circle n with center p

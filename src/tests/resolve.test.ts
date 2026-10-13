@@ -52,7 +52,9 @@ describe('output slots are declaration sites', () => {
   })
 
   it('picks the declaring form when the subject is a fresh name', () => {
-    expect(chosen('line l parallel m', { m: 'Line' })).toBe('line (n: new Line) parallel (m: Line)')
+    expect(chosen('line l through p q', { p: 'Point', q: 'Point' })).toBe(
+      'line (n: new Line) through (p: Point) (q: Point)',
+    )
   })
 
   it('rejects a literal in an output slot', () => {

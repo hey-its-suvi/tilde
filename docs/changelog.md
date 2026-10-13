@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.65 — current
+## 0.3.66 — current
+
+- **The prelude no longer defines `point p at x y`, `point p on l`, `circle c with center p`, `circle c with radius r`, `line l parallel m` or `line l perpendicular m`.** They all still work, exactly as before: each reads as `point p` (or `line l`, `circle c`) and then what is said about it. Your own definition of any of them now wins simply by being longer.
+- A line that cannot be read now says why from as far as it got: `point p on q`, with `q` unknown, reports that no `on` fits `point p on q`, listing the ones it tried.
+
+## 0.3.65
 
 - **Where something lands decides what it is.** Two definitions may share their words and differ only in what they give back — a pair of numbers as a point or as a line. In a point's slot it is the point, in a line's slot the line, with or without brackets: `l parallel (2, 1)` and `l parallel 2 , 1` both use the line.
 - Where nothing says which — the pair alone, or in a slot that takes anything, like `print` — the line is refused with `… could give a Line or a Point, and nothing around it says which`, and asked to name it first where that would help.

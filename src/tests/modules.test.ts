@@ -80,9 +80,9 @@ describe('re-export', () => {
     const scope = loadModule('prelude', PRELUDE).scope.map(d => signature(d))
     expect(scope).toContain('point «Name» => Point')          // core
     expect(scope).toContain('triangle «Name» with «Name» «Name» «Name» => Triangle') // shapes
-    expect(scope).toContain('line «Name» parallel «Line» => Line')               // constraints
+    expect(scope).toContain('«Line» through «Point» => Line')                    // constraints
     expect(scope).toContain('print «Any»')                    // returns nothing
-    expect(scope).toHaveLength(45)
+    expect(scope).toHaveLength(38)
   })
 })
 

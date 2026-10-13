@@ -18,8 +18,10 @@ point p at 1 1
 line l parallel m through p
 ```
 
-The last line reads as *make a line l parallel to m, and it passes through p* —
-`through p` is said about `l`, because `l` is what `line l parallel m` gave back.
+The last line reads as *make a line l parallel to m, and it passes through p*.
+`line l` only makes a line; `parallel m` is said about the line it made, and so
+is `through p`, because each gives back the line it was said about. Nothing
+defines `line l parallel m` as a whole — it is `line l`, then `… parallel m`.
 The same works on lines that already exist:
 
 ```
