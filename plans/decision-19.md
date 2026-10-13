@@ -337,10 +337,30 @@ is the longest match from the first piece.
 brackets; `roadmap.md` no longer says same-words-different-return is rejected
 (stale since step 3). Changelog 0.3.62, version bump. Decision 19 points here.
 
+### Follow-up (same review round): highlighting and docs
+
+**`src/lang/defs/highlight.ts`** — marks a line the way it is read. From the
+start, the pattern that aligns best (met in full beats partway; then the one
+taking more tokens); its slot words are marked; if it was met in full, the next
+pattern must start with a slot, which the previous result fills without taking a
+token; repeat. A half-typed tail is marked as far as it aligns, then marking
+stops. Still words only, never types. Keywords match by what they read as, so
+`=` and `+` are pattern words (they never were here before). A bracketed group
+fills one slot, and its inside is marked as a line of its own.
+
+**Tests (`highlight.test.ts`)** — `circle c on l` now marks `l` (it lines up
+as `(circle c) on l` by words; types are not the highlighter's business); the
+"stops where it stops aligning" case uses `circle c frobnicate l` instead. New:
+chains, `=` and `+` as pattern words, marking inside brackets.
+
+**`docs/reading.md`** (new, in the Language sidebar) — left to right, the
+longest match winning (and overriding), backing off, restarting from a later
+word, arithmetic left to right, brackets, ambiguous lines refused. Every example
+on the page was run. Linked from `limitations.md`. Changelog 0.3.63.
+
 ### Things worth a reviewer's eye
-- **Editor highlighting** (`highlight.ts`) still aligns a line against one
-  pattern, so a chained line colours only as far as its first pattern. Not
-  changed here.
+- **Highlighting is greedy, with no backing off** — a line whose longest first
+  pattern is a dead end colours less than it reads. Fine for colouring.
 - **The restart only takes a fold that returns something.** A span returning
   nothing cannot stand in for words — that is what lets step 5's `=` work.
 - **`given` only records settled calls.** If a call is still ambiguous, its

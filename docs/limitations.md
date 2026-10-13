@@ -79,7 +79,8 @@ between them. Two gaps:
 ## Definition syntax
 
 The newer syntax — the playground's `syntax: definitions` — is younger than the
-classic one and does less.
+classic one and does less. How it reads a line is described in
+[Reading a Line](/reading).
 
 **Not available at all:** `pick`, `set unit` and `set grid`.
 

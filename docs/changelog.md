@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.3.62 — current
+## 0.3.63 — current
+
+- **The editor colours a chained line all the way through.** `line l parallel m through p` marks `l`, `m` and `p` as values, not just the first part. Symbols in patterns (`=`, `+`) count as pattern words, and what is inside brackets is coloured the same way.
+- New docs page, **Reading a Line**: how a statement in the definition syntax is read, left to right.
+
+## 0.3.62
 
 - **A line is read left to right.** The longest definition that matches from the start is taken, and what it gives fills the first slot of whatever comes next. So statements chain: `line l parallel m through p` is `((line l) parallel m) through p`, and `l parallel m through p` works on lines that already exist.
 - **A longer definition wins.** Write your own `define line (n: new Line) parallel (m: Line)` and `line l parallel m` uses it, rather than `line l` and then `… parallel m`. If yours does not fit the types — say it takes a Circle — the shorter reading is used instead.

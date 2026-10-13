@@ -30,10 +30,14 @@ describe('slots are found by alignment, not by spelling', () => {
   })
 
   it('marks only as far as a line aligns', () => {
-    // `circle c on l` has no definition — the prelude declares a circle's
-    // centre on a line nowhere yet. So `circle c` aligns and the tail does not,
-    // which is the honest answer rather than a guess.
-    expect(mark('circle c on l')).toBe('circle [c] on l')
+    // `frobnicate` starts no pattern and continues none, so marking stops there.
+    expect(mark('circle c frobnicate l')).toBe('circle [c] frobnicate l')
+  })
+
+  it('looks at words, never types', () => {
+    // No `on` takes a circle, but `(circle c) on l` lines up word for word, and
+    // `l` is where a value goes. Whether it fits is the reader's business.
+    expect(mark('circle c on l')).toBe('circle [c] on [l]')
   })
 
   it('marks numbers as values too', () => {
@@ -56,6 +60,23 @@ describe('slots are found by alignment, not by spelling', () => {
   it('keeps leading indentation aligned', () => {
     // Composed body lines are indented; columns are absolute in the line.
     expect(mark('    n at x y')).toBe('    [n] at [x] [y]')
+  })
+})
+
+describe('a line is marked the way it is read', () => {
+  it('follows a chain past its first pattern', () => {
+    expect(mark('line l parallel m through p')).toBe('line [l] parallel [m] through [p]')
+    expect(mark('l parallel m through p')).toBe('[l] parallel [m] through [p]')
+  })
+
+  it('treats symbols in patterns as pattern words', () => {
+    expect(mark('point p = 3 4')).toBe('point [p] = [3] [4]')
+    expect(mark('scalar k = 2 + 3')).toBe('scalar [k] = [2] + [3]')
+  })
+
+  it('marks inside brackets the same way', () => {
+    expect(mark('line l through (1, 2) (3, 4)')).toBe('line [l] through ([1], [2]) ([3], [4])')
+    expect(mark('print (2 + 3)')).toBe('print ([2] + [3])')
   })
 })
 
