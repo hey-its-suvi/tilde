@@ -1,15 +1,13 @@
 // ─── Tilde Test Helpers ───────────────────────────────────────────────────────
 //
-// `run()` invokes the solver with whichever pick strategy is currently
-// active. To run the whole suite against a specific pick, set the PICK
-// env var before invoking vitest:
+// `run()` reads a program against the prelude and solves it, with whichever
+// placement strategy is currently active. To run the whole suite against a
+// specific one, set the PICK env var before invoking vitest:
 //
 //   PICK=budget npx vitest run     # all tests against BudgetPick
 //   PICK=rule   npx vitest run     # default (also the default with no var)
 
-import { lex } from '@lang/lexer.js'
-import { parse } from '@lang/parser.js'
-import { solve, setPick, PickName } from '@lang/solver/index.js'
+import { solveSource, setPick, PickName } from '@lang/solver/index.js'
 import { SceneGraph, Solutions } from '@renderer/interface.js'
 
 const envPick = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.PICK
@@ -17,8 +15,9 @@ if (envPick === 'rule' || envPick === 'budget') {
   setPick(envPick as PickName)
 }
 
+/** Solve a program written against the prelude and return what it draws. */
 export function run(source: string): SceneGraph {
-  return solve(parse(lex(source))).scene
+  return solveSource(`import prelude\n${source}`).scene
 }
 
 export function assertPointExists(scene: SceneGraph, label: string): void {
