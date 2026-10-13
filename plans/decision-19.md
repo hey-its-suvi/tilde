@@ -9,8 +9,8 @@ next starts.
 |---|------|--------|
 | 1 | A bracket's result stays a value, never text | done — `7c3f240` |
 | 2 | Remove `substitute`: a call's frame holds its values | done — see below |
-| 3 | Return type joins the signature; every fitting overload kept, exactly one must remain | next |
-| 4 | The fold and the restart (one search) | |
+| 3 | Return type joins the signature; every fitting overload kept, exactly one must remain | done — see below |
+| 4 | The fold and the restart (one search) | next |
 | 5 | `=` returns nothing | |
 | 6 | The slot picks between return-type overloads; `Any` slots error | |
 | 7 | Shrink the prelude: delete the "make it, then say this about it" forms | |
@@ -195,17 +195,54 @@ language behaviour changed.
 
 ## Step 3 — return type joins the signature
 
-**After.** `signature()` includes the return type (none counts as its own
-kind). `(x: Scalar) , (y: Scalar) => Point` and `… => Line` are two
-definitions. Duplicate checks and shadowing (`modules.ts`) use the full
-signature, so a local `=> Point` shadows only the imported `=> Point`.
-Resolution keeps every overload that fits; more than one is an ambiguity
-error, as today. No prelude definition differs only by return type, so no
-program changes.
+**Before.** A signature was the keywords plus slot types. Two definitions with
+the same words and slot types were the same definition: a duplicate in one
+file, a shadow across an import — whatever they returned.
 
-**Planned changes:** `types.ts` (`signature`), `modules.ts` (duplicate check,
-shadowing), tests in `modules.test.ts` / `types.test.ts` with a small fixture
-table.
+**After.** The return type is part of the signature; returning nothing is its
+own kind (no arrow). Same words with different return types are two
+definitions. Resolution is unchanged: every overload that fits is kept, and
+more than one is an ambiguity error. Nothing yet carries a slot's expected type
+inward to pick between them — that is step 6.
+
+**Behaviour that changes:** a file may now define the same words with
+different return types; a local definition shadows only an import with the
+same return type; "defined twice" errors show the return type. No prelude
+definition differs only by return type, so no existing program changes.
+
+### File by file
+
+**`src/lang/defs/types.ts`**
+- `signature` takes the definition (`pattern` and `returns`) instead of the
+  pattern, and appends ` => T` when there is a return type. Comment explains
+  the change and that outputs still count as a plain word.
+
+**`src/lang/defs/modules.ts`**
+- The duplicate check and the shadowing filter pass the definition to
+  `signature`. No other change: the table is still a flat `Definition[]` per
+  module (`own`, `exports`, `scope`).
+
+**Tests (`modules.test.ts`)**
+- Listings of signatures now include ` => T`; the prelude check also confirms
+  `print «Any»` (no return) is listed without an arrow.
+- Shadowing fixture: the user's `greet` now returns a Point, like the base one,
+  and is told apart by placing its point at (7, 7). Previously it returned a
+  Line, which under the new rule is no longer a shadow.
+- New: a `greet => Line` beside an imported `greet => Point` is not a shadow —
+  both are in scope and `greet x` alone is ambiguous.
+- Duplicate fixture: both `twice` definitions return a Point (they returned
+  Point and Line, which is now legal); the error text includes `=> Point`.
+- New: the same words returning Point and Scalar load as two definitions.
+- New: returning nothing and returning a Scalar are two definitions.
+
+**Docs:** decision 11's definition of a signature notes the return type;
+changelog 0.3.61; version bump.
+
+### Things worth a reviewer's eye
+- Two definitions differing only in an *output's* type and returning the same
+  thing are still one signature (decision 18) — unchanged.
+- The ambiguity at statement level is deliberate until step 6; standing alone,
+  a line that fits two return types stays an error even after it.
 
 ## Step 4 — the fold and the restart
 

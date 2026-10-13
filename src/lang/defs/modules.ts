@@ -139,7 +139,7 @@ function load(
 
   const seen = new Set<string>()
   for (const def of own) {
-    const sig = signature(def.pattern)
+    const sig = signature(def)
     if (seen.has(sig)) {
       throw new DefinitionError(`${name} defines \`${sig}\` twice`, def.line)
     }
@@ -155,7 +155,7 @@ function load(
     // Two *imports* colliding stays an error, surfaced at dispatch as an
     // ambiguity — there is no principled winner between them.
     for (const def of dep.exports) {
-      if (!seen.has(signature(def.pattern))) scope.push(def)
+      if (!seen.has(signature(def))) scope.push(def)
     }
     if (imp.reexport) exports.push(...dep.exports)
   }

@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.3.60 — current
+## 0.3.61 — current
+
+- **The same words can be defined with different return types.** `define pair (x: Scalar) (y: Scalar) => Point` and `… => Scalar` are two definitions rather than one defined twice. Standing alone, a line that fits both is ambiguous; choosing by where it is used comes later.
+- Shadowing follows suit: your own `… => Point` replaces an imported `… => Point`, but not an imported `… => Line`.
+- "Defined twice" errors now show the return type: ``defines `twice «Name» => Point` twice``.
+
+## 0.3.60
 
 - **What a bracket works out stays a value.** `line l through (1,2) (3,4)` puts the two points straight into the line's slots instead of writing them back into the line as text and reading it again. Nothing reads differently; errors now show what was written — `"l parallel (1 , 2)"` — rather than an internal name for the point.
 - `#` is no longer a character a name can contain: `point Point#1` now stops at the `#` with `unexpected character '#'`.

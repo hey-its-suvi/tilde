@@ -330,7 +330,9 @@ loud rather than silently order-dependent.
 
 Signature means keywords plus slot *types*, with slot names dropped —
 `(a: Line) parallel (b: Line)` and `(x: Line) parallel (y: Line)` are the same
-definition as far as dispatch is concerned.
+definition as far as dispatch is concerned. **Since 19 it includes the return
+type**, so a file's `… => Point` shadows only an imported `… => Point`, and the
+same words returning a Line are a separate definition.
 
 Import cycles are an error rather than something to resolve. There is no reason
 to allow them yet, and the error names the path.

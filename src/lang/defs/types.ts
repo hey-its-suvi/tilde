@@ -84,19 +84,26 @@ export type Statement = {
   line: number
 }
 
-/** A definition's surface signature: keywords and slot *types*, with slot names
- *  dropped. Two definitions with the same signature are the same definition as
- *  far as dispatch is concerned, whatever their slots are called. Used to let a
- *  file's own definitions shadow the ones it imports.
+/** A definition's signature: keywords, slot *types* and return type, with slot
+ *  names dropped. Two definitions with the same signature are the same
+ *  definition as far as dispatch is concerned, whatever their slots are called.
+ *  Used to catch a file defining one twice, and to let a file's own definitions
+ *  shadow the ones it imports.
+ *
+ *  The return type counts (decision 19): `(x: Scalar) , (y: Scalar) => Point`
+ *  and `… => Line` are two definitions, and the slot a call sits in says which
+ *  one it is. Returning nothing is its own kind — no arrow in the signature.
  *
  *  An output counts as a plain word whatever its type: the caller writes a new
  *  name there, and nothing about a new name tells `new Point` from `new Line`.
- *  So `greet (n: new Point)` and `greet (n: new Line)` are one signature —
- *  a redefinition, not an overload that could never be told apart. */
-export const signature = (pattern: Pattern): string =>
-  pattern
+ *  So `greet (n: new Point) => Point` and `greet (n: new Line) => Point` are one
+ *  signature — a redefinition. Differing in what they return, they are two. */
+export const signature = (def: Pick<Definition, 'pattern' | 'returns'>): string => {
+  const shape = def.pattern
     .map(p => (p.part === 'keyword' ? p.word : `«${p.type.output ? 'Name' : p.type.name}${p.type.list ? '...' : ''}»`))
     .join(' ')
+  return def.returns === null ? shape : `${shape} => ${typeText(def.returns)}`
+}
 
 export class DefinitionError extends Error {
   constructor(message: string, readonly line: number) {
