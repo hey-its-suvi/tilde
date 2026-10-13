@@ -18,53 +18,49 @@ The model holds:
 
 ## How shapes become vertices and edges
 
-A shape declaration registers its vertices and the edges between them. No positions are assigned yet — that's the [placement loop](./placement)'s job.
+The solver never sees a triangle. `triangle t with a b c` reaches it as three
+points and the three segments between them; no positions are assigned yet —
+that's the [placement loop](./placement)'s job.
 
 ```
-let triangle abc
+triangle t with a b c
 ```
 
 This registers vertices `a`, `b`, `c` and three edges: `a–b`, `b–c`, `c–a`.
 
 ```
-let segment ab
+segment a b
 ```
 
-Registers vertices `a`, `b` and one edge: `a–b`.
-
-Inline length constraints attach length values to the edges at the same time:
-
-```
-triangle abc with ab = 3 and bc = 4 and ca = 5
-```
-
-Registers the triangle and sets `|ab| = 3`, `|bc| = 4`, `|ca| = 5`.
+Registers one edge: `a–b`.
 
 ## How constraints layer on top
 
-Constraints declared separately (via `with` blocks or standalone statements) add information to what's already registered. A `length` constraint sets a length on an existing or new edge. An `on-line` or `on-segment` constraint records that a vertex must lie on a specific line or segment.
+Each constraint a program states adds information to what is already
+registered. A distance sets a length on an edge (adding the edge if it is new).
+An on-line or on-circle constraint records that a vertex must lie on a specific
+line or circle.
 
 ```mermaid
 flowchart LR
-    S["Shape declaration\n`let triangle abc`"] --> V["Vertices registered\na, b, c"]
+    S["`triangle t with a b c`"] --> V["Vertices registered\na, b, c"]
     S --> E["Edges registered\na–b, b–c, c–a"]
 
-    C1["Length constraint\n`= 3, 4, 5`"] --> L["Lengths stored\n|ab|=3, |bc|=4, |ca|=5"]
+    C1["`distance between a and b is 3` …"] --> L["Lengths stored\n|ab|=3, |bc|=4, |ca|=5"]
 
-    C2["On-line constraint\n`p on L`"] --> OL["onLine: p → L"]
-    C3["On-segment constraint\n`p on ab`"] --> OS["onSegment: p → (a,b)"]
+    C2["`p on l`"] --> OL["onLine: p → l"]
 
     V --> M([Constraint model])
     E --> M
     L --> M
     OL --> M
-    OS --> M
 ```
 
-## Pick statements
-
-`pick v 2` tells the solver that when vertex `v` has two possible positions, it should use position 2. These are recorded into the constraint model and consulted during placement.
+The model also has room for on-segment constraints, angles and chosen solutions
+(`onSegment`, `angles`, `solutionPicks`); nothing in the language reaches them
+since the classic syntax went — see the
+[roadmap](/roadmap#to-bring-back-from-the-classic-syntax).
 
 ## What the model captures
 
-The model **does** assign coordinates to explicitly placed vertices — `point a = (3, 4)` or `a = (3, 4)` inside a `with` block resolves immediately to `dof = 0`. Every other vertex enters the loop as an unplaced working point: both coordinates null, `dof = 2`. The constraint model is purely relational for those: it says *what exists* and *what constraints apply*, not *where anything is*.
+The model **does** assign coordinates to explicitly placed vertices — `point a at 3 4` resolves immediately to `dof = 0`. Every other vertex enters the loop as an unplaced working point: both coordinates null, `dof = 2`. The constraint model is purely relational for those: it says *what exists* and *what constraints apply*, not *where anything is*.

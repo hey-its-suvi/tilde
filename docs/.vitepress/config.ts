@@ -54,7 +54,6 @@ export default withMermaid(defineConfig({
             text: 'Solver',
             link: '/solver/',
             items: [
-              { text: 'Unit Resolution', link: '/solver/unit-resolution' },
               { text: 'Constraint Model', link: '/solver/constraint-model' },
               { text: 'Anchor', link: '/solver/anchor' },
               { text: 'Placement', link: '/solver/placement' },

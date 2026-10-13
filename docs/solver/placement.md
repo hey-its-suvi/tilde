@@ -158,13 +158,8 @@ Elements placed by representative rules are always underconstrained (`dof > 0`).
 
 ---
 
-## Multiple solutions and pick
+## Multiple solutions
 
-When two loci intersect at two distinct points and no `pick` statement has been declared, both positions are stored and shown on the canvas, numbered 1 and 2. Edges connected to an ambiguous vertex are drawn for every combination.
+When two loci intersect at two distinct points, both positions are stored and shown on the canvas, numbered 1 and 2. Edges connected to an ambiguous vertex are drawn for every combination.
 
-```
-pick v 1   ← use solution 1
-pick v 2   ← use solution 2
-```
-
-A picked vertex is treated as determined from that point forward.
+The model can also record a chosen solution for a vertex (`solutionPicks`), which is then treated as determined from that point forward. Nothing in the language sets it today — the `pick` line went with the classic syntax; see the [roadmap](/roadmap#to-bring-back-from-the-classic-syntax).

@@ -1,53 +1,70 @@
 # Certainty Model
 
-Every point and segment in Tilde carries a **solutions** value that describes how well-determined it is. This drives the visual style.
+Every point, line and circle in a figure is drawn according to how well what the
+program says pins it down. There are three cases.
 
 ## The three states
 
-### `one` — uniquely determined
+### Fixed — exactly one place
 
-The vertex position follows logically from the constraints. There is exactly one valid placement.
+The program says enough that there is only one place it can be.
 
-**Rendered as:** crisp dot with a clean circle.
+**Drawn as:** a crisp dot with a clean circle.
 
 <TildeSketch source="
-triangle abc with ab = 3 and bc = 4 and ca = 5
-pick c 1
+point a at 0 0
+point b at 4 0
+point c at 0 3
+segment a b
+segment b c
+segment c a
+" :cx="2" :cy="1.5" :zoom="1"/>
+
+### Free — anywhere along a line, a circle, or the plane
+
+The program leaves it room to move: it could be anywhere along a line or a
+circle, or anywhere at all.
+
+**Drawn as:** a dot with a wavy circle; segments as squiggly lines.
+
+<TildeSketch source="
+triangle t with a b c
+distance between a and b is 3
+distance between b and c is 4
 " :cx="1.5" :cy="2" :zoom="0.8"/>
 
-### `infinite` — underconstrained
+Here `c` is 4 from `b`, but nothing says in which direction — it could be
+anywhere on a circle of radius 4 round `b`.
 
-The vertex has more freedom than the constraints remove. It could be anywhere on a line, circle, or plane — an infinite continuous family of solutions.
+### Either — a few separate places
 
-**Rendered as:** dot with a wavy circle; segments rendered as squiggly lines.
+The program says enough to rule out sliding, but more than one separate place
+still fits.
 
-<TildeSketch source="
-triangle abc with ab = 3 and bc = 4
-" :cx="1.5" :cy="2" :zoom="0.8"/>
-
-Here `c` is constrained to be 4 units from `b` (`bc = 4`), but its angle around `b` is free — it could be anywhere on a circle of radius 4 centred at `b`.
-
-### `multiple` — finitely many discrete solutions
-
-The vertex is fully constrained in terms of DOF, but the constraint equations are nonlinear (quadratic) and yield more than one isolated solution.
-
-**Rendered as:** dot with a jagged circle in amber; segments as jagged lines. Each solution is numbered.
+**Drawn as:** a dot with a jagged circle in amber, once for each place; segments
+as jagged lines.
 
 <TildeSketch source="
-line l = (1, 0, -3)
-point a = (0, 0)
-b on l
-ab = 5
+line l through (3, 0) (3, 1)
+point a at 0 0
+point b on l
+distance between a and b is 5
 " :cx="1.5" :cy="0" :zoom="0.5"/>
 
-Use `pick b 1` or `pick b 2` to select one.
+`b` is on `l` and 5 from `a`, and that is true in two places: above the x-axis
+and below it.
 
 ## Why this matters
 
-A `one` result means your figure is fully determined — you can trust the coordinates. An `infinite` result means you haven't constrained the figure enough; add more constraints to pin it down. A `multiple` result means your constraints are sufficient but geometrically ambiguous — use `pick` to choose.
+A fixed figure means you can trust every coordinate. A free one means the program
+does not say enough yet — add something to pin it down. A figure with several
+places means it says enough, but the geometry allows more than one answer; say
+something that rules the others out (for instance, which side of a line a point
+is on, by placing a point nearby).
 
-## Inheritance
+## How it carries
 
-- A vertex constrained by distances to two placed neighbors inherits underconstrained status from those neighbors — if either was underconstrained, the result is too.
-- A vertex on a segment is always underconstrained — its position along the segment is free.
-- A vertex constrained by only one distance (not two) is always underconstrained — its angular position is free.
+- A point worked out from two others is only as fixed as they are: if either is
+  free, so is it.
+- A point with only one distance to something is always free — it can swing
+  round at that distance.

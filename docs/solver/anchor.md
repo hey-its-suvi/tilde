@@ -27,7 +27,7 @@ The solver scans vertices in declaration order and picks the first one that is:
 
 That vertex is pinned to **(0, 0)** and becomes the **anchor**. All other vertices will be placed relative to it.
 
-If no such vertex exists, a tier-2 search looks for a free vertex with a single on-line constraint and pins it at the line's natural position (the position that satisfies the constraint regardless of which of the line's coefficients are still unknown). This is what lets `line l = (1,); point p on l` resolve fully — without the tier-2 fall-back, both would remain underconstrained.
+If no such vertex exists, a tier-2 search looks for a free vertex with a single on-line constraint and pins it at the line's natural position (the position that satisfies the constraint regardless of which of the line's coefficients are still unknown). This is what lets a line whose direction is known but not its position, with a free point on it, resolve fully — without the tier-2 fall-back, both would remain underconstrained.
 
 ### R + S fixers — rotation and scale
 
@@ -75,4 +75,4 @@ If explicit points or lengths already remove some DOF, the corresponding fixer i
 
 ## Why not just always pin at (0, 0)?
 
-Pinning an arbitrary vertex at (0, 0) would conflict with explicit position constraints — if `point a = (3, 4)` is declared, the anchor must not override it. The pick phase only touches vertices that are genuinely free and not covered by any other constraint.
+Pinning an arbitrary vertex at (0, 0) would conflict with explicit position constraints — if `point a at 3 4` is declared, the anchor must not override it. The pick phase only touches vertices that are genuinely free and not covered by any other constraint.

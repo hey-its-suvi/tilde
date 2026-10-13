@@ -35,12 +35,15 @@ After every code change, check whether the docs need to be updated.
 - If the doc change is non-trivial (new page needed, significant restructure, design decision about how to explain something) — ask before writing.
 
 Docs live in `docs/`. The pages are:
-- `elements.md` — segment, triangle, line, point
-- `constraints.md` — length, coincidence, on-line, on-segment, coming-soon stubs
-- `pick.md` — pick statement and multiple solutions
-- `settings.md` — set unit, set grid, coming-soon stubs
-- `solver.md` — internal solver flow
-- `certainty.md` — one / multiple / infinite solution states
+- `getting-started.md` — first figure
+- `elements.md` — scalar, point, line, circle, segment, triangle
+- `constraints.md` — position, distance, same point, on, through, parallel, perpendicular
+- `reading.md` — how a line is read
+- `settings.md` — grid, axes, origin, subscripts
+- `reference.md` — the language's own words and the whole prelude
+- `certainty.md` — fixed / free / several places
+- `limitations.md`, `roadmap.md` — what is missing, and what is planned
+- `solver/` — internal solver flow
 - `changelog.md` — version history
 
 Internal terminology (`solutions`, `one`, `infinite`, `multiple`, `free`) must not leak into user-facing docs. Docs should describe behaviour in plain geometric terms.

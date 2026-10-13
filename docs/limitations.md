@@ -8,24 +8,6 @@ not described elsewhere in the docs, that is worth reporting.
 
 ---
 
-## Written but not acted on
-
-These parse without complaint and then have no effect on the drawing. There is
-no warning — the figure simply comes out as though you had not written them.
-
-- **Angles.** `triangle abc with angle abc = 90` is read and stored, but nothing
-  uses it to place a corner. Only lengths and lines drive placement.
-- **Equal lengths.** `ab = cd` is read and ignored. Knowing one length will not
-  give you the other.
-- **Squares and rectangles.** Declared but treated as nothing in particular —
-  neither the right angles nor the equal sides are applied.
-- **`set winding`.** Read and ignored. It cannot yet choose between a clockwise
-  and an anticlockwise answer.
-- **`print`.** Partly built. It cannot yet read back a length, an angle or a
-  position.
-
----
-
 ## Answers chosen for you
 
 A drawing has to start somewhere, and when a figure is genuinely ambiguous
@@ -55,7 +37,7 @@ impossible part is left out and the rest is drawn.
 
 ```
 scalar r = 2
-r = 3            # r cannot be both, so it has no value and is not drawn
+r = 3            -- r cannot be both, so it has no value and is not drawn
 ```
 
 Nothing marks it as impossible on the canvas. You find out by noticing something
@@ -65,14 +47,10 @@ missing.
 
 ## Ambiguous figures
 
-Where a figure has two possible versions, Tilde reports both and `pick` chooses
-between them. Two gaps:
-
-- **Choosing is per shape.** If a point has two possible positions and a number
-  is read from that point, picking the point does not pick the number to match.
-  They can end up describing different versions of the drawing.
-- **A number read from an ambiguous shape shows only its first value.** The
-  second is tracked but not displayed.
+Where a figure has two possible versions, Tilde draws and prints both. There is no
+way yet to choose one — `pick` went with the classic syntax and is on the
+[roadmap](/roadmap#to-bring-back-from-the-classic-syntax). Saying something more
+that rules one out is the only way to settle it.
 
 ---
 
@@ -100,8 +78,9 @@ to the other yet either.
 a triangle's corner, because a corner is a whole point. There is no `p.x` — see
 the roadmap for why that is harder than it looks.
 
-**Two numbers can be made the same number; two points cannot.** `r = w` works.
-`p = q` for points does not.
+**Two points said to be the same stay two points.** `p = q` holds them at no
+distance apart, drawn on top of each other, rather than making them one point —
+that waits on `=` learning to merge. (Two numbers, `r = w`, already are one.)
 
 **A definition's helper shapes are not drawn.** A name used only inside a
 definition ends when the definition finishes, and so does any way of showing what

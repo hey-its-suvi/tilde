@@ -1,238 +1,195 @@
 # Elements
 
-Elements are the building blocks you declare in Tilde — scalars, points, lines, segments, and triangles.
+Elements are the things a figure is made of — numbers, points, lines, circles,
+segments and triangles. Each is made by naming it:
+
+```
+import prelude
+
+point p
+line l
+circle c with center p and radius 2
+```
+
+A program starts with `import prelude`, which brings in every word on this page.
+None of them is built into the language: they are definitions, written in Tilde,
+and you can write your own the same way. How a line of a program is read is on
+[Reading a Line](/reading).
 
 ---
 
 ## Scalar
 
-A named value. Scalars can be used anywhere a number is expected — in coordinates, line equations, length constraints, and inline tuples.
+A named number. It can be given a value, or left for the solver to work out from
+the geometry.
+
+```
+scalar k = 5
+scalar r                  -- worked out from the figure
+```
+
+Giving a number two different values is a contradiction rather than a correction —
+the second does not replace the first. The number is left with no value it could
+take, and anything depending on it goes undrawn.
 
 ```
 scalar m = 2
-line a = (m, -1, 0)
-line b = (m, -1, -3)    # same slope, different intercept
+m = 3                     -- m cannot be both, so it has no value
 ```
 
-Scalars can reference other scalars and support forward declarations (use before the `scalar` statement appears).
+A number left open is worked out from what the figure says about it:
 
 ```
-point p = (k, 0)
-scalar k = 5            # p is placed at (5, 0)
+scalar r
+point o at 0 0
+point p at 3 4
+circle k with center o and radius r
+p on k
+print r                   -- r = 5
 ```
 
-Giving a scalar two different values is a contradiction rather than a correction — the second does not replace the first. The scalar is left with no value it could take, and anything depending on it goes undrawn.
-
-```
-scalar m = 2
-m = 3                   # m cannot be both, so it has no value
-```
-
-A scalar declared without a value is determined by the solver from geometric constraints.
-
-```
-scalar m
-line l = (m, -1, 0)
-point a = (0, 0)
-point b = (1, 3)
-a on l
-b on l                  # solver determines m = 3
-```
+A named number can stand wherever a number goes — a coordinate, a radius — and
+two shapes can share a size by sharing a name.
 
 ---
 
 ## Point
 
-An explicit point at exact world coordinates.
+```
+point p                   -- free: the solver places it
+point p at 3 5            -- at (3, 5)
+point p = (3, 5)          -- the same
+```
 
-```
-point p = (3, 5)
-```
+A pair of numbers in brackets is a point too, and can be used wherever a point
+goes without naming it: `line l through (1, 2) (3, 4)`.
 
 <TildeSketch source="
-point a = (0, 0)
-point b = (4, 0)
-point c = (2, 3)
-segment ab; segment bc; segment ca
+point a at 0 0
+point b at 4 0
+point c at 2 3
+segment a b
+segment b c
+segment c a
 " :cx="2" :cy="1.5" :zoom="1.2" :annotations="true"/>
 
 ---
 
 ## Line
 
-An infinite line declared as the implicit equation `ax + by + c = 0`, or as slope-intercept `(m, k)` meaning `y = mx + k`.
+An infinite line, drawn dashed across the view.
 
 ```
-line l = (1, 2, -3)    # x + 2y - 3 = 0
-line l = (2, 1)         # y = 2x + 1  →  2x - y + 1 = 0
+line l                    -- free: the solver places it
+line l through p q        -- the line through two points
+l through p               -- said of a line that already exists
 ```
 
-A line can also be declared **partially** — with one parameter left open. The missing value is filled in by the first placed point that lies on the line. If no such point exists, a canonical default is used.
+`parallel` and `perpendicular` relate a line to another; see
+[Constraints](/constraints). A line can be made and constrained in one go, and
+what follows is said about the line just made:
 
 ```
-line l = (2,)           # slope 2, intercept unknown
-line l = (, 1)          # y-intercept 1, slope unknown
-line l = (1, -1,)       # direction (1, −1) known, position unknown
+line l parallel m through p
 ```
-
-For slope-intercept form, `with slope` and `with intercept` are clearer alternatives. The `=` is optional — `with slope 2` reads the same as `with slope=2`.
-
-```
-line l with slope 2
-line l with intercept 1
-line l with slope 2 and intercept 1
-line l with slope=2, intercept=1     # = and comma both still work
-```
-
-These can be combined with `through`:
-
-```
-line l with slope 2 through p        # slope fixed, position determined by p
-```
-
-The bundled form lets a scalar be declared and assigned in the same statement as the line:
-
-```
-line l with slope m = 2              # same as: scalar m = 2; line l with slope=m
-line l with intercept k = 5
-line l with slope m = 2 and intercept k = 1
-```
-
-A partially declared line with no constraining point is drawn the same way as an underconstrained point — its position is a representative choice, not uniquely determined.
-
-Use `through` to declare that a line passes through one or more points. This is the mirror of `point p on line l` and can appear inline on the declaration or as a standalone statement.
-
-```
-line l through p
-line l through p, q       # comma-separated
-line l through p and q    # or with 'and'
-line l = (2,) through p   # combined with partial coefficients
-l through p               # standalone
-```
-
-Use `parallel` or `perpendicular` to constrain a line's direction relative to another line. These can appear inline on the declaration or as a standalone statement.
-
-```
-line l parallel m            # l has the same direction as m
-line l perpendicular m       # l is perpendicular to m
-l parallel m                 # standalone form
-l perpendicular m
-line l parallel line m       # optional 'line' hint
-```
-
-Add `at` to name the intersection point of two perpendicular lines, or to set the distance between two parallel lines:
-
-```
-line l perpendicular m at p  # l ⊥ m, p is placed at their intersection
-line l parallel m at 3       # l ∥ m, distance between them is 3
-                             # (produces two symmetric solutions)
-```
-
-Rendered as an infinite dashed line clipped to the viewport.
 
 <TildeSketch source="
-line l = (1, -1, 0)
-line m = (1, 1, -4)
+line l through (0, 0) (1, 1)
+line m through (0, 4) (4, 0)
 " :cx="2" :cy="2" :zoom="0.9"/>
 
 ---
 
 ## Circle
 
-A circle declared by its centre and radius.
+A circle by its centre and radius.
 
 ```
-circle c = (p, 3)           # centre p, radius 3
-circle c = ((2, 1), 4)      # centre at (2, 1), radius 4
-circle c                    # bare — centre at origin, radius 1
+circle c with center p and radius 3
+circle c with center (2, 1) and radius 4
+circle c with center p              -- radius left open
 ```
 
-The centre may be a named point or an inline `(x, y)` tuple. The radius can be a literal number or a scalar reference.
+The centre may be a named point or a bracketed one; the radius a number or a
+named number.
 
 ```
 scalar r = 5
-circle c = (p, r)
+circle c with center p and radius r
 ```
 
-A bare circle declaration `circle c` chooses a canonical centre and radius the same way bare points and segments do — centre at origin, radius 1.
+A circle needs a centre to be drawn — `circle c`, or `circle c with radius 3`,
+with no centre said, is not drawn yet.
 
-`with center` and `with radius` are clearer alternatives, and either parameter can be specified independently. The `=` is optional.
-
-```
-circle c with center p
-circle c with center=(5, 3)
-circle c with radius 3
-circle c with center p and radius 3
-```
-
-`with diameter` is sugar for `with radius` at half the value. Currently only literal numbers are accepted (no scalar references — there's no arithmetic on scalars yet).
+A point can be put on a circle with `on`. On one circle it can slide round it;
+on two circles, or a circle and a line, it is where they cross:
 
 ```
-circle c with diameter 6                  # same as: with radius 3
-circle c with center p and diameter 8     # same as: with center p and radius 4
+point a at 0 0
+point b at 4 0
+circle c1 with center a and radius 3
+circle c2 with center b and radius 5
+point p on c1
+p on c2                   -- p at (0, 3) or (0, −3)
 ```
 
-The bundled form declares a sub-element and binds it in the same statement:
+Three points known to lie on a circle fix it — its centre and radius are worked
+out:
 
 ```
-circle c with center p = (5, 3)      # same as: point p = (5, 3); circle c with center=p
-circle c with radius r = 4           # same as: scalar r = 4; circle c with radius=r
-circle c with diameter d = 6         # declares scalar d=6 (the diameter), sets r=3
-```
-
-Use `on` to constrain a point to lie on a circle. With one circle, the point sits on the circle's locus; with two circles (or a circle and a line) the point is placed at their intersection.
-
-```
-point a = (0, 0)
-point b = (4, 0)
-circle c1 = (a, 3)
-circle c2 = (b, 5)
-point p
-p on c1
-p on c2                     # p at (0, ±3)
-```
-
-A circle is also determined uniquely by any three points known to lie on it:
-
-```
-point a = (1, 0)
-point b = (-1, 0)
-point c = (0, 1)
+point a at 1 0
+point b at -1 0
+point c at 0 1
 point o
-circle k = (o, 1)
+scalar r
+circle k with center o and radius r
 a on k
 b on k
-c on k                      # o placed at (0, 0)
+c on k                    -- o is at (0, 0), r is 1
 ```
 
 ---
 
 ## Segment
 
-A segment between two vertices. The `= 5` form is shorthand for a length constraint.
+The straight piece between two points, drawn.
 
 ```
-segment ab
-segment ab = 5
-let segment ab = 5      # 'let' is optional sugar
+segment a b
+```
+
+Giving the two points a distance draws the segment too:
+
+```
+distance between a and b is 4
 ```
 
 <TildeSketch source="
-segment ab = 4
+point a
+point b
+distance between a and b is 4
 " :cx="2" :cy="0" :zoom="1.2" :annotations="true"/>
 
 ---
 
 ## Triangle
 
-Three vertices with segments `ab`, `bc`, `ca` registered automatically. Inline constraints follow `with ... and ...`.
+Three corners, with the three sides drawn. The corners are named when the
+triangle is made:
 
 ```
-triangle abc
-triangle abc with ab = 3 and bc = 4 and ca = 5
+triangle t with a b c
 ```
+
+The corners can also be reached through the triangle: `t.point1`, `t.point2`,
+`t.point3` are `a`, `b` and `c`.
 
 <TildeSketch source="
-triangle abc with ab = 3 and bc = 4 and ca = 5
-pick c 1
-" :cx="1.5" :cy="2" :zoom="0.8" :annotations="true"/>
+triangle t with a b c
+distance between a and b is 3
+distance between b and c is 4
+distance between c and a is 5
+" :cx="1.5" :cy="0" :zoom="0.6" :annotations="true"/>
+
+A 3-4-5 triangle can sit either side of `ab`, so `c` has two places it could
+be, and both are shown.
