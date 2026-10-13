@@ -26,6 +26,11 @@ export type Piece =
   | { kind: 'word'; token: Token }
   /** `text` is what was written, for error messages: `(1 , 2)`. */
   | { kind: 'value'; value: Value; text: string; col: number }
+  /** Words already read as a call, not yet run — what a line becomes while it
+   *  is being read left to right (decision 19). Usually one match; several
+   *  only when overloads that differ by return type all fit, which is an
+   *  ambiguity unless something later rules all but one out. */
+  | { kind: 'call'; matches: Match[]; text: string; col: number }
 
 /** A statement as written, one word piece per token. */
 export const piecesOf = (statement: string): Piece[] =>
@@ -36,6 +41,10 @@ export const piecesOf = (statement: string): Piece[] =>
 /** How a piece reads back, for error messages. */
 export const pieceText = (p: Piece): string =>
   p.kind === 'word' ? p.token.value : p.text
+
+/** The types a call could produce: one per match that returns something. */
+export const callTypes = (p: Extract<Piece, { kind: 'call' }>): string[] =>
+  p.matches.flatMap(m => (m.def.returns === null ? [] : [m.def.returns.name]))
 
 export const showPieces = (pieces: readonly Piece[]): string =>
   pieces.map(pieceText).join(' ')
@@ -59,10 +68,11 @@ export type Match = {
   bindings: Binding[]
 }
 
-/** A piece can fill a slot if it is a single atom — a name, a number, text, or
- *  a value a bracket produced. Operators and punctuation are not atoms. */
+/** A piece can fill a slot if it is a single atom — a name, a number, text, a
+ *  value a bracket produced, or a call already read. Operators and punctuation
+ *  are not atoms. */
 const isAtom = (p: Piece) =>
-  p.kind === 'value' ||
+  p.kind !== 'word' ||
   p.token.kind === 'WORD' || p.token.kind === 'NUMBER' || p.token.kind === 'STRING'
 
 /** Every definition whose pattern matches `statement` word-for-word, in table
@@ -71,16 +81,32 @@ export function matchStatement(statement: string | readonly Piece[], defs: reado
   const pieces = typeof statement === 'string' ? piecesOf(statement) : statement
   const matches: Match[] = []
   for (const def of defs) {
-    const bindings = matchPattern(def, pieces)
-    if (bindings) matches.push({ def, bindings })
+    const bindings = matchPattern(def, pieces, 0)
+    if (bindings && def.pattern.length === pieces.length) matches.push({ def, bindings })
   }
   return matches
 }
 
-/** Bindings if `def`'s pattern consumes exactly `pieces`, else null. */
-function matchPattern(def: Definition, pieces: readonly Piece[]): Binding[] | null {
+/** Every definition whose pattern matches the pieces starting at `start`,
+ *  whether or not it reaches the end. `length` is how many pieces it took. */
+export function matchAt(
+  pieces: readonly Piece[],
+  start: number,
+  defs: readonly Definition[],
+): { match: Match; length: number }[] {
+  const found: { match: Match; length: number }[] = []
+  for (const def of defs) {
+    const bindings = matchPattern(def, pieces, start)
+    if (bindings) found.push({ match: { def, bindings }, length: def.pattern.length })
+  }
+  return found
+}
+
+/** Bindings if `def`'s pattern matches the pieces from `start` on, else null.
+ *  It may stop short of the end; whole-line matching checks the length. */
+function matchPattern(def: Definition, pieces: readonly Piece[], start: number): Binding[] | null {
   const bindings: Binding[] = []
-  let i = 0
+  let i = start
 
   for (const part of def.pattern) {
     const piece = pieces[i]
@@ -98,6 +124,5 @@ function matchPattern(def: Definition, pieces: readonly Piece[]): Binding[] | nu
     i++
   }
 
-  if (i !== pieces.length) return null // statement had leftover pieces
   return bindings
 }

@@ -10,8 +10,8 @@ next starts.
 | 1 | A bracket's result stays a value, never text | done — `7c3f240` |
 | 2 | Remove `substitute`: a call's frame holds its values | done — see below |
 | 3 | Return type joins the signature; every fitting overload kept, exactly one must remain | done — see below |
-| 4 | The fold and the restart (one search) | next |
-| 5 | `=` returns nothing | |
+| 4 | The fold and the restart (one search) | done — see below |
+| 5 | `=` returns nothing | next |
 | 6 | The slot picks between return-type overloads; `Any` slots error | |
 | 7 | Shrink the prelude: delete the "make it, then say this about it" forms | |
 
@@ -246,32 +246,110 @@ changelog 0.3.61; version bump.
 
 ## Step 4 — the fold and the restart
 
-**After.** A line is read by one search:
-1. Start at the first word.
-2. Fold left to right: the longest pattern that matches from the start; its
-   result goes into the first slot of the next pattern (patterns that begin
-   with a slot); repeat. If the longest match fails its types, or the rest of
-   the line cannot continue from it, back off to the next shorter one.
-3. If the fold from the first word uses up the line, that is the reading.
-4. Otherwise start at the next word: whatever folds into a value there replaces
-   those words as a value piece, and reading starts again from the first word.
-5. If nothing works, the error is the one from the plain left-to-right attempt.
+**Before.** A line had to match one pattern word for word, end to end. Anything
+nested had to be in brackets, so `line l parallel m through p` never worked.
 
-Readings are type-checked before anything runs, using declared `=> T` return
-types; a name a call gives (an output, `new T`) is typed for the rest of the
-line. Then the chosen reading runs, inner calls first.
+**After.** A line is read into a tree of calls by one search, then run:
 
-**Planned changes:** a new `read.ts` (the search) beside `match.ts`;
-`resolve.ts` keeps per-pattern type fitting; `eval.ts` runs a reading tree
-instead of one match. `matchStatement` probably becomes "patterns matching a
-prefix of these pieces".
+1. From the first piece, find every pattern that matches there and fits the
+   types, grouped by how many pieces it takes, longest first.
+2. Take one: its pieces become a single *call* piece. Keep folding from the
+   same place, so that call fills the first slot of the next pattern.
+3. If a fold from the first piece leaves one call, that is the reading.
+   Otherwise back off — try the next shorter match at each step.
+4. If nothing from the first piece works, try from the second, third…: a fold
+   there that produces a value becomes one call piece, and the line is read
+   again from the start.
+5. Nothing reads: report the plain error, exactly as before.
 
-**Tests to add:** `line l parallel m through p`; `l parallel m through p`;
-`(line l) parallel m` read without brackets once declaring forms are absent
-(fixture table); a user override `line (l: new Line) parallel (m: Line)` winning
-by longest match; backing off from a Circle-only override; `print greeting`
-for a no-argument definition; `print 1 + 2`; `1 + 2 * 3` is 9; every existing
-test unchanged.
+Nothing runs while reading. Types come from what each definition promises
+(`=> T`); a name an output on the same line will give is typed by its `new T`.
+Before running, every call in the tree must be one definition — otherwise the
+line is ambiguous and nothing runs. Then the tree runs inner calls first, left
+to right.
+
+**Behaviour that changes:** chains read; `print 1 + 2` and `print greeting`
+work; arithmetic folds left to right (`2 + 3 * 4` is 20); `scalar r = 2 + 3`
+reads as `(scalar r = 2) + 3` and fails on the named number (step 5 fixes it).
+Every line that matched whole before reads the same, since a whole-line match
+is the longest match from the first piece.
+
+### File by file
+
+**`src/lang/defs/match.ts`**
+- `Piece` gains a third kind, `call`: matches (usually one; several when
+  overloads that differ by return type all fit), the text it was read from, and
+  its column.
+- `callTypes(call)`: the return types its matches promise.
+- `isAtom`: a call piece can fill a slot.
+- New `matchAt(pieces, start, defs)`: patterns matching from `start`, not
+  necessarily to the end, with how many pieces each took. `matchPattern` takes a
+  start and no longer insists on reaching the end; `matchStatement` checks the
+  length itself, so whole-line matching is unchanged.
+
+**`src/lang/defs/resolve.ts`**
+- `typesFit` exported, and takes `given` — names an earlier call on the line
+  will give, with their promised type. A word not in the store is looked up
+  there.
+- A call piece fits if any type it could return is compatible with the slot;
+  like a value, it never fills an output, `Name` or `Type` slot.
+
+**`src/lang/defs/read.ts`** (new)
+- `readLine(pieces, store, defs)` → the root call, or null.
+- `Reader.read`: from the first piece, the first fold leaving one call wins;
+  else restart from each later piece, requiring the folded call to return
+  something. Failed half-read states are remembered (`stateKey`: words, values,
+  call return types, names given), so a failing line is not retried
+  exponentially often.
+- `Reader.fold`: a generator — for each fitting match at `k`, longest first,
+  first the longer chains that grow from it, then the state with just it folded.
+- `matchesAt`: groups fitting matches by length; skips a one-slot pattern
+  applied to a call (it would wrap forever); spends one unit of a 20,000-step
+  budget, past which it throws `ReadError` ("too many possible readings — add
+  brackets").
+- `give`: after a settled call, names its outputs promise (not `new Any`) join
+  `given`.
+
+**`src/lang/defs/eval.ts`**
+- `evalPieces`: after the params swap, `readLine`. No reading → the old
+  `resolveStatement` path, which throws today's error. A reading → `settled`
+  (every call one definition, or `"…" is ambiguous`, before anything runs) →
+  `runCall`.
+- `runCall`: runs the calls in a match's slots first, left to right, turning
+  each result into a value piece, then `evalMatch`.
+- `evalMatch` refuses a call piece that was never run (cannot happen; a guard).
+
+**Tests**
+- New `read.test.ts`, 13 tests: chaining with a declaring form and on existing
+  lines; `(line l) parallel m` with only `core` imported; an override winning
+  by longest match; backing off from a Circle-only override; arithmetic left to
+  right; a name given earlier on the line typed for a later slot; `print 1 + 2`;
+  `print greeting`; an ordinary line untouched; the plain error for no reading;
+  the plain error for a long failing line (not the budget error); ambiguity
+  between return-type overloads reported before running.
+- Checked by breaking things: without `given`, the same-line-name test fails;
+  with shortest-first instead of longest-first, the override test fails.
+- `arithmetic.test.ts`: "needs brackets" replaced by "folds left to right"
+  (`(2 + 3 * 4)` is 20, `(10 - 2 - 3)` is 5) and a test pinning
+  `scalar r = 2 + 3` failing on the named number until step 5.
+
+**Docs:** `limitations.md` and `roadmap.md` no longer say arithmetic needs
+brackets; `roadmap.md` no longer says same-words-different-return is rejected
+(stale since step 3). Changelog 0.3.62, version bump. Decision 19 points here.
+
+### Things worth a reviewer's eye
+- **Editor highlighting** (`highlight.ts`) still aligns a line against one
+  pattern, so a chained line colours only as far as its first pattern. Not
+  changed here.
+- **The restart only takes a fold that returns something.** A span returning
+  nothing cannot stand in for words — that is what lets step 5's `=` work.
+- **`given` only records settled calls.** If a call is still ambiguous, its
+  outputs are not typed for the rest of the line.
+- **The memo keys calls by return types, not by how they were built.** Safe
+  because only failures are remembered, and whether a half-read line can still
+  be read depends only on those types.
+- **Timing:** a 17-piece failing arithmetic line takes ~11 ms; without the memo
+  it ran out of budget.
 
 ## Step 5 — `=` returns nothing
 

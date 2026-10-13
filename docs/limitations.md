@@ -85,8 +85,9 @@ classic one and does less.
 
 **Arithmetic works only on numbers written out.** `scalar r = ((2 + 3) * 4)` is
 20, but `(k + 1)` with a named `k` is refused — a named number is worked out after
-the arithmetic runs, so there is nothing to add yet. There is also no precedence:
-`2 + 3 * 4` needs brackets to say which comes first.
+the arithmetic runs, so there is nothing to add yet. There is also no precedence
+yet: arithmetic is read left to right like the rest of a line, so `2 + 3 * 4` is
+`(2 + 3) * 4`, which is 20. Brackets say otherwise: `2 + (3 * 4)`.
 
 **Brackets are worked out from the inside alone.** `line l through (1,2) (3,4)`
 works, because each group can only mean one thing. A group that could mean two —

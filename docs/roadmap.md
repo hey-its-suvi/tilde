@@ -110,8 +110,8 @@ Two things make it harder than it looks:
   knowing what the surrounding statement expects — `is` wants a Boolean, so the
   inner one must be the Boolean form. Working that out means carrying an
   expectation inward, where today a statement is settled purely by the kinds of
-  things named in it. Two definitions that differ only in their answer are also
-  currently rejected as duplicates.
+  things named in it. Two definitions that differ only in their answer can now
+  both be written; what is missing is the expectation that picks one.
 - **It needs the slot to decide.** Brackets now nest, but a group is worked out
   from the inside alone. `is (a parallel b)` needs the outer `is` to say which
   `parallel` it wants — see *Letting the slot decide* below.
@@ -125,7 +125,8 @@ is *twice* another rather than equal to it.
 **Precedence** is planned as a fixed table on the symbols — `* /` before `+ -`,
 the way ordinary maths reads — applied by inserting brackets before a statement
 is matched. Definitions keep giving the symbols their meaning; nothing about
-matching or dispatch changes. Until then, brackets are required.
+matching or dispatch changes. Until then, arithmetic is read left to right like
+the rest of a line: `2 + 3 * 4` is `(2 + 3) * 4`.
 
 Two halves, and they can be taken separately. Writing the expression is the small
 one. Solving it is the large one: a size given as `2 * r` has to work backwards

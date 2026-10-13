@@ -24,7 +24,8 @@ import { Scope, type Key } from './scope.js'
 import { DataStore } from './data.js'
 import { lexHeader, type Token } from './lexer.js'
 import { groupTokens, type Node } from './tree.js'
-import { resolveStatement, resolvePath, keyOf, NAME, TYPE, ANY, BUILT_IN_TYPES, form, type Frame, type Param, type Store } from './resolve.js'
+import { resolveStatement, resolvePath, keyOf, ResolutionError, NAME, TYPE, ANY, BUILT_IN_TYPES, form, type Frame, type Param, type Store } from './resolve.js'
+import { readLine, type Call } from './read.js'
 import { piecesOf, showPieces, type Match, type Piece } from './match.js'
 import { isText, type Text, type Value } from './values.js'
 import { loadModule, type HomeMap, type Loaded, type Registry, type TypeMap } from './modules.js'
@@ -182,7 +183,35 @@ function evalPieces(
   depth: number,
 ): Value {
   const read = pieces.map(p => withParam(p, ctx.store.current.params))
-  return evalMatch(resolveStatement(read, ctx.store, scope), scope, ctx, depth)
+  const call = readLine(read, ctx.store, scope)
+  // No reading at all: say what is wrong with the line read plainly, as a whole
+  // — that is what its writer most likely meant, and what today's errors
+  // describe.
+  if (call === null) return evalMatch(resolveStatement(read, ctx.store, scope), scope, ctx, depth)
+  settled(call)
+  return runCall(call, scope, ctx, depth)
+}
+
+/** Every call in a reading must mean one definition. Checked before anything
+ *  runs, so an ambiguous line adds nothing to the drawing. */
+function settled(call: Call): void {
+  if (call.matches.length > 1) {
+    const list = call.matches.map(m => `\`${form(m)}\``).join(', ')
+    throw new ResolutionError(`"${call.text}" is ambiguous: ${list}`)
+  }
+  for (const b of call.matches[0]!.bindings) if (b.piece.kind === 'call') settled(b.piece)
+}
+
+/** Run a call read from a line: the calls in its slots first, left to right,
+ *  each handing its value on as a value piece; then the call itself. */
+function runCall(call: Call, scope: readonly Definition[], ctx: Context, depth: number): Value {
+  const m = call.matches[0]!
+  const bindings = m.bindings.map(b => {
+    if (b.piece.kind !== 'call') return b
+    const value = runCall(b.piece, scope, ctx, depth + 1)
+    return { ...b, piece: { kind: 'value' as const, value, text: b.piece.text, col: b.piece.col } }
+  })
+  return evalMatch({ def: m.def, bindings }, scope, ctx, depth)
 }
 
 /** A word naming one of the running call's parameters stands for what the
@@ -253,6 +282,7 @@ function evalMatch(m: Match, scope: readonly Definition[], ctx: Context, depth: 
       else if (value !== null) params.set(b.slot, { kind: 'value', value })
       continue
     }
+    if (b.piece.kind === 'call') throw new EvalError(`"${b.piece.text}" was never run`)
     const token = b.piece.token
     if (token.kind === 'NUMBER') {
       env.set(b.slot, Number(token.value))

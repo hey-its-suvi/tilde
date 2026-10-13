@@ -10,7 +10,7 @@
 // its signature. `triangle t with a b c` declares four names, and the only way
 // to know that is to run `point a`, `point b`, `point c`, `t holds a b c`.
 
-import { matchStatement, piecesOf, showPieces, literalType, type Match, type Piece } from './match.js'
+import { matchStatement, piecesOf, showPieces, literalType, callTypes, type Match, type Piece } from './match.js'
 import type { Text, Value } from './values.js'
 import type { TypeMap } from './modules.js'
 import { typeText, type Definition } from './types.js'
@@ -215,9 +215,20 @@ export function resolveStatement(
 /** Every value slot must be filled by a declared name of a compatible type, or
  *  by a literal the slot accepts. An output or a `Name` slot takes any word —
  *  whether giving that name is legal is evaluation's call. A `Type` slot takes a
- *  word that is a known type. */
-function typesFit(m: Match, store: Store): boolean {
+ *  word that is a known type.
+ *
+ *  `given` holds names an earlier call on the same line will give, with the
+ *  type it promises. Nothing has run yet while a line is being read, so they
+ *  are not in the store; by the time this call runs, they will be. */
+export function typesFit(m: Match, store: Store, given: ReadonlyMap<string, string> = new Map()): boolean {
   for (const b of m.bindings) {
+    // A call already read fits by what it promises to return. Like a value, it
+    // is never a word.
+    if (b.piece.kind === 'call') {
+      if (b.type.output || b.type.name === NAME || b.type.name === TYPE) return false
+      if (!callTypes(b.piece).some(t => compatible(t, b.type.name))) return false
+      continue
+    }
     // A value already worked out fits by its own type. It is never a word, so it
     // cannot be a name being given, a plain word, or a type's name.
     if (b.piece.kind === 'value') {
@@ -247,8 +258,9 @@ function typesFit(m: Match, store: Store): boolean {
       continue
     }
     const found = resolvePath(token.value, store)
-    if (found === null) return false
-    if (!compatible(found.type, b.type.name)) return false
+    const type = found?.type ?? given.get(token.value)
+    if (type === undefined) return false
+    if (!compatible(type, b.type.name)) return false
   }
   return true
 }

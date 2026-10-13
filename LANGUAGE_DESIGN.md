@@ -720,8 +720,8 @@ solver's set semantics. See "Possible values" for the larger picture.
 
 ### 19. Reading a line: left to right, longest match first
 
-Decided, not built. Replaces "a line is matched word for word against whole
-patterns", which is why `line l parallel m through p` — decision 4b's own
+Decided; being built in steps — see `plans/decision-19.md`. Replaces "a line is
+matched word for word against whole patterns", which is why `line l parallel m through p` — decision 4b's own
 example — has never actually worked: no single pattern spans it.
 
 **The fold.** Take the longest pattern that matches from the start of the line.

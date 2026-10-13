@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.3.61 — current
+## 0.3.62 — current
+
+- **A line is read left to right.** The longest definition that matches from the start is taken, and what it gives fills the first slot of whatever comes next. So statements chain: `line l parallel m through p` is `((line l) parallel m) through p`, and `l parallel m through p` works on lines that already exist.
+- **A longer definition wins.** Write your own `define line (n: new Line) parallel (m: Line)` and `line l parallel m` uses it, rather than `line l` and then `… parallel m`. If yours does not fit the types — say it takes a Circle — the shorter reading is used instead.
+- **When nothing reads from the start, a later word is tried.** `print 1 + 2` prints 3: `print 1` cannot be followed by `+ 2`, so `1 + 2` is read first and printed. This is also how a definition that takes nothing is used: `print greeting`.
+- **Arithmetic reads left to right** until it has precedence: `2 + 3 * 4` is 20, no longer an error asking for brackets.
+- `scalar r = 2 + 3` now reads as `(scalar r = 2) + 3` and is refused for adding to a named number. That changes once `=` stops handing back what it names.
+
+## 0.3.61
 
 - **The same words can be defined with different return types.** `define pair (x: Scalar) (y: Scalar) => Point` and `… => Scalar` are two definitions rather than one defined twice. Standing alone, a line that fits both is ambiguous; choosing by where it is used comes later.
 - Shadowing follows suit: your own `… => Point` replaces an imported `… => Point`, but not an imported `… => Line`.
