@@ -6,23 +6,19 @@ This also means the solver fails loudly when constraints are inconsistent, rathe
 
 ## The solver flow
 
-Every time you edit a program, the solver runs three stages in sequence. The middle stage is a loop that keeps placing elements until nothing else can be placed.
+Every time you edit a program, it is read and run against its definitions, which
+hand the solver a set of elements and constraints. The solver builds a model from
+them, then runs a loop that keeps placing elements until nothing else can be
+placed.
 
 ```mermaid
 flowchart TD
-    A([Program AST]) --> P0
-
-    P0["Unit Resolution
-    Determine the active unit.
-    Use explicit 'set unit', or
-    infer it from the first suffixed length."]
-
-    P0 --> P1
+    A([Program, read against its definitions]) --> P1
 
     P1["Constraint Model
-    Register all shapes, lines, and points.
-    Apply length, on-line, on-segment constraints.
-    Record pick statements."]
+    Register every point, line, circle and number.
+    Apply lengths, on-line, on-circle,
+    parallel and perpendicular constraints."]
 
     P1 --> L
 
@@ -53,7 +49,6 @@ The loop runs until neither phase fires. Whatever's left in the model becomes th
 
 ## Pages
 
-- [Unit Resolution](./unit-resolution) — how Tilde decides what a bare number means
 - [Constraint Model](./constraint-model) — the graph of vertices, lengths, and relationships the solver works from
 - [Anchor](./anchor) — degrees of freedom and how the solver picks a canonical position when one is free
 - [Placement](./placement) — the propagate/pick loop and the rules that place each vertex and complete each line

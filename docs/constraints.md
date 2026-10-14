@@ -1,207 +1,142 @@
 # Constraints
 
-Constraints express geometric relationships between elements. They can appear as standalone statements or inline after `with ... and ...` on a shape declaration.
+Constraints say how elements relate: how far apart two points are, which line a
+point is on, which way a line runs. Each is a line of the program on its own, or
+follows on from the line before it in the same sentence:
 
 ```
-triangle abc with ab = 3 and bc = 4 and ca = 5   # inline
-ab = 3                                             # standalone
+line l parallel m          -- make l, then: l is parallel to m
+l through p                -- said on its own
+line l parallel m through p
+```
+
+A constraint gives back the thing it was said about, which is what lets the next
+one in the sentence be about the same thing. How a line is read is on
+[Reading a Line](/reading).
+
+---
+
+## Position
+
+Puts a point at given coordinates.
+
+```
+p at 3 5
+point p at 3 5             -- make p and put it there
+point p = (3, 5)           -- the same
 ```
 
 ---
 
-## Length
+## Distance
 
-Sets the distance between two vertices. Units are optional — omitting them uses abstract units.
+Fixes the distance between two points, and draws the segment between them.
 
 ```
-ab = 5
-ab = 5cm
-ab = 5mm
-ab = 2.5in
+distance between a and b is 5
 ```
-
-Available units: `cm`, `mm`, `m`, `in`, `inches`.
 
 <TildeSketch source="
-triangle abc with ab = 3 and bc = 4 and ca = 5
-pick c 1
-" :cx="1.5" :cy="2" :zoom="0.8" :annotations="true"/>
+triangle t with a b c
+distance between a and b is 3
+distance between b and c is 4
+distance between c and a is 5
+" :cx="1.5" :cy="0" :zoom="0.6" :annotations="true"/>
 
 ---
 
-## Coincidence
+## Same point
 
-Declares that two vertices occupy the same position.
+Two points are the same point.
 
 ```
-a = b
+p = q
 ```
+
+For now they are held at no distance apart — still two points, drawn on top of
+each other.
 
 ---
 
-## On and through — the matrix
+## On a line
 
-Two operators express positional constraints between elements:
-
-- **`X on Y`** — X (a point) lies on Y (a locus: line, segment, circle).
-- **`X through Y`** — X (a line or circle) passes through Y (a point).
-
-Both are forms of the same underlying relation. They desugar to the same internal constraint at parse time, so the choice is purely about readability: `point p on line l` and `line l through point p` say the same thing.
-
-Here's what each pair of LHS/RHS element types means:
-
-| LHS / RHS | point | line | circle | segment |
-|---|---|---|---|---|
-| **point on …** | — | point on line | point on circle | point on segment |
-| **line on …** | (error: line isn't a point) | — | — | — |
-| **circle on …** | (error) | circle's **centre** is on line | (error — not supported) | circle's **centre** is on segment |
-| **line through …** | line passes through point | — | line passes through circle's **centre** | — |
-| **circle through …** | circle passes through point | — | (error — not supported) | — |
-
-The non-empty cells are the constraints you can write. Everything else is rejected at elaboration.
-
-**Circle conventions.** When a circle name appears in a `point` position (the LHS of `on`, or the RHS of `through`), it stands in for its centre. So:
-
-```
-c on l         # c's centre is on l
-l through c    # same constraint, read from l's side
-c on ab        # c's centre is on segment ab
-l through c, d # both c's and d's centres are on l
-```
-
-Two circles can't relate this way: `c1 on c2` and `c1 through c2` are rejected because there's no obvious one-point reading. (To express "the centre of c1 lies on c2" you'd write `c1.center on c2` — though there's no such syntax today; you can express it by giving the circle a named centre point and constraining that point directly.)
-
----
-
-## On-line
-
-Constrains a point to lie on a named line. The point's position along the line is underconstrained unless a distance to a known neighbor pins it down.
+A point lies on a line. Its place along the line is open unless something else
+pins it down.
 
 ```
 p on l
-p on line l
-point p on l
-point p on line l
+point p on l               -- make p on l
 ```
 
-The same constraint can be expressed from the line's side using `through`:
+The same thing said from the line's side:
 
 ```
-line l through p          # inline on the line declaration
-line l through p, q       # multiple points inline
-l through p               # standalone statement
+l through p
+line l through p q         -- make the line through two points
 ```
-
-All forms are equivalent — `through` is desugared to `on` at parse time.
 
 <TildeSketch source="
-line l = (1, -1, 0)
-point a = (0, 0)
-b on l
-ab = 3
-pick b 1
+line l through (0, 0) (1, 1)
+point a at 0 0
+point b on l
+distance between a and b is 3
 " :cx="1.5" :cy="1.5" :zoom="1.1" :annotations="true"/>
+
+`b` can be 3 from `a` on either side of it along `l`, so both places are shown.
 
 ---
 
-## On-circle
+## On a circle
 
-Constrains a point to lie on a circle. With one circle, the point's position along the circle is underconstrained; combine with a second locus (line or another circle) to pin it down.
+A point lies on a circle. On one circle it can slide round; with a line or a
+second circle it is where they cross.
 
 ```
 p on c
 point p on c
 ```
 
-The same constraint can be expressed from the circle's side using `through`:
-
-```
-circle c through p             # inline on the circle declaration
-circle c = (o, 1) through p, q # multiple points inline
-c through p                    # standalone statement
-```
-
-When three or more points are known to lie on the same circle, the circle's centre and radius are uniquely determined and the solver places them automatically.
-
-A circle written in a point position — `c on l` or `l through c` — stands in for its **centre**. See [On and through — the matrix](#on-and-through-the-matrix) above.
-
----
-
-## On-segment
-
-Constrains a point to lie somewhere on a segment. Its position along the segment is always underconstrained — free to be anywhere on it. Multiple underconstrained points on the same segment are distributed evenly.
-
-```
-p on ab
-p on segment ab
-point p on ab
-```
-
-<TildeSketch source="
-segment ab = 6
-p on ab
-q on ab
-r on ab
-" :cx="3" :cy="0" :zoom="1.1"/>
-
----
-
-## Equality
-
-::: info Coming soon
-Two segments share the same length without specifying a value.
-
-```
-ab = cd
-```
-:::
-
----
-
-## Angle
-
-::: info Coming soon
-Sets the interior angle at a vertex.
-
-```
-angle abc = 90
-angle abc = 1.571rad
-```
-
-Available units: `deg`, `rad`. Required for squares, rectangles, and right-angle constructions.
-:::
+When three or more points are known to lie on the same circle, its centre and
+radius are worked out. See [Circle](/elements#circle).
 
 ---
 
 ## Parallel
 
-Constrains two lines to have the same direction.
+Two lines run the same way.
 
 ```
 l parallel m
-line l parallel m         # inline on the line declaration
-line l parallel line m    # optional 'line' hints
+line l parallel m          -- make l parallel to m
 ```
 
-Add `at` to specify the distance between the lines. This produces two symmetric solutions — one on each side.
+Add `at` for the distance between them. That has two answers, one on each side.
 
 ```
-line l parallel m at 3    # l is 3 units from m (two solutions)
+l parallel m at 3
 ```
 
 ---
 
 ## Perpendicular
 
-Constrains two lines to meet at a right angle.
+Two lines meet at a right angle.
 
 ```
 l perpendicular m
-line l perpendicular m    # inline on the line declaration
+line l perpendicular m
 ```
 
-Add `at` to name the intersection point — it is placed exactly at the crossing of the two lines.
+Add `at` to name where they cross:
 
 ```
-line l perpendicular m at p   # l ⊥ m, p is their intersection
+l perpendicular m at p     -- p is on both
 ```
+
+---
+
+## Coming back
+
+Angles, a point on a segment and a few other constraints went with Tilde's older
+syntax and are not here yet. They are listed on the
+[roadmap](/roadmap#to-bring-back-from-the-classic-syntax).

@@ -1,5 +1,5 @@
 // ─── Tilde Solver Entry Point ─────────────────────────────────────────────────
-// Pipeline: AST → elaborate → solve → scene graph.
+// Pipeline: .til source → definitions → ConstraintSet → solve → scene graph.
 //
 // One Solver class powers everything. The only swappable bit is the
 // PickStrategy — the policy for canonicalising gauges and choosing arbitrary
@@ -13,8 +13,6 @@
 //   'budget' — BudgetPick: explicit per-axis gauge accounting (point-only;
 //              line cases still defer to the rule-default fallback).
 
-import { Program } from '../ast.js'
-import { elaborate } from '../elaborate.js'
 import { Solver } from './solver.js'
 import type { SolveResult } from './interface.js'
 import { GeometricPropagate } from './propagate/geometric/index.js'
@@ -51,18 +49,9 @@ export function getPick(): PickName {
   return activePick
 }
 
-export function solve(program: Program): { scene: SceneGraph; config: RenderConfig } {
-  const { constraintSet, config } = elaborate(program)
-  const result = activeSolver.solve(constraintSet)
-  const scene = buildSceneGraph(result)
-  return { scene, config }
-}
-
-// ─── The definition pipeline ─────────────────────────────────────────────────
-// The other front end: .til source → definitions → ConstraintSet, bypassing
-// `lexer`/`parser`/`elaborate` entirely. It meets this file at the same seam
-// (a ConstraintSet handed to the same Solver), so the pick strategy applies
-// identically and the scene graph is built the same way.
+// ─── From source ─────────────────────────────────────────────────────────────
+// .til source → definitions → ConstraintSet, handed to the Solver; the scene
+// graph is built from what it solves.
 //
 // Config starts from the default and takes whatever `set` lines chose. Each
 // on/off setting in the prelude is named after the RenderConfig field it sets.

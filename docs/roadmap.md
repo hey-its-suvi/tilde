@@ -147,17 +147,76 @@ cannot decide, and asks for the thing to be named first. Still to come: `=` pass
 the type of one side across to the other, which needs `=` to say both sides are
 the same kind of thing.
 
-### Settings and picking
-`pick` and `set unit` work in the classic syntax and have no definition-syntax
-equivalent yet. On/off settings (`grid`, `axes`, `origin`, `subscripts`) exist,
-as `set (s: Name) on` / `off` in the prelude backed by a `setting()` call. `set
-unit` takes a value rather than on/off, so it needs its own definition. Still to
-decide: whether it has to come before the geometry, as it does in the classic
-syntax.
+### Settings
+On/off settings (`grid`, `axes`, `origin`, `subscripts`) exist, as
+`set (s: Name) on` / `off` in the prelude backed by a `setting()` call. A setting
+that takes a value — units, winding — needs its own kind of definition; see below.
 
-### Retiring the classic front end
-Both syntaxes run side by side today. The older one is still what `solve()` uses
-and what the docs describe.
+### To bring back from the classic syntax
+Tilde used to have a second syntax, with its own hand-written grammar. It was
+removed in 0.3.67, and with it went everything below. Each needs a definition
+(or more) in the prelude, and some need language design first. The solver
+still supports the ones marked *solver ready* — only the way to write them
+went.
+
+**Need design first**
+
+- **`pick`** — `pick p 1` chose one of several positions for something with more
+  than one. It acts on the possible answers rather than on one figure, so it is
+  not an ordinary definition.
+- **Units** — `set unit cm` / `mm` / `m` / `in`, `set unit degrees` / `radians`,
+  and numbers written with a unit: `5cm`, `60deg`. Needs numbers with a suffix,
+  and a setting that takes a value rather than on/off. In the classic syntax
+  `set` had to come before any geometry; whether that rule is wanted is open.
+- **`set winding clockwise`** — which way round a triangle's corners go. A
+  setting that takes a value, like units.
+- **Named segments** — `segment ab = 5`, then `ab = 5` as a length. Today
+  `distance between a and b is 5` says the length and `segment a b` draws it,
+  but a segment is not a thing with a name. Wants a Segment type.
+- **Name shorthand** — `triangle abc` made corners `a`, `b`, `c`; a name that
+  could not be split gave `t_1`, `t_2`, `t_3`, with edges `t_1_2` and angles
+  `angle t_2`. Today: `triangle t with a b c`, and `t.point1`. Whether the
+  shorthand is wanted at all is a design question.
+
+**Solver ready**
+
+- **Angles** — `angle abc = 60`: the angle at `b`, from `a` to `c`.
+- **Lines by equation** — `line l = (m, k)` for y = mx + k, `line l = (a, b, c)`
+  for ax + by + c = 0, part-known forms like `(2,)` (slope only) and `(, 1)`
+  (intercept only), and `with slope 2, intercept 1`. Today a line is placed only
+  through points or by relations; tests write a known line as the line through
+  two placed points.
+- **A point on a segment** — `a on ab`.
+- **Part-placed points** — `point p = (5,)`, x known and y not. Can be said today
+  with a named number (`scalar y`, `point p at 5 y`), less directly.
+
+**Smaller**
+
+- **Circle diameter** — `circle c with diameter 6`.
+- **A circle standing for its centre** — `c on l` put the centre on `l`;
+  `l through c` likewise. Today: name the centre and say `o on l`.
+- **Writing several things at once** — `with … and …` after a declaration,
+  comma lists (`l through p, q`), `;` between statements. `#` comments (now `--`)
+  and `let` (which did nothing) are not worth bringing back.
+- **Using a name before it is made** — the classic syntax allowed a number or a
+  point to be used on a line above the one that made it.
+
+**Found while moving the tests over**
+
+- **A circle with nothing said about it is not drawn.** `circle c` alone makes a
+  circle with no centre, which the solver cannot place, so it is never drawn and
+  prints as not known. The classic syntax quietly gave it a free centre. Doing
+  that in the prelude needs care: `circle c with center p` would then give the
+  circle two centres.
+- **The solver's handling of unnamed things is out of reach.** The solver treats
+  an element whose name starts with `_` as unnamed — a bracketed point, a
+  circle's hidden centre — and lets it give way to named ones when placing free
+  things. The definition syntax names elements `Point#1`, never `_…`, so none of
+  that applies to it. Three circle tests depending on it were dropped.
+- **A named free centre with two placed points on the circle is refused**
+  ("placed points are not equidistant from centre") instead of being worked out:
+  the free centre is placed before the points on the circle are taken into
+  account.
 
 ---
 

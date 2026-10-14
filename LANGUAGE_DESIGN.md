@@ -1520,5 +1520,7 @@ Built recently, each covered by tests and the changelog:
 - `(c: Circle) with center (p) and radius (r)` for an existing circle.
 - `print` for declared types, through their fields.
 - `pick`, `set unit`, `set grid` in the definition syntax.
-- Retiring the classic front end (`solve()`, `elaborate.ts`).
+- ~~Retiring the classic front end (`solve()`, `elaborate.ts`).~~ Done in 0.3.67;
+  what went with it is listed on the roadmap (*To bring back from the classic
+  syntax*).
 - The pure scalar model — deliberately deferred.

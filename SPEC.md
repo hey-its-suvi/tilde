@@ -1,6 +1,10 @@
 # Tilde Language Specification
 > Version 0.1 — Draft
 
+> **Historical.** This describes the classic syntax, removed in 0.3.67. Tilde is
+> now read entirely from definitions — see `LANGUAGE_DESIGN.md` for the design and
+> `docs/reference.md` for the language as it stands. Kept for the record.
+
 ---
 
 ## 1. Overview

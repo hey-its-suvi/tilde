@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.3.66 — current
+## 0.3.67 — current
+
+- **The classic syntax is gone.** There is one Tilde now: the one that reads its words from definitions. The playground no longer has a syntax picker, and its starting example has been rewritten (the old one no longer ran).
+- **The docs are rewritten for it.** Getting Started, Elements, Constraints, Settings, the Language Reference and the Certainty page now use the language as it is, with every example checked to run; the Pick and Unit Resolution pages are gone.
+- Gone with it, for now: `pick`, units (`set unit`, `5cm`, `60deg`), `set winding`, angles, lines by equation (`line l = (m, k)`), a point on a segment, part-placed points (`(5,)`), named segments, `triangle abc` name splitting and `t_1` / `t_1_2` subscripts, circle diameter, `with … and …` lists, comma lists and `;`. Each is listed on the roadmap with what it needs to come back.
+
+## 0.3.66
 
 - **The prelude no longer defines `point p at x y`, `point p on l`, `circle c with center p`, `circle c with radius r`, `line l parallel m` or `line l perpendicular m`.** They all still work, exactly as before: each reads as `point p` (or `line l`, `circle c`) and then what is said about it. Your own definition of any of them now wins simply by being longer.
 - A line that cannot be read now says why from as far as it got: `point p on q`, with `q` unknown, reports that no `on` fits `point p on q`, listing the ones it tried.

@@ -29,4 +29,4 @@ The direction vector of the line is `(−b, a)` and the normal is `(a, b)`.
 
 ### Partial declarations
 
-When a line is declared with some parameters left open (e.g. `line l = (1,)` — slope known, intercept unknown), the missing coefficients are `null` during solving and filled in as constraints are applied or canonical defaults are chosen.
+A line's coefficients can be partly known while solving — a direction known from `parallel` but no position yet, say. The missing coefficients are `null` and filled in as constraints are applied or canonical defaults are chosen.

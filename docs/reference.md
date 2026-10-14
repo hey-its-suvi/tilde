@@ -1,231 +1,129 @@
 # Language Reference
 
-Complete listing of valid Tilde syntax. Entries marked _(not yet implemented)_ parse without error but have no effect.
+Everything Tilde accepts. The language itself has very few words; nearly all of
+what a program says comes from definitions, most of them in the prelude.
 
 ## General
 
-- `let` is optional before any declaration — `let segment ab` and `segment ab` are identical
-- Statements are separated by newlines or semicolons (`;`)
-- `#` starts a line comment
+- One statement per line. A line that starts at the left edge is a statement or
+  the start of a definition; indented lines belong to the definition above.
+- `--` starts a comment, to the end of the line.
+- Names are letters, digits and `_`, may end in primes (`l'`, `A''`), and may be
+  paths into a shape's parts (`t.point1`).
+- Text is written in double quotes: `"hello"`.
+- Numbers may be negative and have a decimal point: `-2.5`.
+- Brackets group: what is inside is worked out first.
+- A line is read left to right — see [Reading a Line](/reading).
 
 ---
 
-## Settings
+## The language's own words
 
-Must appear before any geometry declarations.
-
-```
-set unit cm           # cm | mm | m | in | inches | unit
-set unit degrees      # degrees | radians
-set grid on           # on | off
-set winding clockwise # clockwise | counterclockwise
-```
-
-If `set unit` is omitted, the active unit is inferred from the first length that carries a unit suffix. If no suffixed length exists, lengths are abstract numbers.
-
----
-
-## Declarations
-
-### Point
-
-```
-point a               # free vertex — solver places it
-point a = (1, 2)      # fixed at (1, 2)
-```
-
-### Line
-
-```
-line l                # defaults to y = x
-line l = (m, k)       # y = mx + k
-line l = (a, b, c)    # ax + by + c = 0
-```
-
-### Segment
-
-A segment name is either a **2-character all-distinct lowercase** name (decompose mode) or any other name (subscript mode).
-
-```
-segment ab            # decompose: vertices a and b
-segment ab = 5        # decompose: vertices a and b, length 5
-segment ab with <constraints>
-
-segment s             # subscript: vertices s_1 and s_2
-segment hello         # subscript: vertices hello_1 and hello_2
-```
-
-### Triangle
-
-A triangle name is either a **3-character all-distinct lowercase** name (decompose mode) or any other name (subscript mode).
-
-```
-triangle abc          # decompose: vertices a, b, c — sides ab, bc, ca
-triangle abc with <constraints>
-
-triangle t            # subscript: vertices t_1, t_2, t_3 — sides t_12, t_23, t_31
-triangle hey          # subscript: all chars same length but repeated → subscript
-```
-
-### Naming modes
-
-**Decompose mode** — the name is split into individual vertex characters:
-- Segment: exactly 2 characters, all lowercase, all distinct
-- Triangle: exactly 3 characters, all lowercase, all distinct
-
-Any name that does not meet the criteria for decompose mode uses **subscript mode**, where the name becomes a label and vertices are `name_1`, `name_2`, etc.
-
-Repeated characters (e.g. `triangle aba`) force subscript mode.
-
-### Other shapes _(not yet implemented)_
-
-```
-square abcd
-rectangle abcd
-polygon 5 abcde
-```
-
-These parse but register nothing in the solver.
-
----
-
-## Constraints
-
-Constraints can appear in two places:
-
-- **Standalone** — as their own statement
-- **Inline** — after `with` in a declaration, joined by `and`
-
-```
-triangle abc with ab = 3 and bc = 4 and ca = 5
-```
-
-### Length
-
-```
-ab = 5
-ab = 5cm             # with unit suffix
-ABC_12 = 5           # subscript segment
-```
-
-### Angle
-
-```
-angle abc = 60       # angle at b, measured from a to c
-angle abc = 60deg    # with unit suffix
-angle ABC_2 = 90     # subscript angle at vertex 2
-```
-
-### Position
-
-```
-a = (1, 2)           # place vertex a at (1, 2)
-```
-
-If `a` is already placed at the same position, this is a no-op. If `a` is placed at a different position, it throws a constraint error.
-
-### On-line
-
-```
-a on l               # vertex a lies on named line l
-a on line l          # same, with optional keyword
-point a on l         # same, with optional keyword
-point a on line l    # same
-```
-
-A vertex may be constrained to multiple lines:
-
-```
-a on l
-a on m               # a is placed at the intersection of l and m
-```
-
-### On-segment
-
-```
-a on ab              # vertex a lies on segment ab
-a on segment ab      # same, with optional keyword
-point a on ab        # same
-point a on segment ab
-```
-
-### Equal lengths _(not yet implemented)_
-
-```
-ab = cd
-```
-
-### Parallel / perpendicular _(not yet implemented)_
-
-```
-ab parallel cd
-ab perpendicular cd
-```
-
-### Point coincidence _(not yet implemented)_
-
-```
-a = b
-```
-
----
-
-## Pick
-
-Collapses an ambiguous vertex (two discrete solutions) to a specific one.
-
-```
-pick a 1             # use solution 1
-pick a 2             # use solution 2
-pick ABC_1 1         # subscript vertex
-```
-
----
-
-## Units
-
-### Length
-| Suffix | Meaning |
+| Word | Use |
 |---|---|
-| `cm` | centimetres |
-| `mm` | millimetres |
-| `m` | metres |
-| `in` or `inches` | inches |
-| `unit` | abstract unit |
+| `import m` | use the definitions module `m` exports |
+| `export import m` | use them, and pass them on to whoever imports this file |
+| `define …:` | a new definition |
+| `define type T:` | a new kind of shape, made of named parts |
+| `return x` | the last line of a definition: what it gives back |
+| `tsx` | a definition body written in TypeScript, for what the solver does itself |
 
-### Angle
-| Suffix | Meaning |
+### Definitions
+
+```
+define right triangle (t: new Triangle) with legs (u: Scalar) (v: Scalar) => Triangle:
+    triangle t with a b c
+    a at 0 0
+    b at u 0
+    c at 0 v
+    return t
+```
+
+The words outside brackets are the pattern; each `(name: Type)` is a slot.
+`=> T` says what the definition gives back, and `return` on the last line says
+which thing that is. A definition with no `=> T` gives back nothing.
+
+| Slot type | Takes |
 |---|---|
-| `deg` or `degrees` | degrees |
-| `rad` or `radians` | radians |
+| `Point`, `Line`, `Circle`, `Scalar`, `Text`, or a `define type` | a thing of that kind, by name, by bracket, or as a number or text |
+| `new T` | a new name: the definition makes something under it and hands it back |
+| `Name` | a plain word, passed on as itself (a setting's name) |
+| `Type` | the name of a type |
+| `Any` | anything |
+
+### Types
+
+```
+define type Triangle:
+    Point point1
+    Point point2
+    Point point3
+```
+
+Each part is written type, then name. `new Triangle t` makes a triangle and its
+parts, reached as `t.point1` and so on.
 
 ---
 
-## Subscript references
+## The prelude
 
-Shapes in subscript mode expose their components via subscripts.
+`import prelude` brings in all of these.
 
-```
-t_1            # vertex 1 of shape t
-t_1_2          # segment between vertices 1 and 2 of shape t
-angle t_2      # angle at vertex 2 of shape t
-```
-
-Works for any label, any case:
+### Making things
 
 ```
-ABC_1          # vertex 1 of shape ABC
-ABC_1_2        # segment between vertices 1 and 2
-angle ABC_2    # angle at vertex 2
+point p                               line l
+circle c                              scalar k
+scalar k = 5                          scalar k is 5
+point p = 3 5                         point p = (3, 5)
+line l through p q
+circle c with center p and radius r
+triangle t with a b c
+(x, y)                                a point, unnamed
 ```
 
-The double-underscore delimiter (`_1_2`) is required for segment refs so the parser can distinguish vertex 12 from edge 1→2.
+### Saying things about them
+
+```
+p at x y                              -- position
+p = q                                 -- the same point
+p = x y                               -- p at (x, y)
+k = 5                                 k is 5
+distance between p and q is d         -- also draws the segment
+p on l                                p on c
+l through p
+c with center p                       c with radius r
+l parallel m                          l parallel m at d
+l perpendicular m                     l perpendicular m at p
+```
+
+Each of these gives back what it was said about, so they chain:
+`line l parallel m through p`.
+
+### Numbers and text
+
+```
+a + b     a - b     a * b     a / b   -- on numbers written out
+"a" + "b"                             -- joins text
+```
+
+### Other
+
+```
+print x                               -- shown below the figure, once solved
+segment p q                           -- draws the segment
+set grid on     set axes off     set origin on     set subscripts off
+new Triangle t                        -- make a shape and its parts
+call x n                              -- give x a second name, n
+```
 
 ---
 
 ## What is not valid
 
-- `set` after any geometry declaration
-- Redefining a name that is already declared (e.g. two `let point a` statements)
-- A vertex constrained to two parallel lines
-- A vertex constrained to three or more lines with no common point
+- Giving a name to something when the name is already taken.
+- Using a name before the line that makes it.
+- A line that no definition can read — or that two can read equally well, with
+  nothing to choose between them.
+- Two different values for the same number, or two different places for the same
+  point: these are contradictions, not changes.

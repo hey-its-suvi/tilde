@@ -1,7 +1,5 @@
 # Reading a Line
 
-_This page is about the definition syntax — the playground's `syntax: definitions`._
-
 A line in Tilde is a sentence about a figure. Nothing in it is a keyword of the
 language: `line`, `parallel` and `through` mean what definitions say they mean.
 So reading a line means working out which definitions it is made of. Tilde does

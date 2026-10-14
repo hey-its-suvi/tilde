@@ -1,5 +1,0 @@
-# Basic triangle solve
-triangle abc with ab = 5 and angle abc = 60 and angle bca = 45
-print angle bac
-print ac
-print bc

@@ -31,14 +31,14 @@ describe('translation', () => {
   })
 
   it('explicit point: translation fixed, stays at declared coords', () => {
-    const scene = run('point a = (3, 4)')
+    const scene = run('point a at 3 4')
     assertPointAt(scene, 'a', 3, 4)
   })
 
   it('explicit point + free point: free point is mapped to origin', () => {
     // b=(3,4) fixes translation. R and S are still free — we can rotate around b
     // then scale so that a lands on the origin. canonical reference target is (anchorX,anchorY).
-    const scene = run('point a\npoint b = (3, 4)')
+    const scene = run('point a\npoint b at 3 4')
     assertPointAt(scene, 'b', 3, 4)
     assertPointAt(scene, 'a', anchorX, anchorY)
   })
@@ -46,7 +46,7 @@ describe('translation', () => {
   it('explicit point + disconnected free segment: first segment endpoint mapped to origin, other end free', () => {
     // a=(3,4) fixes T. R+S still free — rotate+scale around a maps b to origin.
     // c has no length constraint tying it anywhere, so it remains free.
-    const scene = run('point a = (3, 4)\nsegment bc')
+    const scene = run('point a at 3 4\npoint b\npoint c\nsegment b c')
     assertPointAt(scene, 'a', 3, 4)
     assertPointAt(scene, 'b', anchorX, anchorY)
     assertPoint(scene, 'c', 'infinite')
@@ -58,7 +58,7 @@ describe('translation', () => {
     // direction, so the segment ab passes through the origin. Good canonical default.
     const ax = 3, ay = 4, len = 7
     const dx = anchorX - ax, dy = anchorY - ay, d = Math.sqrt(dx*dx + dy*dy)
-    const scene = run('point a = (3, 4)\nsegment ab = 7')
+    const scene = run('point a at 3 4\npoint b\ndistance between a and b is 7')
     assertPointAt(scene, 'a', ax, ay)
     assertPointAt(scene, 'b', ax + (dx/d)*len, ay + (dy/d)*len)
   })
@@ -68,7 +68,7 @@ describe('translation', () => {
     // distance from the anchor to a reference point — there is none (a is disconnected
     // from bc). Rotating around a only moves b along an arc of unknown radius, which
     // doesn't fix its position. Both b and c stay infinite.
-    const scene = run('point a = (3, 4)\nsegment bc = 5')
+    const scene = run('point a at 3 4\npoint b\npoint c\ndistance between b and c is 5')
     assertPointAt(scene, 'a', 3, 4)
     assertPoint(scene, 'b', 'infinite')
     assertPoint(scene, 'c', 'infinite')
@@ -79,31 +79,25 @@ describe('translation', () => {
 // ── Rotation + Scale ──────────────────────────────────────────────────────────
 
 describe('rotation + scale (T, R, S all free)', () => {
-  it('segment ab — a at anchor, b at canonical reference, length = scale', () => {
-    const scene = run('segment ab')
+  it('segment a b — a at anchor, b at canonical reference, length = scale', () => {
+    const scene = run('point a\npoint b\nsegment a b')
     assertPointAt(scene, 'a', anchorX, anchorY)
     assertPointAt(scene, 'b', refX, refY)
     assertSegmentLength(scene, 'a', 'b', CANONICAL_SCALE)
   })
 
-  it('triangle abc — a and b canonical, c remains free', () => {
-    const scene = run('triangle abc')
+  it('triangle t with a b c — a and b canonical, c remains free', () => {
+    const scene = run('triangle t with a b c')
     assertPointAt(scene, 'a', anchorX, anchorY)
     assertPointAt(scene, 'b', refX, refY)
     assertPoint(scene, 'c', 'infinite')
   })
 
-  it('subscript triangle t — t_1 and t_2 canonical, t_3 remains free', () => {
-    const scene = run('triangle t')
-    assertPointAt(scene, 't_1', anchorX, anchorY)
-    assertPointAt(scene, 't_2', refX, refY)
-    assertPoint(scene, 't_3', 'infinite')
-  })
 })
 
 describe('rotation (T+R free, S fixed)', () => {
-  it('segment ab = 3 — a at anchor, b along canonical direction at known length', () => {
-    const scene = run('segment ab = 3')
+  it('distance 3 between a and b — a at anchor, b along canonical direction at known length', () => {
+    const scene = run('point a\npoint b\ndistance between a and b is 3')
     assertPointAt(scene, 'a', anchorX, anchorY)
     assertPointAt(scene, 'b', anchorX + CANONICAL_DIR_X * 3, anchorY + CANONICAL_DIR_Y * 3)
   })
@@ -116,7 +110,7 @@ describe('anchor suppression', () => {
     // segment ab = 3 is floating, but point c fixes the coordinate system.
     // We can no longer rotate the scene to put ab on the x-axis, so both
     // endpoints must be 'infinite', not orientation-fixed to 'one'.
-    const scene = run('segment ab = 3\npoint c = (5,0)')
+    const scene = run('point a\npoint b\ndistance between a and b is 3\npoint c at 5 0')
     assertPoint(scene, 'a', 'infinite')
     assertPoint(scene, 'b', 'infinite')
     assertPoint(scene, 'c', 'one')
@@ -124,10 +118,7 @@ describe('anchor suppression', () => {
   })
 
   it('isolated free point alongside a fixed segment is not anchored at origin', () => {
-    const scene = run([
-      'segment ab with a = (2,2) and b = (3,2)',
-      'point c',
-    ].join('\n'))
+    const scene = run('point a at 2 2\npoint b at 3 2\nsegment a b\npoint c')
     assertPointAt(scene, 'a', 2, 2)
     assertPointAt(scene, 'b', 3, 2)
     assertPoint(scene, 'c', 'infinite')
@@ -137,10 +128,7 @@ describe('anchor suppression', () => {
     // c is free but has segment ca = 3 tying it to fixed a=(2,2).
     // The anchor must not select c — placing it at (0,0) would give distance
     // sqrt(8) ≈ 2.83, violating the length constraint.
-    const scene = run([
-      'segment ab with a = (2,2) and b = (3,2)',
-      'segment ca = 3',
-    ].join('\n'))
+    const scene = run('point a at 2 2\npoint b at 3 2\nsegment a b\npoint c\ndistance between c and a is 3')
     assertPointAt(scene, 'a', 2, 2)
     assertPointAt(scene, 'b', 3, 2)
     // c is on a circle of radius 3 around a — genuinely underconstrained
