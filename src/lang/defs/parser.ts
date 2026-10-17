@@ -13,7 +13,7 @@
 // until every file has been read.
 
 import { lexHeader, type Token, type TokenKind } from './lexer.js'
-import { DefinitionError } from './types.js'
+import { DefinitionError, DEFAULT_LEVEL, NULL } from './types.js'
 import type { Body, Definition, Field, Import, Pattern, PatternPart, Statement, TypeDecl, TypeRef } from './types.js'
 
 export type ParsedFile = {
@@ -121,7 +121,7 @@ export function parseFile(src: string): ParsedFile {
       continue
     }
 
-    const { pattern, returns } = parseHeader(lexHeader(raw, lineNo), lineNo)
+    const { pattern, returns, level } = parseHeader(lexHeader(raw, lineNo), lineNo)
     const { body, next } = takeBody(lines, i + 1, lineNo)
     if (body.body === 'tilde') {
       if (returns !== null && body.result === null) {
@@ -138,7 +138,7 @@ export function parseFile(src: string): ParsedFile {
       }
     }
 
-    definitions.push({ pattern, returns, body, line: lineNo })
+    definitions.push({ pattern, returns, level, body, line: lineNo })
     i = next
   }
 
@@ -293,7 +293,7 @@ function takeTsxBody(lines: string[], start: number, defLine: number): { body: B
 
 // ─── Stage 2: header parsing ─────────────────────────────────────────────────
 
-function parseHeader(tokens: Token[], line: number): { pattern: Pattern; returns: TypeRef | null } {
+function parseHeader(tokens: Token[], line: number): { pattern: Pattern; returns: TypeRef | null; level: number } {
   let i = 0
 
   const peek = (): Token => tokens[i]!
@@ -332,15 +332,28 @@ function parseHeader(tokens: Token[], line: number): { pattern: Pattern; returns
   if (pattern.length === 0) throw new DefinitionError('definition has an empty pattern', line)
 
   let returns: TypeRef | null = null
+  let level = DEFAULT_LEVEL
   if (arrow !== -1) {
     i++ // past the arrow
     returns = parseType()
+    // `=> Null` is how a definition that gives back nothing writes its arrow,
+    // so that it can say how tightly it binds. It means what no arrow means.
+    if (returns.name === NULL && !returns.list && !returns.output) returns = null
+
+    // `at 6` after the return type: how tightly it holds what is next to it.
+    // Only here — after `=> T` nothing else can follow, so it cannot be read as
+    // part of the pattern.
+    if (at('WORD') && peek().value === 'at') {
+      i++
+      const n = take('NUMBER', 'a number after `at`')
+      level = Number(n.value)
+    }
     if (i !== end) {
       throw new DefinitionError(`expected ':' after the return type, got '${peek().value}'`, line)
     }
   }
 
-  return { pattern, returns }
+  return { pattern, returns, level }
 
   /** The last token of `kind` before `before`, or -1. */
   function lastIndexOf(kind: TokenKind, before = tokens.length): number {

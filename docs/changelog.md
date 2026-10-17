@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.67 — current
+## 0.3.68 — current
+
+- A definition can say how tightly it binds, after its return type: `define (a: Scalar) + (b: Scalar) => Scalar at 6:`. One that gives back nothing writes `=> Null at 1`. Nothing uses the number yet — it is the first step of trying out precedence.
+
+## 0.3.67
 
 - **The classic syntax is gone.** There is one Tilde now: the one that reads its words from definitions. The playground no longer has a syntax picker, and its starting example has been rewritten (the old one no longer ran).
 - **The docs are rewritten for it.** Getting Started, Elements, Constraints, Settings, the Language Reference and the Certainty page now use the language as it is, with every example checked to run; the Pick and Unit Resolution pages are gone.

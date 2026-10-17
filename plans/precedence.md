@@ -64,14 +64,24 @@ a * b + c * d      with a user's (a) * (b) + (c) * (d)
   arithmetic change.
 - Unanticipated ones — the reason for the branch.
 
-## Still to decide before building
+## Decided
 
-1. **Where the number goes in a header.** For example
-   `define (a: Scalar) + (b: Scalar) => Scalar, binds 6:` — or something that
-   reads more like a geometry book.
-2. **The default number.** Proposed: 5, leaving room both sides.
-3. **`a = b = c`.** If `=` hands back its right side, `(a = b) = c` (equal
-   numbers, first slot) means a = b and b = c. Or chaining stays an error.
+1. **The number trails the return type:** `define (a: Scalar) + (b: Scalar) =>
+   Scalar at 6:`. Nothing can follow `=> T`, so `at 6` there is never part of
+   the pattern — unlike `at` before the arrow, as in `(a) parallel (b) at (d)`.
+   A definition that gives back nothing writes `=> Null` to have somewhere to
+   put it: `define (a: Any) = (b: Any) => Null at 1:`. `=> Null` means exactly
+   what no arrow means.
+   Considered: `binds 6` (fine, but `at` was preferred); a number first,
+   `define at 6 …` (needs numbers banned from patterns, since any token can be a
+   pattern word today); `define [at 6] …` (a symbol).
+2. **The default is 5.** A definition that declares nothing gets it — including
+   a user's arithmetic-like pattern, which then cannot sit unbracketed in an
+   arithmetic slot until it declares a number.
+3. **`a = b = c` chains**, meaning a = b and b = c. Still open: whether `=` hands
+   back its left side or its right. For `=` either works, since equality is
+   transitive; for `<` later only the right side reads the maths way
+   (a < b < c is a < b and b < c).
 
 ## Steps
 
@@ -97,7 +107,32 @@ Each is small and separable; dropping the branch removes them all.
 
 | Step | Status |
 |---|---|
-| 1 | waiting on questions 1–2 |
+| 1 | done — see below |
 | 2 | |
 | 3 | |
-| 4 | waiting on question 3 |
+| 4 | waiting on which side `=` hands back |
+
+---
+
+## Step 1 — a number on a definition
+
+**After.** `Definition` carries `level`. The header parser reads `at N` after
+the return type, and turns `=> Null` into "returns nothing". Nothing reads the
+level yet, so no line reads differently.
+
+**`src/lang/defs/types.ts`** — `level` on `Definition`; `DEFAULT_LEVEL` (5);
+`NULL` (the written name for returning nothing).
+
+**`src/lang/defs/parser.ts`** — `parseHeader` returns `level`. After the return
+type: `=> Null` becomes `returns: null`; `at` followed by a number sets the
+level; anything else before `:` is the existing "expected ':'" error. The
+definition is built with its level.
+
+**Tests (`defs.test.ts`, 8 new)** — the default; `=> Scalar at 6`; `=> Null at
+1`; `=> Null` alone is the same as no arrow; `at` before the arrow stays a
+pattern word; a non-number after `at`; anything after the level; a `=> Null`
+definition with a `return` line refused.
+
+**Not changed:** `Null` is not a type a slot can take — it is only ever turned
+into "returns nothing" at the arrow, so `(x: Null)` is still "no type called
+Null".

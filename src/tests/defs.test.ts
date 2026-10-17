@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseFile } from '../lang/defs/parser.js'
-import { DefinitionError, typeText, type Pattern } from '../lang/defs/types.js'
+import { DefinitionError, DEFAULT_LEVEL, typeText, type Pattern } from '../lang/defs/types.js'
 
 // Loaded as text through Vite, not the filesystem — the playground runs in the
 // browser and will need the prelude bundled the same way.
@@ -49,6 +49,53 @@ describe('header parsing', () => {
 
   it('rejects duplicate slot names', () => {
     expect(() => parseFile('define (a: Line) x (a: Line):\n    a on a\n')).toThrow(/duplicate slot name/)
+  })
+})
+
+describe('how tightly a definition binds', () => {
+  const one = (src: string) => parseFile(src).definitions[0]!
+
+  it('is the default when nothing is said', () => {
+    expect(one('define (a: Scalar) + (b: Scalar) => Scalar:\n    return a\n').level).toBe(DEFAULT_LEVEL)
+  })
+
+  it('is written after the return type', () => {
+    const def = one('define (a: Scalar) + (b: Scalar) => Scalar at 6:\n    return a\n')
+    expect(def.level).toBe(6)
+    expect(def.returns).toEqual({ name: 'Scalar', list: false })
+    expect(show(def.pattern)).toBe('(a: Scalar) + (b: Scalar)')
+  })
+
+  it('takes `=> Null` for a definition that gives back nothing', () => {
+    const def = one('define (a: Point) = (b: Point) => Null at 1:\n    a on b\n')
+    expect(def.level).toBe(1)
+    expect(def.returns).toBeNull()
+  })
+
+  it('treats `=> Null` with no level the same as no arrow', () => {
+    expect(one('define note (x: Scalar) => Null:\n    print x\n').returns).toBeNull()
+  })
+
+  it('keeps `at` in a pattern a pattern word', () => {
+    // `at` before the arrow is part of the pattern, as it always was.
+    const def = one('define (a: Line) parallel (b: Line) at (d: Scalar) => Line:\n    return a\n')
+    expect(show(def.pattern)).toBe('(a: Line) parallel (b: Line) at (d: Scalar)')
+    expect(def.level).toBe(DEFAULT_LEVEL)
+  })
+
+  it('needs a number after `at`', () => {
+    expect(() => parseFile('define (a: Scalar) + (b: Scalar) => Scalar at six:\n    return a\n'))
+      .toThrow(/expected a number after `at`/)
+  })
+
+  it('takes nothing else after the return type', () => {
+    expect(() => parseFile('define (a: Scalar) + (b: Scalar) => Scalar at 6 tight:\n    return a\n'))
+      .toThrow(/expected ':' after the return type/)
+  })
+
+  it('does not let a `Null` definition return something', () => {
+    expect(() => parseFile('define (a: Scalar) half => Null:\n    return a\n'))
+      .toThrow(/needs a `=> Type`/)
   })
 })
 
