@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.68 — current
+## 0.3.69 — current
+
+- **A definition's number now counts.** When a line could be grouped more than one way, a looser definition is never read as sitting inside a tighter one, and two at the same declared number group left to right. Nothing in the prelude declares a number yet, so existing programs read as before; your own definitions can, e.g. `define (a: Scalar) times (b: Scalar) => Scalar at 7:`.
+
+## 0.3.68
 
 - A definition can say how tightly it binds, after its return type: `define (a: Scalar) + (b: Scalar) => Scalar at 6:`. One that gives back nothing writes `=> Null at 1`. Nothing uses the number yet — it is the first step of trying out precedence.
 

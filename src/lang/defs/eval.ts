@@ -295,7 +295,7 @@ function settleGroups(
     const read = settled.map(p => withParam(p, ctx.store.current.params))
     const call = readLine(read, ctx.store, scope)
     if (call !== null && call.matches.length > 1 && differsOnlyByReturn(call.matches)) {
-      return { ...call, text: `(${inner})`, col: node.col }
+      return { ...call, text: `(${inner})`, col: node.col, bracketed: true }
     }
 
     const value = evalPieces(settled, scope, ctx, depth + 1)

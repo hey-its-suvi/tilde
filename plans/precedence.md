@@ -78,10 +78,13 @@ a * b + c * d      with a user's (a) * (b) + (c) * (d)
 2. **The default is 5.** A definition that declares nothing gets it — including
    a user's arithmetic-like pattern, which then cannot sit unbracketed in an
    arithmetic slot until it declares a number.
-3. **`a = b = c` chains**, meaning a = b and b = c. Still open: whether `=` hands
-   back its left side or its right. For `=` either works, since equality is
-   transitive; for `<` later only the right side reads the maths way
-   (a < b < c is a < b and b < c).
+3. **`a = b = c` chains**, meaning a = b and b = c, and **`=` hands back its
+   right side.** For `=` either side would do, since equality is transitive;
+   for `<` later only the right side reads the maths way (a < b < c is a < b
+   and b < c).
+4. **Equal levels — working choice, to confirm.** Equal levels read left to
+   right (the inner call only in the first slot) at any declared level; at the
+   default level equal neighbours nest anywhere, as before. See step 2.
 
 ## Steps
 
@@ -108,7 +111,7 @@ Each is small and separable; dropping the branch removes them all.
 | Step | Status |
 |---|---|
 | 1 | done — see below |
-| 2 | |
+| 2 | done — see below; equal-level rule to confirm |
 | 3 | |
 | 4 | waiting on which side `=` hands back |
 
@@ -136,3 +139,45 @@ definition with a `return` line refused.
 **Not changed:** `Null` is not a type a slot can take — it is only ever turned
 into "returns nothing" at the arrow, so `(x: Null)` is still "no type called
 Null".
+
+---
+
+## Step 2 — the check in the reader
+
+**After.** Where the reader puts a call into a slot, `levelsFit` compares
+levels at the outer pattern's first and last slots, if the inner call is open on
+the side facing it. A bracket (`bracketed` on a call piece) and a slot fenced by
+words are never checked. An inner call that could be several definitions keeps
+those that fit; if none fit, the grouping is refused and the reader tries its
+next one. No prelude definition declares a level yet, so no existing line reads
+differently.
+
+**The rule (`fits`):** tighter may sit inside looser, never the reverse. Equal
+levels:
+
+| Option tried | `1 - 2 * 3 - 4` | Kept? | Why |
+|---|---|---|---|
+| allowed anywhere | −1 ✗ | no | the restart takes the longest chain from `2`, `(2 * 3) - 4`, and puts it in the last slot of the first `-` |
+| restart takes the shortest fold first | −9 ✓ | no | breaks longest match: `print 2 times 3 plus 4 times 5` stops finding a user's four-slot pattern |
+| only in the first slot | −9 ✓ | no | at the default level everything is equal, so `print 1 + 2`, `point p = (3, 4) on l`, `l parallel 2 , 1` and a user's pattern after `print` all stop reading |
+| **only in the first slot, except at the default level** | −9 ✓ | **yes** | declared levels group left to right; ordinary words of a sentence nest as they did. All tests pass unchanged. |
+
+Cost of the kept rule: `at 5` written out means the same as nothing.
+
+**`src/lang/defs/read.ts`** — `levelsFit`, applied after `narrowed` in
+`matchesAt`; `fits` for the rule; the failure memo's key now includes each
+call's level and open edges, since those decide whether a half-read line can
+still be read.
+
+**`src/lang/defs/match.ts`** — a call piece may be marked `bracketed`.
+
+**`src/lang/defs/eval.ts`** — a bracket left unrun for its slot to pick (step 6
+of decision 19) is marked `bracketed`, so it is never checked.
+
+**Tests (`precedence.test.ts`, 8)** — with made-up `plus` (6), `times` (7),
+`minus` (6): tighter first wherever it is; equal left to right; equal left to
+right across a tighter one (`1 minus 2 times 3 minus 4` is −9, `2 times 3 minus
+4 times 5 minus 1` is −15); brackets never checked; a user's longer pattern
+wins; a call with no slots is never checked; a fenced slot is never checked;
+`line n = l rotated 60` with an `=` that returns a Line and binds at 1. Checked
+by switching the check off: the tighter-first and `rotated` tests fail.
