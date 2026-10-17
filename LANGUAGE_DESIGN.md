@@ -892,6 +892,17 @@ result" falls out of the restart: in `print greeting`, `greeting` is not a name,
 so the fold fails, the restart reads `greeting` as a call, and its value is
 printed.
 
+### 20. Precedence belongs to definitions, not words (being tried)
+
+On trial on the `precedence` branch — see `plans/precedence.md`. Each definition
+may declare a number for how tightly it holds what is next to it; the reader is
+unchanged, and refuses any grouping in which a looser call sits unbracketed at
+the edge of a tighter one. Chosen over levels on words (splitting a line before
+matching), because a word with a level would override every definition using
+it — a user's `(a) * (b) + (c) * (d)` could never read `a * b + c * d` — and
+over "operators only", which would shut out `line (n: new Line) = (m: Line)`.
+Kept separable because it may have costs nobody has seen yet.
+
 ## The big open question: how does a user write the maths?
 
 If a user defines `parallel`, they need to say what it *means*. `l parallel m`
