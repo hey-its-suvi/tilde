@@ -70,9 +70,9 @@ A line that already reads from the start is never re-read this way.
 
 ## `=` takes everything after it
 
-`=` gives nothing back — it states a fact rather than making something — so
-nothing can follow on from it. That means whatever comes after `=` is worked out
-first:
+`=` binds more loosely than anything else (see
+[How tightly things bind](#how-tightly-things-bind) below), so whatever comes after
+it is worked out first:
 
 ```
 scalar k = 2 + 3          -- k is 5
@@ -80,15 +80,34 @@ point p = (3, 4) on l     -- p is that point, and it is on l
 ```
 
 Read strictly left to right, the first would add 3 to `scalar k = 2`. Because `=`
-has nothing to add to, Tilde reads `2 + 3` first instead.
+binds loosest, Tilde reads `2 + 3` first instead.
 
-One thing this rules out is `a = b = c`: neither half gives anything back, so
-there is nothing to chain. Write it as two lines.
+`=` hands back its right side, so equalities chain the way they do in maths:
 
-## Arithmetic
+```
+a = b = c                 -- a = b, and b = c
+```
 
-Arithmetic is read left to right like everything else, for now: `2 + 3 * 4` is
-`(2 + 3) * 4`, which is 20. Use brackets to say otherwise.
+## How tightly things bind
+
+A definition can say how tightly it holds what is next to it, with a number after
+what it gives back — higher holds tighter:
+
+```
+define (a: Scalar) * (b: Scalar) => Scalar at 7:
+define (a: Scalar) + (b: Scalar) => Scalar at 6:
+```
+
+Everything that says nothing is at 5. When a line could be grouped more than one
+way, Tilde never reads a looser definition as sitting inside a tighter one. So
+arithmetic reads as it does in any book — `2 + 3 * 4` is `2 + (3 * 4)`, which is
+14 — and equal ones still go left to right: `10 - 2 - 3` is 5.
+
+A definition matched as a whole is never split up by this. If you define
+`(a) * (b) + (c) * (d)` yourself, `a * b + c * d` uses yours, because it is the
+longest match.
+
+Use brackets to say otherwise: `(2 + 3) * 4` is 20.
 
 ## Brackets
 

@@ -51,17 +51,30 @@ describe('arithmetic on written numbers', () => {
     expect([p.x, p.y]).toEqual([2, 2])
   })
 
-  it('folds left to right, since there is no precedence yet', () => {
-    // Decided as the interim rule (decision 19): `2 + 3 * 4` is `(2 + 3) * 4`.
-    expect(value('scalar r = (2 + 3 * 4)\n')).toBe(20)
+  it('works * and / out before + and -', () => {
+    // `* /` are at 7 and `+ -` at 6 in the prelude (decision 20).
+    expect(value('scalar r = (2 + 3 * 4)\n')).toBe(14)
+    expect(value('scalar r = (2 * 3 + 4)\n')).toBe(10)
+    expect(value('scalar r = (1 - 2 * 3 - 4)\n')).toBe(-9)
+    expect(value('scalar r = (2 * 3 - 4 * 5 - 1)\n')).toBe(-15)
+  })
+
+  it('works equal ones out left to right', () => {
     expect(value('scalar r = (10 - 2 - 3)\n')).toBe(5)
+    expect(value('scalar r = (8 / 2 / 2)\n')).toBe(2)
+    expect(value('scalar r = (2 * 3 / 6 * 4)\n')).toBe(4)
+  })
+
+  it('still lets brackets say otherwise', () => {
+    expect(value('scalar r = ((2 + 3) * 4)\n')).toBe(20)
+    expect(value('scalar r = (10 - (2 - 3))\n')).toBe(11)
   })
 
   it('works the arithmetic out before `=`, with no brackets', () => {
     // `=` gives nothing back, so `(scalar r = 2) + 3` has nothing to add to; the
     // line is read again with `2 + 3` first (decision 19).
     expect(value('scalar r = 2 + 3\n')).toBe(5)
-    expect(value('scalar r = 2 + 3 * 4\n')).toBe(20)
+    expect(value('scalar r = 2 + 3 * 4\n')).toBe(14)
   })
 
   it('refuses a named number rather than guessing', () => {

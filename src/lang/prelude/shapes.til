@@ -11,10 +11,13 @@ import core
 
 -- ─── Points ─────────────────────────────────────────────────────────────────
 
-define (p: Point) = (x: Scalar) (y: Scalar):
+-- `=` binds loosest and hands back its right side (see core). A pair of numbers
+-- written out is not one thing to hand back, so these two give nothing.
+
+define (p: Point) = (x: Scalar) (y: Scalar) => Null at 1:
     p at x y
 
-define point (n: new Point) = (x: Scalar) (y: Scalar):
+define point (n: new Point) = (x: Scalar) (y: Scalar) => Null at 1:
     point n at x y
 
 -- A pair of numbers is a point. Written bare here; used in brackets, since a slot
@@ -30,8 +33,9 @@ define (x: Scalar) , (y: Scalar) => Point:
 
 -- `point p = (3, 4)`: the group makes an unnamed point, and `call` gives it yours.
 
-define point (n: new Point) = (q: Point):
+define point (n: new Point) = (q: Point) => Point at 1:
     call q n
+    return q
 
 -- ─── Lines ──────────────────────────────────────────────────────────────────
 

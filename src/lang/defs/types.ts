@@ -45,10 +45,22 @@ export type Definition = {
   pattern: Pattern
   /** null when a definition returns nothing. */
   returns: TypeRef | null
+  /** How tightly it holds what is next to it, when read as part of a line:
+   *  higher holds tighter. Written `=> T at 6`; `DEFAULT_LEVEL` otherwise. */
+  level: number
   body: Body
   /** 1-based line of the `define` keyword, for error messages. */
   line: number
 }
+
+/** The level of a definition that does not declare one — in the middle, so
+ *  definitions can sit looser (`=`) or tighter (arithmetic) than ordinary ones. */
+export const DEFAULT_LEVEL = 5
+
+/** The written return type meaning "gives back nothing" — the same as leaving
+ *  `=> T` out. It exists so a definition that returns nothing can still say
+ *  `=> Null at 1`. */
+export const NULL = 'Null'
 
 /** One `import x` / `export import x` line, unresolved. */
 export type Import = {

@@ -1,6 +1,22 @@
 # Changelog
 
-## 0.3.67 — current
+## 0.3.71 — current
+
+- **`=` binds loosest and chains.** Whatever comes after `=` is worked out first, as before, and now `a = b = c` means a = b and b = c, for numbers and for points. `=` gives back its right side, which is what makes the chain work.
+
+## 0.3.70
+
+- **Arithmetic has precedence.** `*` and `/` before `+` and `-`, as in any book: `2 + 3 * 4` is 14, `1 - 2 * 3 - 4` is −9. Equal ones still go left to right (`10 - 2 - 3` is 5), and brackets still say otherwise. It comes from the prelude's own definitions — `=> Scalar at 7` — not a rule built into the language.
+
+## 0.3.69
+
+- **A definition's number now counts.** When a line could be grouped more than one way, a looser definition is never read as sitting inside a tighter one, and two at the same declared number group left to right. Nothing in the prelude declares a number yet, so existing programs read as before; when a line has to be read from a later word, the reader now takes one definition there and reads the rest from the start again, rather than carrying on from it; your own definitions can, e.g. `define (a: Scalar) times (b: Scalar) => Scalar at 7:`.
+
+## 0.3.68
+
+- A definition can say how tightly it binds, after its return type: `define (a: Scalar) + (b: Scalar) => Scalar at 6:`. One that gives back nothing writes `=> Null at 1`. Nothing uses the number yet — it is the first step of trying out precedence.
+
+## 0.3.67
 
 - **The classic syntax is gone.** There is one Tilde now: the one that reads its words from definitions. The playground no longer has a syntax picker, and its starting example has been rewritten (the old one no longer ran).
 - **The docs are rewritten for it.** Getting Started, Elements, Constraints, Settings, the Language Reference and the Certainty page now use the language as it is, with every example checked to run; the Pick and Unit Resolution pages are gone.

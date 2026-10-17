@@ -64,8 +64,8 @@ One rule, no table to memorise.
 **Revised by 19.** The left-to-right part is decided, as a fold with longest
 match first. There is no precedence level for pattern operations or for `=`:
 `=` returns nothing, and a restart from a later word finds `line n = (l rotated
-60)`. Arithmetic folds left to right too for now — `1 + 2 * 3` is 9 — and gets
-precedence later. Starting with brackets-only is compatible —
+60)`. Arithmetic folded left to right too, until decision 20 gave definitions
+levels — `1 + 2 * 3` is now 7. Starting with brackets-only is compatible —
 it's this rule with the left-to-right part switched off.
 
 ### 4. Declaring forms are written explicitly (not derived)
@@ -754,14 +754,19 @@ an obvious reading.
 
 **Restarting from a later word.** If no reading works from the first word, start
 again from the second, then the third. Whatever folds into a value there takes
-the place of those words, and the line is read again from the start. This is the
+the place of those words, and the line is read again from the start.
+(Revised by 20: the longest single match there, not a fold — a fold carried on
+past it and took words belonging to the sentence around it, so
+`1 - 2 * 3 - 4` grouped as `1 - ((2 * 3) - 4)`.) This is the
 only way a call reaches a slot other than the first without brackets, and it
 runs only when the plain left-to-right reading has failed — so a line that reads
 left to right is never touched by it. When everything fails, the error comes
 from the plain left-to-right attempt, since that is what the writer most likely
 meant.
 
-**`=` returns nothing, and that is all the precedence there is.** The first
+**`=` returns nothing, and that is all the precedence there is.** *(Superseded by
+20: `=` binds `at 1` and hands back its right side, so `a = b = c` chains. The
+reasoning below is how it got there.)* The first
 version of this needed `=` to bind loosest, and `line n = l rotated 60` shows
 why: left to right it is `(line n = l) rotated 60`, which names `n` as `l` and
 throws a rotated line away. A precedence level for `=` would have privileged a
@@ -793,9 +798,7 @@ Accepted consequences:
   returned a Line, `line n is perpendicular to l rotated 60` would read as
   "make n perpendicular to l, then rotate it" — which is what left to right
   says. Only definitions returning nothing get the restart's protection.
-- **`a = b = c` is an error for now.** Neither half has a value, so brackets
-  cannot help. A three-part `(a: Any) = (b: Any) = (c: Any)` would win by longest
-  match if it is ever wanted.
+- ~~**`a = b = c` is an error for now.**~~ Since 20 it chains: a = b and b = c.
 - **`return` followed by an `=` statement hands back nothing.** Write the
   statement, then `return k`.
 - **The prelude's `=` forms that return a value must stop doing so**, or be
@@ -891,6 +894,22 @@ forms until `=` merges.
 result" falls out of the restart: in `print greeting`, `greeting` is not a name,
 so the fold fails, the restart reads `greeting` as a call, and its value is
 printed.
+
+### 20. Precedence belongs to definitions, not words (being tried)
+
+Built on the `precedence` branch, kept separable — see `plans/precedence.md`.
+Arithmetic declares `* /` at 7 and `+ -` at 6; every `=` declares 1 and hands
+back its right side, so `a = b = c` means a = b and b = c (the right side, not
+the left, so that `a < b < c` will read the maths way too). A restart takes one
+match and reads again from the start, which is what makes equal levels group
+left to right with no rule of their own. Each definition
+may declare a number for how tightly it holds what is next to it; the reader is
+unchanged, and refuses any grouping in which a looser call sits unbracketed at
+the edge of a tighter one. Chosen over levels on words (splitting a line before
+matching), because a word with a level would override every definition using
+it — a user's `(a) * (b) + (c) * (d)` could never read `a * b + c * d` — and
+over "operators only", which would shut out `line (n: new Line) = (m: Line)`.
+Kept separable because it may have costs nobody has seen yet.
 
 ## The big open question: how does a user write the maths?
 
@@ -1514,9 +1533,9 @@ Built recently, each covered by tests and the changelog:
 
 ## Smaller, whenever
 
-- Precedence for `+ - * /`. Until then arithmetic folds left to right like
-  everything else (decision 19): `1 + 2 * 3` is `(1 + 2) * 3`, which is 9.
-  Decided as the interim rule, knowing it differs from what a reader expects.
+- ~~Precedence for `+ - * /`.~~ Done by decision 20: `* /` at 7, `+ -` at 6.
+- Arithmetic lives in `core` because its bodies are tsx, and tsx is confined to
+  `core`. A separate `math` module would need that rule to allow a second home.
 - `(c: Circle) with center (p) and radius (r)` for an existing circle.
 - `print` for declared types, through their fields.
 - `pick`, `set unit`, `set grid` in the definition syntax.

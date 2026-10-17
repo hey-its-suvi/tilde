@@ -15,8 +15,9 @@
 // is tried.
 //
 // Restarting. If no fold from the first word uses up the line, start from the
-// second word instead, then the third. Whatever folds into a value there stands
-// in for those words, and the line is read again from the start:
+// second word instead, then the third. The longest match there that gives a
+// value stands in for its words — one match, not a chain — and the line is read
+// again from the start, so the rest of it still reads left to right:
 //
 //     line n = l rotated 60   →   (line n) = (l rotated 60)
 //
@@ -91,10 +92,13 @@ class Reader {
       if (next.pieces.length === 1 && only?.kind === 'call') return only
     }
 
-    // From a later word: whatever folds into a value there stands in for those
-    // words, and the line is read again from the start.
+    // From a later word: one match there that gives a value stands in for its
+    // words, and the line is read again from the start. One match, not a fold:
+    // a fold would carry on past it and take words that belong to the sentence
+    // around it — in `1 - 2 * 3 - 4`, `(2 * 3) - 4` — grouping them the wrong
+    // way round. Reading again from the start keeps the rest left to right.
     for (let k = 1; k < state.pieces.length; k++) {
-      for (const next of this.fold(state, k)) {
+      for (const next of this.once(state, k)) {
         const made = next.pieces[k] as Call
         if (callTypes(made).length === 0) continue // nothing to stand in with
         const found = this.read(next)
@@ -102,6 +106,18 @@ class Reader {
       }
     }
     return null
+  }
+
+  /** Every single match at `k`, longest first, with nothing folded after it. */
+  *once(state: State, k: number): Generator<State> {
+    for (const { matches, length } of this.matchesAt(state, k)) {
+      const span = state.pieces.slice(k, k + length)
+      const call: Call = { kind: 'call', matches, text: showPieces(span), col: colOf(span[0]!) }
+      yield {
+        pieces: [...state.pieces.slice(0, k), call, ...state.pieces.slice(k + length)],
+        given: give(state.given, matches),
+      }
+    }
   }
 
   /** Every way to fold the pieces from `k` on, longest first. Each match at `k`
@@ -132,7 +148,9 @@ class Reader {
       // A pattern of one slot taking a call already read would wrap it forever.
       if (length === 1 && state.pieces[k]!.kind === 'call') continue
       if (!typesFit(match, this.store, state.given)) continue
-      byLength.set(length, [...(byLength.get(length) ?? []), narrowed(match)])
+      const fitted = levelsFit(narrowed(match))
+      if (fitted === null) continue
+      byLength.set(length, [...(byLength.get(length) ?? []), fitted])
     }
     return [...byLength.entries()]
       .sort(([a], [b]) => b - a)
@@ -157,6 +175,45 @@ function narrowed(match: Match): Match {
   return changed ? { ...match, bindings } : match
 }
 
+/** How tightly things hold together (decision 20). A call sitting unbracketed
+ *  at an edge of another — in its first or last slot — must bind at least as
+ *  tightly as that call, if it is open on the side facing it: `1 + 2` in the
+ *  first slot of `* 3` is open on its right, so `+` (6) inside `*` (7) is
+ *  refused, and the reader tries another grouping. A slot fenced in by words on
+ *  both sides is never fought over, and a bracket is never checked.
+ *
+ *  An inner call that could be several definitions keeps those that fit; if
+ *  none do, the whole match is refused. */
+function levelsFit(match: Match): Match | null {
+  const parts = match.def.pattern
+  const outer = match.def.level
+  let changed = false
+  const bindings = []
+  for (const b of match.bindings) {
+    const piece = b.piece
+    if (piece.kind !== 'call' || piece.bracketed) { bindings.push(b); continue }
+    const at = parts.findIndex(p => p.part === 'slot' && p.name === b.slot)
+    const first = at === 0
+    const last = at === parts.length - 1
+    if (first === last) { bindings.push(b); continue } // fenced in, or the only part
+    const facing = (m: Match) => {
+      const inner = m.def.pattern
+      return first ? inner.at(-1)?.part === 'slot' : inner[0]?.part === 'slot'
+    }
+    const fitting = piece.matches.filter(m => !facing(m) || fits(m.def.level, outer))
+    if (fitting.length === 0) return null
+    if (fitting.length !== piece.matches.length) changed = true
+    bindings.push(fitting.length === piece.matches.length ? b : { ...b, piece: { ...piece, matches: fitting } })
+  }
+  return changed ? { ...match, bindings } : match
+}
+
+/** Whether a call at `inner` may sit unbracketed at an edge of one at `outer`:
+ *  as tight or tighter. Equal ones need no rule of their own — the fold reads
+ *  them left to right, and a restart takes one match and reads again from the
+ *  start, so `1 - 2 * 3 - 4` is `(1 - (2 * 3)) - 4`. */
+const fits = (inner: number, outer: number): boolean => inner >= outer
+
 /** The names a call will give, added to those given already. Only when the call
  *  is settled — one match — and its output promises a type that says something. */
 function give(given: Given, matches: readonly Match[]): Given {
@@ -175,13 +232,18 @@ function give(given: Given, matches: readonly Match[]): Given {
 const colOf = (p: Piece): number => (p.kind === 'word' ? p.token.col : p.col)
 
 /** What decides whether a half-read line can still be read: its words, its
- *  values, the types its calls could produce, and the names given so far. How a
- *  call came to be is irrelevant — only what it could stand for. */
+ *  values, the names given so far, and for each call what it could produce, how
+ *  tightly it binds and which of its edges are open (decision 20). How a call
+ *  came to be is irrelevant — only what it could stand for. */
+/** A match's level and open edges, as far as levels can see them. */
+const edges = (m: Match) =>
+  `${m.def.level}${m.def.pattern[0]?.part === 'slot' ? '<' : ''}${m.def.pattern.at(-1)?.part === 'slot' ? '>' : ''}`
+
 function stateKey(state: State): string {
   const pieces = state.pieces.map(p =>
     p.kind === 'word' ? `w:${p.token.value}`
     : p.kind === 'value' ? `v:${p.text}`
-    : `c:${callTypes(p).join('|')}:${p.matches.length}`,
+    : `c:${callTypes(p).join('|')}:${p.matches.map(edges).join('|')}${p.bracketed ? ':b' : ''}`,
   )
   const given = [...state.given].map(([n, t]) => `${n}:${t}`).sort()
   return `${pieces.join(' ')} / ${given.join(' ')}`

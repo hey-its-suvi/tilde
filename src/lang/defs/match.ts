@@ -30,7 +30,7 @@ export type Piece =
    *  is being read left to right (decision 19). Usually one match; several
    *  only when overloads that differ by return type all fit, which is an
    *  ambiguity unless something later rules all but one out. */
-  | { kind: 'call'; matches: Match[]; text: string; col: number }
+  | { kind: 'call'; matches: Match[]; text: string; col: number; bracketed?: true }
 
 /** A statement as written, one word piece per token. */
 export const piecesOf = (statement: string): Piece[] =>

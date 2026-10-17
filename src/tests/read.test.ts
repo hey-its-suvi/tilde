@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { runSource } from '../lang/defs/eval.js'
+import { solveSource } from '../lang/solver/index.js'
 import { PRELUDE } from '../lang/prelude/index.js'
 import { byName } from './named.js'
 
@@ -60,8 +61,9 @@ line l parallel m
     expect(program.constraints.constraints).toEqual([{ kind: 'parallel', l1: 'l', l2: 'm' }])
   })
 
-  it('folds arithmetic left to right', () => {
-    expect(run('print 2 + 3 * 4\n').prints).toEqual([20])
+  it('reads arithmetic by its precedence', () => {
+    expect(run('print 2 + 3 * 4\n').prints).toEqual([14])
+    expect(run('print 2 * 3 + 4\n').prints).toEqual([10])
   })
 
   it('knows the type of a name given earlier on the same line', () => {
@@ -95,7 +97,7 @@ print greeting
   })
 })
 
-describe('`=` gives nothing back, so it binds loosest', () => {
+describe('`=` binds loosest', () => {
   // A stand-in for a rotation: what matters is that it makes a *new* line.
   const rotated = `define (l: Line) rotated (s: Scalar) => Line:
     line r
@@ -122,11 +124,23 @@ define line (n: new Line) = (m: Line):
     expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 'p', line: 'l' })
   })
 
-  it('cannot chain two `=`, since neither half has a value', () => {
-    // Read left to right, `(a = b)` gives nothing back for the second `=`.
-    expect(() => run('scalar a\nscalar b\nscalar c\na = b = c\n')).toThrow(
-      /no definition of "a = b = c" fits the argument types/,
-    )
+  it('chains: `a = b = c` says a = b and b = c', () => {
+    // `(a = b)` hands back b, so the second `=` is b = c.
+    const src = `scalar a
+scalar b
+scalar c
+a = b = c
+c = 5
+print a
+print b
+`
+    const { printed } = solveSource(`import prelude\n${src}`)
+    expect(printed).toEqual(['a = 5', 'b = 5'])
+  })
+
+  it('chains points too', () => {
+    const { printed } = solveSource('import prelude\npoint a\npoint b\npoint c at 2 3\na = b = c\nprint a\nprint b\n')
+    expect(printed).toEqual(['a = (2, 3)', 'b = (2, 3)'])
   })
 })
 
