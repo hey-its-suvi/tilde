@@ -215,19 +215,16 @@ describe('the prelude parses', () => {
     // returning one, because the solver stores a length for a pair of points but
     // cannot hand a measurement back. The rest are acts rather than relations —
     // they make, name, draw, show or set something, and there is no subject to
-    // give back. Every `=` gives nothing back so that it binds loosest
-    // (decision 19). Everything else returns its subject and chains (4b).
+    // give back. An `=` with a pair of numbers on its right has no one thing to
+    // hand back. Everything else returns something and chains: a constraint its
+    // subject (4b), an `=` its right side (decision 20).
     expect(void_.sort()).toEqual([
-      '(p: Point) = (q: Point)',
       '(p: Point) = (x: Scalar) (y: Scalar)',
-      '(s: Scalar) = (v: Scalar)',
       'call (x: Any) (n: new Any)',
       'distance between (p: Point) and (q: Point) is (d: Scalar)',
       'new (ty: Type) (n: new Any)',
-      'point (n: new Point) = (q: Point)',
       'point (n: new Point) = (x: Scalar) (y: Scalar)',
       'print (x: Any)',
-      'scalar (n: new Scalar) = (v: Scalar)',
       'segment (p: Point) (q: Point)',
       'set (s: Name) off',
       'set (s: Name) on',

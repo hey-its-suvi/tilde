@@ -70,9 +70,9 @@ A line that already reads from the start is never re-read this way.
 
 ## `=` takes everything after it
 
-`=` gives nothing back — it states a fact rather than making something — so
-nothing can follow on from it. That means whatever comes after `=` is worked out
-first:
+`=` binds more loosely than anything else (see
+[How tightly things bind](#how-tightly-things-bind) below), so whatever comes after
+it is worked out first:
 
 ```
 scalar k = 2 + 3          -- k is 5
@@ -80,10 +80,13 @@ point p = (3, 4) on l     -- p is that point, and it is on l
 ```
 
 Read strictly left to right, the first would add 3 to `scalar k = 2`. Because `=`
-has nothing to add to, Tilde reads `2 + 3` first instead.
+binds loosest, Tilde reads `2 + 3` first instead.
 
-One thing this rules out is `a = b = c`: neither half gives anything back, so
-there is nothing to chain. Write it as two lines.
+`=` hands back its right side, so equalities chain the way they do in maths:
+
+```
+a = b = c                 -- a = b, and b = c
+```
 
 ## How tightly things bind
 

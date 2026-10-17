@@ -113,7 +113,7 @@ Each is small and separable; dropping the branch removes them all.
 | 1 | done — see below |
 | 2 | done — see below |
 | 3 | done — see below |
-| 4 | waiting on which side `=` hands back |
+| 4 | done — see below |
 
 ---
 
@@ -213,3 +213,31 @@ marked done.
 
 **Noted for later** — arithmetic stays in `core`, since its bodies are tsx and
 tsx is confined to `core`. A `math` module would need a second home for tsx.
+
+---
+
+## Step 4 — `=` binds loosest and chains
+
+**After.** Every `=` in the prelude declares `at 1`. The four whose right side is
+one thing hand it back: `(s: Scalar) = (v: Scalar)`, `scalar (n: new Scalar) =
+(v: Scalar)`, `point (n: new Point) = (q: Point)` and `(p: Point) = (q: Point)`.
+The two whose right side is a pair of numbers (`p = 3 4`) have no one thing to
+give, and are `=> Null at 1`.
+
+`a = b = c` now chains: the fold reads `(a = b) = c` — `=` (1) in the first slot
+of `=` (1), as tight, so allowed — and `a = b` hands back `b`. `scalar k = 2 + 3`,
+`point p = (3, 4) on l` and `line n = l rotated 60` read as before; it is the
+levels doing it now, not `=` returning nothing.
+
+**`core.til`, `shapes.til`, `constraints.til`** — the six definitions as above;
+comments say why.
+
+**Tests** — `read.test.ts`: "cannot chain two `=`" became "chains" (scalars:
+a = b = c with c = 5 gives a = 5, b = 5) and "chains points too" (a and b both
+at (2, 3)). `defs.test.ts`: the list of prelude definitions that give nothing
+back drops the four that now hand back their right side.
+
+**Docs** — `reading.md`'s `=` section now says it binds loosest and chains, and
+gains the `rotated` example; decision 19's "`=` returns nothing" is marked
+superseded and its `a = b = c` bullet crossed out; decision 20 says what was
+built.

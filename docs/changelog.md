@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.70 — current
+## 0.3.71 — current
+
+- **`=` binds loosest and chains.** Whatever comes after `=` is worked out first, as before, and now `a = b = c` means a = b and b = c, for numbers and for points. `=` gives back its right side, which is what makes the chain work.
+
+## 0.3.70
 
 - **Arithmetic has precedence.** `*` and `/` before `+` and `-`, as in any book: `2 + 3 * 4` is 14, `1 - 2 * 3 - 4` is −9. Equal ones still go left to right (`10 - 2 - 3` is 5), and brackets still say otherwise. It comes from the prelude's own definitions — `=> Scalar at 7` — not a rule built into the language.
 

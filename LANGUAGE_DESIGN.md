@@ -764,7 +764,9 @@ left to right is never touched by it. When everything fails, the error comes
 from the plain left-to-right attempt, since that is what the writer most likely
 meant.
 
-**`=` returns nothing, and that is all the precedence there is.** The first
+**`=` returns nothing, and that is all the precedence there is.** *(Superseded by
+20: `=` binds `at 1` and hands back its right side, so `a = b = c` chains. The
+reasoning below is how it got there.)* The first
 version of this needed `=` to bind loosest, and `line n = l rotated 60` shows
 why: left to right it is `(line n = l) rotated 60`, which names `n` as `l` and
 throws a rotated line away. A precedence level for `=` would have privileged a
@@ -796,9 +798,7 @@ Accepted consequences:
   returned a Line, `line n is perpendicular to l rotated 60` would read as
   "make n perpendicular to l, then rotate it" — which is what left to right
   says. Only definitions returning nothing get the restart's protection.
-- **`a = b = c` is an error for now.** Neither half has a value, so brackets
-  cannot help. A three-part `(a: Any) = (b: Any) = (c: Any)` would win by longest
-  match if it is ever wanted.
+- ~~**`a = b = c` is an error for now.**~~ Since 20 it chains: a = b and b = c.
 - **`return` followed by an `=` statement hands back nothing.** Write the
   statement, then `return k`.
 - **The prelude's `=` forms that return a value must stop doing so**, or be
@@ -897,7 +897,12 @@ printed.
 
 ### 20. Precedence belongs to definitions, not words (being tried)
 
-On trial on the `precedence` branch — see `plans/precedence.md`. Each definition
+Built on the `precedence` branch, kept separable — see `plans/precedence.md`.
+Arithmetic declares `* /` at 7 and `+ -` at 6; every `=` declares 1 and hands
+back its right side, so `a = b = c` means a = b and b = c (the right side, not
+the left, so that `a < b < c` will read the maths way too). A restart takes one
+match and reads again from the start, which is what makes equal levels group
+left to right with no rule of their own. Each definition
 may declare a number for how tightly it holds what is next to it; the reader is
 unchanged, and refuses any grouping in which a looser call sits unbracketed at
 the edge of a tighter one. Chosen over levels on words (splitting a line before
