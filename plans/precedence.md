@@ -112,7 +112,7 @@ Each is small and separable; dropping the branch removes them all.
 |---|---|
 | 1 | done — see below |
 | 2 | done — see below |
-| 3 | |
+| 3 | done — see below |
 | 4 | waiting on which side `=` hands back |
 
 ---
@@ -189,3 +189,27 @@ right across a tighter one (`1 minus 2 times 3 minus 4` is −9, `2 times 3 minu
 wins; a call with no slots is never checked; a fenced slot is never checked;
 `line n = l rotated 60` with an `=` that returns a Line and binds at 1. Checked
 by switching the check off: the tighter-first and `rotated` tests fail.
+
+---
+
+## Step 3 — arithmetic gets its numbers
+
+**After.** In `core.til`, `* /` declare `at 7` and `+ -` (and text `+`) `at 6`.
+`2 + 3 * 4` is 14, `1 - 2 * 3 - 4` is −9, `8 / 2 / 2` is 2, and `scalar r = 2 + 3 *
+4` makes r 14.
+
+**`src/lang/prelude/core.til`** — the five arithmetic definitions get levels;
+the section comment no longer says there is no precedence.
+
+**Tests** — `arithmetic.test.ts`: "folds left to right" replaced by `* /`
+before `+ -` (14, 10, −9, −15), equal ones left to right (5, 2, 4), and
+brackets saying otherwise (20, 11); `scalar r = 2 + 3 * 4` is 14.
+`read.test.ts`: `print 2 + 3 * 4` is 14, `print 2 * 3 + 4` is 10.
+
+**Docs** — `reading.md` gains "How tightly things bind" in place of its
+left-to-right arithmetic note; `limitations.md` and `roadmap.md` no longer say
+precedence is missing; decision 19's and the "smaller" list's interim notes
+marked done.
+
+**Noted for later** — arithmetic stays in `core`, since its bodies are tsx and
+tsx is confined to `core`. A `math` module would need a second home for tsx.

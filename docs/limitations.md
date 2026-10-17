@@ -64,9 +64,7 @@ things that went with the classic syntax — listed on the
 
 **Arithmetic works only on numbers written out.** `scalar r = ((2 + 3) * 4)` is
 20, but `(k + 1)` with a named `k` is refused — a named number is worked out after
-the arithmetic runs, so there is nothing to add yet. There is also no precedence
-yet: arithmetic is read left to right like the rest of a line, so `2 + 3 * 4` is
-`(2 + 3) * 4`, which is 20. Brackets say otherwise: `2 + (3 * 4)`.
+the arithmetic runs, so there is nothing to add yet.
 
 **Where anything would do, a two-way group has to be named first.** If a pair of
 numbers can mean a point or a line, the slot it lands in decides — but `print`

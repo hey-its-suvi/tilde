@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.69 — current
+## 0.3.70 — current
+
+- **Arithmetic has precedence.** `*` and `/` before `+` and `-`, as in any book: `2 + 3 * 4` is 14, `1 - 2 * 3 - 4` is −9. Equal ones still go left to right (`10 - 2 - 3` is 5), and brackets still say otherwise. It comes from the prelude's own definitions — `=> Scalar at 7` — not a rule built into the language.
+
+## 0.3.69
 
 - **A definition's number now counts.** When a line could be grouped more than one way, a looser definition is never read as sitting inside a tighter one, and two at the same declared number group left to right. Nothing in the prelude declares a number yet, so existing programs read as before; when a line has to be read from a later word, the reader now takes one definition there and reads the rest from the start again, rather than carrying on from it; your own definitions can, e.g. `define (a: Scalar) times (b: Scalar) => Scalar at 7:`.
 

@@ -60,8 +60,9 @@ line l parallel m
     expect(program.constraints.constraints).toEqual([{ kind: 'parallel', l1: 'l', l2: 'm' }])
   })
 
-  it('folds arithmetic left to right', () => {
-    expect(run('print 2 + 3 * 4\n').prints).toEqual([20])
+  it('reads arithmetic by its precedence', () => {
+    expect(run('print 2 + 3 * 4\n').prints).toEqual([14])
+    expect(run('print 2 * 3 + 4\n').prints).toEqual([10])
   })
 
   it('knows the type of a name given earlier on the same line', () => {

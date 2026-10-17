@@ -122,11 +122,10 @@ Two things make it harder than it looks:
 stands between the language and things like `scale`, which needs to say one size
 is *twice* another rather than equal to it.
 
-**Precedence** is planned as a fixed table on the symbols — `* /` before `+ -`,
-the way ordinary maths reads — applied by inserting brackets before a statement
-is matched. Definitions keep giving the symbols their meaning; nothing about
-matching or dispatch changes. Until then, arithmetic is read left to right like
-the rest of a line: `2 + 3 * 4` is `(2 + 3) * 4`.
+**Precedence** works: `* /` before `+ -`, the way ordinary maths reads. It is not
+a table on the symbols — each definition says how tightly it binds
+(`=> Scalar at 7`), so a user's own definitions can bind however they like (see
+[Reading a Line](/reading#how-tightly-things-bind)).
 
 Two halves, and they can be taken separately. Writing the expression is the small
 one. Solving it is the large one: a size given as `2 * r` has to work backwards

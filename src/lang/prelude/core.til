@@ -63,36 +63,36 @@ define (s: Scalar) is (v: Scalar) => Scalar:
 
 -- ─── Arithmetic ─────────────────────────────────────────────────────────────
 -- Ordinary definitions: `+` means what these say, like any other pattern word.
--- There is no precedence yet, so a sum inside a product needs brackets —
--- `(2 + 3) * 4`. A slot takes one word, number or bracketed group, so `2 + 3 * 4`
--- simply matches nothing.
+-- `at 7` and `at 6` say how tightly each holds its neighbours (decision 20), so
+-- `2 + 3 * 4` is `2 + (3 * 4)` and `10 - 2 - 3` is `(10 - 2) - 3`, as in any
+-- book. Brackets still say otherwise: `(2 + 3) * 4`.
 --
 -- Only numbers written down can be worked out here. A named number is decided
 -- by the solver after these run, so `k + 1` cannot be computed yet — it is
 -- refused rather than guessed.
 
-define (a: Scalar) + (b: Scalar) => Scalar:
+define (a: Scalar) + (b: Scalar) => Scalar at 6:
     tsx`
     if (typeof a !== 'number' || typeof b !== 'number') throw new Error(
         'arithmetic on a named number is not supported yet — only on numbers written out')
     return a + b
     `
 
-define (a: Scalar) - (b: Scalar) => Scalar:
+define (a: Scalar) - (b: Scalar) => Scalar at 6:
     tsx`
     if (typeof a !== 'number' || typeof b !== 'number') throw new Error(
         'arithmetic on a named number is not supported yet — only on numbers written out')
     return a - b
     `
 
-define (a: Scalar) * (b: Scalar) => Scalar:
+define (a: Scalar) * (b: Scalar) => Scalar at 7:
     tsx`
     if (typeof a !== 'number' || typeof b !== 'number') throw new Error(
         'arithmetic on a named number is not supported yet — only on numbers written out')
     return a * b
     `
 
-define (a: Scalar) / (b: Scalar) => Scalar:
+define (a: Scalar) / (b: Scalar) => Scalar at 7:
     tsx`
     if (typeof a !== 'number' || typeof b !== 'number') throw new Error(
         'arithmetic on a named number is not supported yet — only on numbers written out')
@@ -105,7 +105,7 @@ define (a: Scalar) / (b: Scalar) => Scalar:
 -- is decided by what it is given, like any other overloaded pattern. Text joins
 -- only to text — there is no silent turning of a number into text.
 
-define (a: Text) + (b: Text) => Text:
+define (a: Text) + (b: Text) => Text at 6:
     tsx`
     return a + b
     `

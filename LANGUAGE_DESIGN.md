@@ -64,8 +64,8 @@ One rule, no table to memorise.
 **Revised by 19.** The left-to-right part is decided, as a fold with longest
 match first. There is no precedence level for pattern operations or for `=`:
 `=` returns nothing, and a restart from a later word finds `line n = (l rotated
-60)`. Arithmetic folds left to right too for now — `1 + 2 * 3` is 9 — and gets
-precedence later. Starting with brackets-only is compatible —
+60)`. Arithmetic folded left to right too, until decision 20 gave definitions
+levels — `1 + 2 * 3` is now 7. Starting with brackets-only is compatible —
 it's this rule with the left-to-right part switched off.
 
 ### 4. Declaring forms are written explicitly (not derived)
@@ -1528,9 +1528,9 @@ Built recently, each covered by tests and the changelog:
 
 ## Smaller, whenever
 
-- Precedence for `+ - * /`. Until then arithmetic folds left to right like
-  everything else (decision 19): `1 + 2 * 3` is `(1 + 2) * 3`, which is 9.
-  Decided as the interim rule, knowing it differs from what a reader expects.
+- ~~Precedence for `+ - * /`.~~ Done by decision 20: `* /` at 7, `+ -` at 6.
+- Arithmetic lives in `core` because its bodies are tsx, and tsx is confined to
+  `core`. A separate `math` module would need that rule to allow a second home.
 - `(c: Circle) with center (p) and radius (r)` for an existing circle.
 - `print` for declared types, through their fields.
 - `pick`, `set unit`, `set grid` in the definition syntax.

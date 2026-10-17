@@ -85,10 +85,26 @@ has nothing to add to, Tilde reads `2 + 3` first instead.
 One thing this rules out is `a = b = c`: neither half gives anything back, so
 there is nothing to chain. Write it as two lines.
 
-## Arithmetic
+## How tightly things bind
 
-Arithmetic is read left to right like everything else, for now: `2 + 3 * 4` is
-`(2 + 3) * 4`, which is 20. Use brackets to say otherwise.
+A definition can say how tightly it holds what is next to it, with a number after
+what it gives back — higher holds tighter:
+
+```
+define (a: Scalar) * (b: Scalar) => Scalar at 7:
+define (a: Scalar) + (b: Scalar) => Scalar at 6:
+```
+
+Everything that says nothing is at 5. When a line could be grouped more than one
+way, Tilde never reads a looser definition as sitting inside a tighter one. So
+arithmetic reads as it does in any book — `2 + 3 * 4` is `2 + (3 * 4)`, which is
+14 — and equal ones still go left to right: `10 - 2 - 3` is 5.
+
+A definition matched as a whole is never split up by this. If you define
+`(a) * (b) + (c) * (d)` yourself, `a * b + c * d` uses yours, because it is the
+longest match.
+
+Use brackets to say otherwise: `(2 + 3) * 4` is 20.
 
 ## Brackets
 
