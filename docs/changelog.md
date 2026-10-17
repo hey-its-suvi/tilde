@@ -2,7 +2,7 @@
 
 ## 0.3.69 — current
 
-- **A definition's number now counts.** When a line could be grouped more than one way, a looser definition is never read as sitting inside a tighter one, and two at the same declared number group left to right. Nothing in the prelude declares a number yet, so existing programs read as before; your own definitions can, e.g. `define (a: Scalar) times (b: Scalar) => Scalar at 7:`.
+- **A definition's number now counts.** When a line could be grouped more than one way, a looser definition is never read as sitting inside a tighter one, and two at the same declared number group left to right. Nothing in the prelude declares a number yet, so existing programs read as before; when a line has to be read from a later word, the reader now takes one definition there and reads the rest from the start again, rather than carrying on from it; your own definitions can, e.g. `define (a: Scalar) times (b: Scalar) => Scalar at 7:`.
 
 ## 0.3.68
 

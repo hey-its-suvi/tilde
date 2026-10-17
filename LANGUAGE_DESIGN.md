@@ -754,7 +754,10 @@ an obvious reading.
 
 **Restarting from a later word.** If no reading works from the first word, start
 again from the second, then the third. Whatever folds into a value there takes
-the place of those words, and the line is read again from the start. This is the
+the place of those words, and the line is read again from the start.
+(Revised by 20: the longest single match there, not a fold — a fold carried on
+past it and took words belonging to the sentence around it, so
+`1 - 2 * 3 - 4` grouped as `1 - ((2 * 3) - 4)`.) This is the
 only way a call reaches a slot other than the first without brackets, and it
 runs only when the plain left-to-right reading has failed — so a line that reads
 left to right is never touched by it. When everything fails, the error comes

@@ -30,7 +30,8 @@ describe('a looser call cannot sit inside a tighter one', () => {
   })
 
   it('keeps equal ones left to right even across a tighter one', () => {
-    // Without the left-to-right rule for equal levels, the restart would read
+    // A restart from `2` takes `2 times 3` alone and reads again from the
+    // start. If it carried on to `minus 4` it would read
     // `1 minus ((2 times 3) minus 4)` = -1.
     const src = `define (a: Scalar) minus (b: Scalar) => Scalar at 6:
     tsx\`

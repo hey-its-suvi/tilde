@@ -15,8 +15,9 @@
 // is tried.
 //
 // Restarting. If no fold from the first word uses up the line, start from the
-// second word instead, then the third. Whatever folds into a value there stands
-// in for those words, and the line is read again from the start:
+// second word instead, then the third. The longest match there that gives a
+// value stands in for its words — one match, not a chain — and the line is read
+// again from the start, so the rest of it still reads left to right:
 //
 //     line n = l rotated 60   →   (line n) = (l rotated 60)
 //
@@ -25,7 +26,7 @@
 
 import { matchAt, showPieces, callTypes, type Match, type Piece } from './match.js'
 import { typesFit, compatible, ANY, type Store } from './resolve.js'
-import { DEFAULT_LEVEL, type Definition } from './types.js'
+import type { Definition } from './types.js'
 
 export type Call = Extract<Piece, { kind: 'call' }>
 
@@ -91,10 +92,13 @@ class Reader {
       if (next.pieces.length === 1 && only?.kind === 'call') return only
     }
 
-    // From a later word: whatever folds into a value there stands in for those
-    // words, and the line is read again from the start.
+    // From a later word: one match there that gives a value stands in for its
+    // words, and the line is read again from the start. One match, not a fold:
+    // a fold would carry on past it and take words that belong to the sentence
+    // around it — in `1 - 2 * 3 - 4`, `(2 * 3) - 4` — grouping them the wrong
+    // way round. Reading again from the start keeps the rest left to right.
     for (let k = 1; k < state.pieces.length; k++) {
-      for (const next of this.fold(state, k)) {
+      for (const next of this.once(state, k)) {
         const made = next.pieces[k] as Call
         if (callTypes(made).length === 0) continue // nothing to stand in with
         const found = this.read(next)
@@ -102,6 +106,18 @@ class Reader {
       }
     }
     return null
+  }
+
+  /** Every single match at `k`, longest first, with nothing folded after it. */
+  *once(state: State, k: number): Generator<State> {
+    for (const { matches, length } of this.matchesAt(state, k)) {
+      const span = state.pieces.slice(k, k + length)
+      const call: Call = { kind: 'call', matches, text: showPieces(span), col: colOf(span[0]!) }
+      yield {
+        pieces: [...state.pieces.slice(0, k), call, ...state.pieces.slice(k + length)],
+        given: give(state.given, matches),
+      }
+    }
   }
 
   /** Every way to fold the pieces from `k` on, longest first. Each match at `k`
@@ -184,7 +200,7 @@ function levelsFit(match: Match): Match | null {
       const inner = m.def.pattern
       return first ? inner.at(-1)?.part === 'slot' : inner[0]?.part === 'slot'
     }
-    const fitting = piece.matches.filter(m => !facing(m) || fits(m.def.level, outer, first))
+    const fitting = piece.matches.filter(m => !facing(m) || fits(m.def.level, outer))
     if (fitting.length === 0) return null
     if (fitting.length !== piece.matches.length) changed = true
     bindings.push(fitting.length === piece.matches.length ? b : { ...b, piece: { ...piece, matches: fitting } })
@@ -192,17 +208,11 @@ function levelsFit(match: Match): Match | null {
   return changed ? { ...match, bindings } : match
 }
 
-/** Whether a call at `inner` may sit unbracketed at an edge of one at `outer`.
- *  Tighter always may; looser never. Equal ones read left to right — the inner
- *  only in the first slot — so `10 - 2 - 3` is `(10 - 2) - 3`, and a restart
- *  cannot regroup `1 - 2 * 3 - 4` as `1 - ((2 * 3) - 4)`. At the default level
- *  equal ones nest anywhere, as they always have: `print`, `on`, `through` are
- *  words of a sentence, not operators, and `print a times b plus c times d`
- *  must still find a user's four-slot pattern after `print`. */
-function fits(inner: number, outer: number, first: boolean): boolean {
-  if (inner !== outer) return inner > outer
-  return first || outer === DEFAULT_LEVEL
-}
+/** Whether a call at `inner` may sit unbracketed at an edge of one at `outer`:
+ *  as tight or tighter. Equal ones need no rule of their own — the fold reads
+ *  them left to right, and a restart takes one match and reads again from the
+ *  start, so `1 - 2 * 3 - 4` is `(1 - (2 * 3)) - 4`. */
+const fits = (inner: number, outer: number): boolean => inner >= outer
 
 /** The names a call will give, added to those given already. Only when the call
  *  is settled — one match — and its output promises a type that says something. */

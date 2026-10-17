@@ -82,9 +82,9 @@ a * b + c * d      with a user's (a) * (b) + (c) * (d)
    right side.** For `=` either side would do, since equality is transitive;
    for `<` later only the right side reads the maths way (a < b < c is a < b
    and b < c).
-4. **Equal levels — working choice, to confirm.** Equal levels read left to
-   right (the inner call only in the first slot) at any declared level; at the
-   default level equal neighbours nest anywhere, as before. See step 2.
+4. **Equal levels need no rule.** A restart takes one match and reads the line
+   again from the start, so equal levels read left to right on their own.
+   See step 2.
 
 ## Steps
 
@@ -111,7 +111,7 @@ Each is small and separable; dropping the branch removes them all.
 | Step | Status |
 |---|---|
 | 1 | done — see below |
-| 2 | done — see below; equal-level rule to confirm |
+| 2 | done — see below |
 | 3 | |
 | 4 | waiting on which side `=` hands back |
 
@@ -152,20 +152,28 @@ those that fit; if none fit, the grouping is refused and the reader tries its
 next one. No prelude definition declares a level yet, so no existing line reads
 differently.
 
-**The rule (`fits`):** tighter may sit inside looser, never the reverse. Equal
-levels:
+**The rule (`fits`):** an inner call must be as tight as the outer one or
+tighter. Equal levels need no rule of their own — but getting there needed a
+change to how the reader restarts.
 
-| Option tried | `1 - 2 * 3 - 4` | Kept? | Why |
+The case: `1 - 2 * 3 - 4` (− at 6, × at 7), which should be −9. The fold from
+the start fails at `(1 - 2) * 3`. The restart from `2` used to **fold** — take
+`2 * 3` and carry on left to right, taking `- 4` too — so the line became
+`1 - ((2 * 3) - 4)` = −1. The restart now takes **one match**, the longest at
+that word, and reads the line again from the start: `1 - (2 * 3) - 4`, which
+the fold from the start reads left to right as `(1 - 6) - 4` = −9.
+
+| Option tried for equal levels | `1 - 2 * 3 - 4` | Kept? | Why |
 |---|---|---|---|
-| allowed anywhere | −1 ✗ | no | the restart takes the longest chain from `2`, `(2 * 3) - 4`, and puts it in the last slot of the first `-` |
-| restart takes the shortest fold first | −9 ✓ | no | breaks longest match: `print 2 times 3 plus 4 times 5` stops finding a user's four-slot pattern |
-| only in the first slot | −9 ✓ | no | at the default level everything is equal, so `print 1 + 2`, `point p = (3, 4) on l`, `l parallel 2 , 1` and a user's pattern after `print` all stop reading |
-| **only in the first slot, except at the default level** | −9 ✓ | **yes** | declared levels group left to right; ordinary words of a sentence nest as they did. All tests pass unchanged. |
-
-Cost of the kept rule: `at 5` written out means the same as nothing.
+| allowed anywhere, restart folds | −1 ✗ | no | the restart's chain swallows the `- 4` |
+| restart takes the shortest fold first | −9 ✓ | no | breaks longest match: a user's four-slot pattern after `print` stops winning |
+| inner only in the first slot | −9 ✓ | no | everything ordinary is at 5, so `print 1 + 2`, `point p = (3, 4) on l` and a user's pattern after `print` stop reading |
+| first slot only, except at the default level | −9 ✓ | no | works, but patches over the restart grabbing too much, and makes `at 5` written out special |
+| **allowed anywhere, restart takes one match** | −9 ✓ | **yes** | no special rule; longest match kept; every test passes unchanged |
 
 **`src/lang/defs/read.ts`** — `levelsFit`, applied after `narrowed` in
-`matchesAt`; `fits` for the rule; the failure memo's key now includes each
+`matchesAt`; `fits` for the rule; the restart uses new `once` (single matches at
+a word, longest first) instead of `fold`; the failure memo's key now includes each
 call's level and open edges, since those decide whether a half-read line can
 still be read.
 
