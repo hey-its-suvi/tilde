@@ -7,7 +7,9 @@
 // Numbers are plain `number` for now. The arithmetic behind them is swapped
 // later, through the Arith interface.
 
+/** One end of an interval: where it is, and whether it is excluded. */
 export type Bound = { value: number | null; open: boolean }
+/** A connected run of numbers, from `low` to `high`. */
 export type Interval = { low: Bound; high: Bound }
 
 /** A lower end at `value`. `null` is unbounded below, and then always open. */
@@ -50,17 +52,26 @@ export function compareIntervals(a: Interval, b: Interval): number {
   return compareLows(a.low, b.low) || compareHighs(a.high, b.high)
 }
 
+/** Orders two lower ends. An unbounded end comes first; at the same value a
+ *  closed end comes before an open one. */
 function compareLows(a: Bound, b: Bound): number {
-  if (a.value === b.value) return Number(a.open) - Number(b.open)
+  if (a.value === b.value) {
+    if (a.open === b.open) return 0
+    return a.open ? 1 : -1
+  }
   if (a.value === null) return -1
   if (b.value === null) return 1
-  return a.value - b.value
+  return a.value < b.value ? -1 : 1
 }
 
+/** Orders two upper ends. An unbounded end comes last; at the same value an
+ *  open end comes before a closed one, since it stops sooner. */
 function compareHighs(a: Bound, b: Bound): number {
-  // An open end stops sooner, so it comes first at the same value.
-  if (a.value === b.value) return Number(b.open) - Number(a.open)
+  if (a.value === b.value) {
+    if (a.open === b.open) return 0
+    return a.open ? -1 : 1
+  }
   if (a.value === null) return 1
   if (b.value === null) return -1
-  return a.value - b.value
+  return a.value < b.value ? -1 : 1
 }
