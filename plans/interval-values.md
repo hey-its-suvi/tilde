@@ -86,7 +86,7 @@ New file `src/lang/values/interval.ts`, with a test file `src/tests/values.test.
 
 - `interval(low, high)` takes two `Bound`s and returns `null` when empty
   (`low.value > high.value`, or equal values with either end open).
-- `contains`, `isPoint`, and a total order on intervals for sorting.
+- `contains`, `isSingleton`, and a total order on intervals for sorting.
 
 ### 2. Scalar: normalised union
 
@@ -94,7 +94,7 @@ Same file family, `src/lang/values/scalar.ts`.
 
 - Construction sorts and merges overlapping and touching intervals.
 - `union`, `intersect`, `complement` on scalars.
-- `isEmpty`, `isPoint`, `isWhole` for the three states.
+- `isEmpty`, `isSingleton`, `isWhole` for the three states.
 
 ### 3. Arith interface and rounding float backend
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contains, compareIntervals, highBound, interval, isPoint, lowBound } from '../lang/values/interval.js'
+import { contains, compareIntervals, highBound, interval, isSingleton, lowBound } from '../lang/values/interval.js'
 
 const closed = (a: number, b: number) => interval(lowBound(a), highBound(b))!
 const open = (a: number, b: number) => interval(lowBound(a, true), highBound(b, true))!
@@ -45,11 +45,11 @@ describe('containment', () => {
   })
 })
 
-describe('isPoint', () => {
+describe('isSingleton', () => {
   it('is true for [a, a] and false otherwise', () => {
-    expect(isPoint(closed(5, 5))).toBe(true)
-    expect(isPoint(closed(5, 6))).toBe(false)
-    expect(isPoint(interval(lowBound(null), highBound(null))!)).toBe(false)
+    expect(isSingleton(closed(5, 5))).toBe(true)
+    expect(isSingleton(closed(5, 6))).toBe(false)
+    expect(isSingleton(interval(lowBound(null), highBound(null))!)).toBe(false)
   })
 })
 

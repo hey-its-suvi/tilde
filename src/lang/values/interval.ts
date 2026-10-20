@@ -40,7 +40,7 @@ export function contains(i: Interval, x: number): boolean {
 }
 
 /** True when the interval holds exactly one number, e.g. `[5, 5]`. */
-export function isPoint(i: Interval): boolean {
+export function isSingleton(i: Interval): boolean {
   return i.low.value !== null && i.low.value === i.high.value
 }
 
