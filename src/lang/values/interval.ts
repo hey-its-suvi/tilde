@@ -12,12 +12,8 @@ export type Bound = { value: number | null; open: boolean }
 /** A connected run of numbers, from `low` to `high`. */
 export type Interval = { low: Bound; high: Bound }
 
-/** A lower end at `value`. `null` is unbounded below, and then always open. */
-export const lowBound = (value: number | null, open = false): Bound =>
-  value === null ? { value, open: true } : { value, open }
-
-/** An upper end at `value`. `null` is unbounded above, and then always open. */
-export const highBound = (value: number | null, open = false): Bound =>
+/** An end at `value`, open or closed. `null` is unbounded, and then always open. */
+export const bound = (value: number | null, open = false): Bound =>
   value === null ? { value, open: true } : { value, open }
 
 /** The interval from `low` to `high`, or `null` when no number lies in it. */
