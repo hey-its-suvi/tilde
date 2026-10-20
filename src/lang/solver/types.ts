@@ -4,6 +4,8 @@
 // interface and are re-exported here for convenience.
 
 import type { Scalar, Point, Line, Circle, Nullable } from './interface.js'
+import type { Scalar as ScalarSet } from '../values/scalar.js'
+export { intersectScalars } from '../values/scalar.js'
 export type { Scalar, Point, Line, Circle, Nullable }
 
 // ── Working elements (mutable, solver scratchpad) ─────────────────────────────
@@ -42,7 +44,7 @@ export type WorkingCircle = WorkingElement<Circle>
  *  to be spelled `[null]`, which made `[null]`, `[]` and `[null, 5]` all
  *  constructible while only two meant anything. */
 export type WorkingScalar = {
-  values: number[] | undefined
+  values: ScalarSet
   dof: number
 }
 
@@ -83,17 +85,6 @@ export function lineDofFromState(a: number | null, b: number | null, c: number |
 /** Create a working scalar. No value means unknown — any number, dof 1. */
 export function makeWorkingScalar(value: number | null = null): WorkingScalar {
   return value === null ? { values: undefined, dof: 1 } : { values: [value], dof: 0 }
-}
-
-/** What both could be. `undefined` constrains nothing and `[]` rules out
- *  everything, so this is total: every pair of states has an answer. */
-export function intersectScalars(
-  a: number[] | undefined,
-  b: number[] | undefined,
-): number[] | undefined {
-  if (a === undefined) return b === undefined ? undefined : [...b]
-  if (b === undefined) return [...a]
-  return a.filter(v => b.some(w => Math.abs(v - w) < 1e-9))
 }
 
 /** Create a working circle from a nullable centre point-ref and nullable
