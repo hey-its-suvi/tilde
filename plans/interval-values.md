@@ -60,7 +60,7 @@ step 4), and points.
 |---|------|-------|
 | 0 | Plan written | done |
 | A | Solver's scalar type and helpers move into `values/scalar.ts`, exact values only | done |
-| 1 | `Interval` type: construction, emptiness, containment, ordering | todo |
+| 1 | `Interval` type: construction, emptiness, containment, ordering | done |
 | 2 | Scalar: normalised union; union, intersect, complement | todo |
 | 3 | Arith interface and rounding float backend | todo |
 | 4 | Scalar arithmetic with the division rules above | todo |
