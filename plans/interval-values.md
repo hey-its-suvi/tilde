@@ -59,6 +59,7 @@ step 4), and points.
 | # | Step | State |
 |---|------|-------|
 | 0 | Plan written | done |
+| A | Solver's scalar type and helpers move into `values/scalar.ts`, exact values only | done |
 | 1 | `Interval` type: construction, emptiness, containment, ordering | todo |
 | 2 | Scalar: normalised union; union, intersect, complement | todo |
 | 3 | Arith interface and rounding float backend | todo |
@@ -67,6 +68,17 @@ step 4), and points.
 | 6 | Swappability check: a test suite that runs against any `Arith` | todo |
 
 ## Steps
+
+### A. Scalar module, exact values only
+
+Before any interval code, the solver's scalar type moves into one module.
+`src/lang/values/scalar.ts` exports `Scalar` (`number[] | undefined`, where
+`undefined` is unknown and `[]` is a contradiction), `intersectScalars` and
+`sameScalars`. The solver imports from there. No behaviour change, so the test
+suite is the check. Points, lines and circles still hold plain numbers.
+
+Scalars and bools are two concrete types. They don't share a supertype. Each has
+its own small helpers (`isSingle`, `isEmpty`), since there are only two.
 
 ### 1. `Interval`
 

@@ -17,6 +17,7 @@
 // belong to PickStrategy, not here.
 
 import type { GeomModel } from '../../model.js'
+import { sameScalars } from '../../../values/scalar.js'
 import { cloneModel, getPoint, setPoint, getLength, synthesizeAxisLine } from '../../model.js'
 import {
   workingVal, isWorkingComplete, makePlacementState, PlacementState, lineDofFromState,
@@ -292,7 +293,7 @@ function tryNarrowScalarPairs(model: GeomModel): boolean {
 
     const merged = intersectScalars(wa.values, wb.values)
     for (const w of [wa, wb]) {
-      if (sameValues(w.values, merged)) continue
+      if (sameScalars(w.values, merged)) continue
       w.values = merged && [...merged]
       w.dof = merged === undefined ? 1 : 0
       changed = true
@@ -301,11 +302,6 @@ function tryNarrowScalarPairs(model: GeomModel): boolean {
 
   return changed
 }
-
-const sameValues = (x: number[] | undefined, y: number[] | undefined) =>
-  x === undefined || y === undefined
-    ? x === y
-    : x.length === y.length && x.every((v, i) => v === y[i])
 
 
 /** One field's value in *every* solution of an element, or null if any of them
