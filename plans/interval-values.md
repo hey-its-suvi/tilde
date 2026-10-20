@@ -14,12 +14,12 @@ normalised union of intervals. `{}` is a contradiction, the full set is
 **Interval.** One contiguous run of numbers:
 
 ```
-Interval = { low: Number | null, high: Number | null,
-             lowOpen: boolean, highOpen: boolean }
+Bound    = { value: Number | null, open: boolean }
+Interval = { low: Bound, high: Bound }
 ```
 
-`null` on a side means that side is unbounded. An exact value is `[a, a]`.
-Empty intervals are never stored.
+`value: null` means that side is unbounded, and its `open` is always `true`.
+An exact value is `[a, a]`. Empty intervals are never stored.
 
 The backend's number type is `Number`. Infinity is never a `Number`, so exact
 backends never represent it.
@@ -72,8 +72,8 @@ step 4), and points.
 
 New file `src/lang/values/interval.ts`, with a test file `src/tests/values.test.ts`.
 
-- `interval(low, high, lowOpen?, highOpen?)` builds one, and returns `null` when
-  empty (`low > high`, or `low === high` with either end open).
+- `interval(low, high)` takes two `Bound`s and returns `null` when empty
+  (`low.value > high.value`, or equal values with either end open).
 - `contains`, `isPoint`, and a total order on intervals for sorting.
 
 ### 2. Scalar: normalised union
