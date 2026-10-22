@@ -61,7 +61,7 @@ step 4), and points.
 | 0 | Plan written | done |
 | A | Solver's scalar type and helpers move into `values/scalar.ts`, exact values only | done |
 | 1 | `Interval` type: construction, emptiness, containment, ordering | done |
-| 2 | Scalar: normalised union; union, intersect, complement | todo |
+| 2 | Scalar: normalised union; union, intersect, complement | done, solver answer order broken (see open questions) |
 | 3 | Arith interface and rounding float backend | todo |
 | 4 | Scalar arithmetic with the division rules above | todo |
 | 5 | Bool: subset of `{true, false}`, `and`, `or`, `not`, comparisons | todo |
@@ -121,6 +121,13 @@ second, trivial backend (exact points, no rounding) is enough to show the seam.
 If any test needs to know which backend it runs on, the interface is wrong.
 
 ## Open questions, not decided here
+
+- **Answer order for scalars.** Normalising sorts a scalar's values, so a
+  scalar's answers no longer match its element's answers by position, and
+  `pick` on the scalar can pick a different answer from `pick` on the element.
+  Three tests in `scalar-binding.test.ts` are skipped for this. Options under
+  discussion: a view of the element's answers, or the solver keeping its own
+  answer order.
 
 - Whether an interval should carry its own precision, or the backend should
   decide.

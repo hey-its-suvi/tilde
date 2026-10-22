@@ -48,6 +48,28 @@ export function compareIntervals(a: Interval, b: Interval): number {
   return compareLows(a.low, b.low) || compareHighs(a.high, b.high)
 }
 
+/** The numbers both intervals contain, or `null` when they share none. */
+export function intersectIntervals(a: Interval, b: Interval): Interval | null {
+  const low = compareLows(a.low, b.low) >= 0 ? a.low : b.low
+  const high = compareHighs(a.high, b.high) <= 0 ? a.high : b.high
+  return interval(low, high)
+}
+
+/** True when the two intervals leave no gap between them, so they can be
+ *  joined into one. `a` must start no later than `b`. */
+export function connects(a: Interval, b: Interval): boolean {
+  if (a.high.value === null || b.low.value === null) return true
+  if (a.high.value !== b.low.value) return a.high.value > b.low.value
+  return !(a.high.open && b.low.open)
+}
+
+/** The one interval covering both. Only meaningful when `connects` holds. */
+export function join(a: Interval, b: Interval): Interval {
+  const low = compareLows(a.low, b.low) <= 0 ? a.low : b.low
+  const high = compareHighs(a.high, b.high) >= 0 ? a.high : b.high
+  return { low, high }
+}
+
 /** Orders two lower ends. An unbounded end comes first; at the same value a
  *  closed end comes before an open one. */
 function compareLows(a: Bound, b: Bound): number {

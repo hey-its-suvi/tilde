@@ -4,7 +4,7 @@
 // interface and are re-exported here for convenience.
 
 import type { Scalar, Point, Line, Circle, Nullable } from './interface.js'
-import type { Scalar as ScalarSet } from '../values/scalar.js'
+import { exactScalar, wholeScalar, type Scalar as ScalarSet } from '../values/scalar.js'
 export { intersectScalars } from '../values/scalar.js'
 export type { Scalar, Point, Line, Circle, Nullable }
 
@@ -28,12 +28,10 @@ export type WorkingLine   = WorkingElement<Line>
 export type WorkingCircle = WorkingElement<Circle>
 
 /** A scalar is atomic — it has no parts to be half-known — so it says what it
- *  could be as a set rather than as a partially-filled value:
- *
- *      undefined   infinite: any number
- *      [a, b]      multiple
- *      [a]         one
- *      []          none: no possible value
+ *  could be as a set rather than as a partially-filled value. The set is a
+ *  list of intervals (see values/scalar.ts): the whole line is unknown, a
+ *  singleton is one value, several singletons are several answers, and `[]`
+ *  is no possible value.
  *
  *  The other elements still spell "unknown" as a null *inside* a value, because
  *  a point really can be half-known — `x = 5`, `y` not yet — which is a state a
@@ -84,7 +82,7 @@ export function lineDofFromState(a: number | null, b: number | null, c: number |
 
 /** Create a working scalar. No value means unknown — any number, dof 1. */
 export function makeWorkingScalar(value: number | null = null): WorkingScalar {
-  return value === null ? { values: undefined, dof: 1 } : { values: [value], dof: 0 }
+  return value === null ? { values: wholeScalar(), dof: 1 } : { values: exactScalar(value), dof: 0 }
 }
 
 /** Create a working circle from a nullable centre point-ref and nullable
