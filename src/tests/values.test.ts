@@ -39,7 +39,7 @@ describe('containment', () => {
   })
 
   it('treats a null end as unbounded', () => {
-    const above = interval(bound(0), bound(null))!
+    const above = interval(bound(0), bound<number>(null))!
     expect(contains(above, 1e300)).toBe(true)
     expect(contains(above, -1)).toBe(false)
   })
@@ -49,7 +49,7 @@ describe('isSingleton', () => {
   it('is true for [a, a] and false otherwise', () => {
     expect(isSingleton(closed(5, 5))).toBe(true)
     expect(isSingleton(closed(5, 6))).toBe(false)
-    expect(isSingleton(interval(bound(null), bound(null))!)).toBe(false)
+    expect(isSingleton(interval(bound<number>(null), bound<number>(null))!)).toBe(false)
   })
 })
 
@@ -60,7 +60,7 @@ describe('ordering', () => {
   })
 
   it('sorts an unbounded start first', () => {
-    const below = interval(bound(null), bound(0))!
+    const below = interval(bound<number>(null), bound(0))!
     expect([closed(-5, 0), below].sort(compareIntervals)[0]).toBe(below)
   })
 

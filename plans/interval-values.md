@@ -41,9 +41,11 @@ changes.
 so `1 ÷ [0, 1]` is `[1, inf)`. Dividing by a set that is only `{0}` gives `{}`.
 Splitting at 0 creates no branches: the result is a union of intervals.
 
-**Not in this plan:** the `x − x` dependency problem (a solver concern), infinite
-endpoints in `inf − inf` and `0 × inf` (decided per operation as they come up,
-step 4), and points.
+**Decided in step 4:** `0 × inf` is `0`, since the infinite end is only approached.
+Addition and subtraction never combine two infinities, so `inf − inf` cannot arise.
+A single value times a single value is computed directly, without widening.
+
+**Not in this plan:** the `x − x` dependency problem (a solver concern), and points.
 
 ```
 [1, 2] + [10, 20]  →  [11, 22]
@@ -63,7 +65,7 @@ step 4), and points.
 | 1 | `Interval` type: construction, emptiness, containment, ordering | done |
 | 2 | Scalar: normalised union; union, intersect, complement | done, solver answer order broken (see open questions) |
 | 3 | Arith interface and rounding float backend | done |
-| 4 | Scalar arithmetic with the division rules above | todo |
+| 4 | Scalar arithmetic with the division rules above | done |
 | 5 | Bool: subset of `{true, false}`, `and`, `or`, `not`, comparisons | todo |
 | 6 | Swappability check: a test suite that runs against any `Arith` | todo |
 

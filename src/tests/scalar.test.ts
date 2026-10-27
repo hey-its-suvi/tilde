@@ -55,15 +55,15 @@ describe('complement', () => {
 
   it('leaves the two sides of a single value', () => {
     expect(complement(exactScalar(0))).toEqual([
-      { low: bound(null), high: bound(0, true) },
-      { low: bound(0, true), high: bound(null) },
+      { low: bound<number>(null), high: bound(0, true) },
+      { low: bound(0, true), high: bound<number>(null) },
     ])
   })
 
   it('leaves the two outer sides of a closed interval', () => {
     expect(complement([closed(0, 1)])).toEqual([
-      { low: bound(null), high: bound(0, true) },
-      { low: bound(1, true), high: bound(null) },
+      { low: bound<number>(null), high: bound(0, true) },
+      { low: bound(1, true), high: bound<number>(null) },
     ])
   })
 })
