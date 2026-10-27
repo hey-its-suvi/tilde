@@ -82,7 +82,7 @@ describe('re-export', () => {
     expect(scope).toContain('triangle «Name» with «Name» «Name» «Name» => Triangle') // shapes
     expect(scope).toContain('«Line» through «Point» => Line')                    // constraints
     expect(scope).toContain('print «Any»')                    // returns nothing
-    expect(scope).toHaveLength(38)
+    expect(scope).toHaveLength(37)
   })
 })
 

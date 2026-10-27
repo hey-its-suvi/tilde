@@ -34,6 +34,10 @@ describe('operators and negative numbers lex', () => {
 })
 
 describe('arithmetic on written numbers', () => {
+  it('declares a name and sets it in one statement', () => {
+    expect(value('scalar k = 5\nscalar r = k\n')).toBe(5)
+  })
+
   it('works the four operations out', () => {
     expect(value('scalar r = (2 + 3)\n')).toBe(5)
     expect(value('scalar r = (2 - 3)\n')).toBe(-1)

@@ -204,7 +204,7 @@ describe('the prelude parses', () => {
     // until the declaring forms went — `line l parallel m` reads as
     // `(line l) parallel m` and needs no definition of its own (decision 19).
     expect(all.filter(d => d.body.body === 'tsx')).toHaveLength(25)
-    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(13)
+    expect(all.filter(d => d.body.body === 'tilde')).toHaveLength(12)
   })
 
   it('gives every definition a return type except those with a reason not to', () => {

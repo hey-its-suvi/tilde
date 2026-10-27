@@ -128,11 +128,6 @@ define (s: Scalar) = (v: Scalar) => Scalar at 1:
     s is v
     return v
 
-define scalar (n: new Scalar) = (v: Scalar) => Scalar at 1:
-    scalar n
-    n is v
-    return v
-
 -- ─── Placement ──────────────────────────────────────────────────────────────
 -- A Scalar slot takes either a number written down or a named scalar, and the
 -- two mean the same thing: this dimension is that number. A literal can go
