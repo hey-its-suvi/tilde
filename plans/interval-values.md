@@ -62,7 +62,7 @@ step 4), and points.
 | A | Solver's scalar type and helpers move into `values/scalar.ts`, exact values only | done |
 | 1 | `Interval` type: construction, emptiness, containment, ordering | done |
 | 2 | Scalar: normalised union; union, intersect, complement | done, solver answer order broken (see open questions) |
-| 3 | Arith interface and rounding float backend | todo |
+| 3 | Arith interface and rounding float backend | done |
 | 4 | Scalar arithmetic with the division rules above | todo |
 | 5 | Bool: subset of `{true, false}`, `and`, `or`, `not`, comparisons | todo |
 | 6 | Swappability check: a test suite that runs against any `Arith` | todo |
