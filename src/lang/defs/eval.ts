@@ -27,7 +27,7 @@ import { groupTokens, type Node } from './tree.js'
 import { resolveStatement, resolvePath, keyOf, ResolutionError, NAME, TYPE, ANY, BUILT_IN_TYPES, form, type Frame, type Param, type Store } from './resolve.js'
 import { readLine, foldFromStart, type Call } from './read.js'
 import { piecesOf, showPieces, type Match, type Piece } from './match.js'
-import { isText, type Text, type Value } from './values.js'
+import { isScalarValue, isText, type ScalarValue, type Text, type Value } from './values.js'
 import { loadModule, type HomeMap, type Loaded, type Registry, type TypeMap } from './modules.js'
 import { signature, type Definition, type Statement } from './types.js'
 import { segKey } from '../solver/model.js'
@@ -39,7 +39,7 @@ export class EvalError extends Error {
   }
 }
 
-export { isText, type Text, type Value }
+export { isScalarValue, isText, type ScalarValue, type Text, type Value }
 
 /** A string token's value, quotes and escapes removed. */
 const textOf = (token: Token): Text => ({ text: JSON.parse(token.value) as string })
@@ -463,7 +463,7 @@ function checkReturn(m: Match, value: Value, ctx: Context): void {
   if (declared === null) return
 
   const actual =
-    typeof value === 'number' ? 'Scalar'
+    typeof value === 'number' || isScalarValue(value) ? 'Scalar'
     : isText(value) ? 'Text'
     : typeof value === 'string' ? ctx.store.data.typeOf(value as Key)
     : undefined

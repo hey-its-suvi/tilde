@@ -11,7 +11,7 @@
 // to know that is to run `point a`, `point b`, `point c`, `t holds a b c`.
 
 import { matchStatement, piecesOf, showPieces, literalType, callTypes, type Match, type Piece } from './match.js'
-import type { Text, Value } from './values.js'
+import type { ScalarValue, Text, Value } from './values.js'
 import type { TypeMap } from './modules.js'
 import { typeText, type Definition } from './types.js'
 import type { Key, Scope } from './scope.js'
@@ -41,7 +41,7 @@ export type Frame = {
 
 /** A parameter that is not an element. */
 export type Param =
-  | { kind: 'value'; value: number | Text }
+  | { kind: 'value'; value: number | Text | ScalarValue }
   | { kind: 'word'; word: string }
 
 /** Everything resolution needs to know about what exists. */

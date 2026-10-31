@@ -16,7 +16,7 @@
 
 import { lexHeader, type Token } from './lexer.js'
 import type { Definition, TypeRef } from './types.js'
-import { isText, type Value } from './values.js'
+import { isScalarValue, isText, type Value } from './values.js'
 
 /** A line being matched is a list of pieces. Most are words as written; some
  *  are values already worked out — what a bracket produced — standing in for
@@ -53,7 +53,7 @@ export const showPieces = (pieces: readonly Piece[]): string =>
  *  text is Text. An element's key needs the store to say, so it is undefined
  *  here. */
 export const literalType = (v: Value): string | undefined =>
-  typeof v === 'number' ? 'Scalar' : isText(v) ? 'Text' : undefined
+  typeof v === 'number' || isScalarValue(v) ? 'Scalar' : isText(v) ? 'Text' : undefined
 
 /** One slot filled by matching: which slot, its declared type, and the piece
  *  that filled it. Resolution reads the piece back against the type. */
