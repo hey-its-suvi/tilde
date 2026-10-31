@@ -224,9 +224,7 @@ describe('a scalar carries every answer, like any other element', () => {
       )
     })
 
-  // Skipped: scalar answers are now sorted, so they no longer line up with the
-  // element's answers. The answer order is an open question (plans/interval-values.md).
-  it.skip('reports both when the element has both', () => {
+  it('reports both when the element has both', () => {
     // Previously this said [5] — one answer as though a choice had been made,
     // walking straight past `pick`.
     const r = twoWays()
@@ -234,16 +232,14 @@ describe('a scalar carries every answer, like any other element', () => {
     expect(r.scalars.get('k')!.solutions!).toEqual([5, -5])
   })
 
-  // Skipped: see the note above, on answer order.
-  it.skip('keeps the scalar in step with the element, answer for answer', () => {
+  it('keeps the scalar in step with the element, answer for answer', () => {
     const r = twoWays()
     expect(r.scalars.get('k')!.solutions!).toEqual(
       r.points.get('p')!.solutions!.map(s => s.x),
     )
   })
 
-  // Skipped: see the note above, on answer order.
-  it.skip('can be picked between', () => {
+  it('can be picked between', () => {
     expect(twoWays([['k', 2]]).scalars.get('k')!.solutions!).toEqual([-5])
   })
 

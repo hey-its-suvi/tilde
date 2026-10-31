@@ -17,7 +17,6 @@
 // belong to PickStrategy, not here.
 
 import type { GeomModel } from '../../model.js'
-import { sameScalars, scalarOf, numbersOf, isWhole } from '../../../values/scalar.js'
 import { cloneModel, getPoint, setPoint, getLength, synthesizeAxisLine } from '../../model.js'
 import {
   workingVal, isWorkingComplete, makePlacementState, PlacementState, lineDofFromState,
@@ -293,15 +292,20 @@ function tryNarrowScalarPairs(model: GeomModel): boolean {
 
     const merged = intersectScalars(wa.values, wb.values)
     for (const w of [wa, wb]) {
-      if (sameScalars(w.values, merged)) continue
-      w.values = merged
-      w.dof = isWhole(merged) ? 1 : 0
+      if (sameValues(w.values, merged)) continue
+      w.values = merged && [...merged]
+      w.dof = merged === undefined ? 1 : 0
       changed = true
     }
   }
 
   return changed
 }
+
+const sameValues = (x: number[] | undefined, y: number[] | undefined) =>
+  x === undefined || y === undefined
+    ? x === y
+    : x.length === y.length && x.every((v, i) => v === y[i])
 
 
 /** One field's value in *every* solution of an element, or null if any of them
@@ -379,10 +383,9 @@ function tryResolveScalarBindings(model: GeomModel): boolean {
     // Reverse: the scalar is known, so give its value to the field. Only when
     // it has settled on exactly one — several answers cannot be written into a
     // single field, and none means there is nothing to write.
-    if (!isWhole(ws.values)) {
-      const known = numbersOf(ws.values)
-      if (known?.length === 1) {
-        if (fillField(model, binding.element, binding.field, known[0]!)) return true
+    if (ws.values !== undefined) {
+      if (ws.values.length === 1) {
+        if (fillField(model, binding.element, binding.field, ws.values[0]!)) return true
       }
       continue
     }
@@ -390,20 +393,20 @@ function tryResolveScalarBindings(model: GeomModel): boolean {
     const wl = model.lines.get(binding.element)
     if (wl && isWorkingComplete(wl)) {
       const vals = fieldValues(wl, binding.field)
-      if (vals) { ws.values = scalarOf(vals); ws.dof = 0; return true }
+      if (vals) { ws.values = vals; ws.dof = 0; return true }
     }
 
     const wp = model.points.get(binding.element)
     if (wp && isWorkingComplete(wp)) {
       const vals = fieldValues(wp, binding.field)
-      if (vals) { ws.values = scalarOf(vals); ws.dof = 0; return true }
+      if (vals) { ws.values = vals; ws.dof = 0; return true }
     }
 
     const wc = model.circles.get(binding.element)
     if (wc && binding.field === 'r') {
       // Only numeric fields on circles (radius) propagate to scalars.
       const vals = fieldValues(wc, 'r')
-      if (vals) { ws.values = scalarOf(vals); ws.dof = 0; return true }
+      if (vals) { ws.values = vals; ws.dof = 0; return true }
     }
   }
   return false

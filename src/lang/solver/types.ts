@@ -4,8 +4,6 @@
 // interface and are re-exported here for convenience.
 
 import type { Scalar, Point, Line, Circle, Nullable } from './interface.js'
-import { exactScalar, wholeScalar, type Scalar as ScalarSet } from '../values/scalar.js'
-export { intersectScalars } from '../values/scalar.js'
 export type { Scalar, Point, Line, Circle, Nullable }
 
 // ── Working elements (mutable, solver scratchpad) ─────────────────────────────
@@ -28,10 +26,12 @@ export type WorkingLine   = WorkingElement<Line>
 export type WorkingCircle = WorkingElement<Circle>
 
 /** A scalar is atomic — it has no parts to be half-known — so it says what it
- *  could be as a set rather than as a partially-filled value. The set is a
- *  list of intervals (see values/scalar.ts): the whole line is unknown, a
- *  singleton is one value, several singletons are several answers, and `[]`
- *  is no possible value.
+ *  could be as a set rather than as a partially-filled value:
+ *
+ *      undefined   infinite: any number
+ *      [a, b]      multiple
+ *      [a]         one
+ *      []          none: no possible value
  *
  *  The other elements still spell "unknown" as a null *inside* a value, because
  *  a point really can be half-known — `x = 5`, `y` not yet — which is a state a
@@ -42,7 +42,7 @@ export type WorkingCircle = WorkingElement<Circle>
  *  to be spelled `[null]`, which made `[null]`, `[]` and `[null, 5]` all
  *  constructible while only two meant anything. */
 export type WorkingScalar = {
-  values: ScalarSet
+  values: number[] | undefined
   dof: number
 }
 
@@ -82,7 +82,18 @@ export function lineDofFromState(a: number | null, b: number | null, c: number |
 
 /** Create a working scalar. No value means unknown — any number, dof 1. */
 export function makeWorkingScalar(value: number | null = null): WorkingScalar {
-  return value === null ? { values: wholeScalar(), dof: 1 } : { values: exactScalar(value), dof: 0 }
+  return value === null ? { values: undefined, dof: 1 } : { values: [value], dof: 0 }
+}
+
+/** What both could be. `undefined` constrains nothing and `[]` rules out
+ *  everything, so this is total: every pair of states has an answer. */
+export function intersectScalars(
+  a: number[] | undefined,
+  b: number[] | undefined,
+): number[] | undefined {
+  if (a === undefined) return b === undefined ? undefined : [...b]
+  if (b === undefined) return [...a]
+  return a.filter(v => b.some(w => Math.abs(v - w) < 1e-9))
 }
 
 /** Create a working circle from a nullable centre point-ref and nullable

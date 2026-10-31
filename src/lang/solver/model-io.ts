@@ -14,7 +14,6 @@ import {
   makeWorkingLine, makeWorkingCircle, makeWorkingScalar, workingVal, isWorkingComplete, lineDofFromState,
   intersectScalars,
 } from './types.js'
-import { scalarOf, numbersOf } from '../values/scalar.js'
 import { isEqual } from './geom.js'
 
 // ── Build GeomModel from ConstraintSet ───────────────────────────────────────
@@ -157,7 +156,7 @@ function applyConstraint(model: GeomModel, c: ResolvedConstraint): void {
       if (typeof c.target === 'number') {
         // Narrowed, not assigned. Two different values for one number is a
         // contradiction — `none` — rather than the second quietly winning.
-        ws.values = intersectScalars(ws.values, scalarOf([c.target]))
+        ws.values = intersectScalars(ws.values, [c.target])
         ws.dof = 0
       } else {
         model.scalarBindings.push({ scalar: c.scalar, element: c.target.element, field: c.target.field })
@@ -238,15 +237,15 @@ export function extractResult(model: GeomModel, input: ConstraintSet): SolveResu
     // reporting only the first would answer as though a choice had been made.
     //
     // Empty means *none*: over-constrained, no value it could take. Unknown is
-    // `undefined` — could still be anything. The reported form is the plain
-    // values of the working scalar, so this only has to apply a pick.
-    const values = numbersOf(ws.values)
+    // `undefined` — could still be anything. The two used to share `[]`.
+    // The working form and the reported form are now the same shape, so this
+    // only has to apply a pick.
     const pick = model.solutionPicks.get(name)
-    if (values !== undefined && values.length > 1
-        && pick !== undefined && pick >= 1 && pick <= values.length) {
-      scalars.set(name, { solutions: [values[pick - 1]!], dof: 0 })
+    if (ws.values !== undefined && ws.values.length > 1
+        && pick !== undefined && pick >= 1 && pick <= ws.values.length) {
+      scalars.set(name, { solutions: [ws.values[pick - 1]!], dof: 0 })
     } else {
-      scalars.set(name, { solutions: values, dof: ws.dof })
+      scalars.set(name, { solutions: ws.values && [...ws.values], dof: ws.dof })
     }
   }
 
