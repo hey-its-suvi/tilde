@@ -30,8 +30,7 @@ import { piecesOf, showPieces, type Match, type Piece } from './match.js'
 import { isScalarValue, isText, type ScalarValue, type Text, type Value } from './values.js'
 import { loadModule, type HomeMap, type Loaded, type Registry, type TypeMap } from './modules.js'
 import { signature, type Definition, type Statement } from './types.js'
-import { segKey } from '../solver/model.js'
-import type { ConstraintSet, ResolvedConstraint } from '../solver/interface.js'
+import { segKey, type ConstraintSet, type ResolvedConstraint } from '../constraints.js'
 
 export class EvalError extends Error {
   constructor(message: string) {

@@ -1,5 +1,8 @@
 // ─── Tilde GeomModel ──────────────────────────────────────────────────────────
 
+import { segKey } from '../constraints.js'
+export { segKey }
+
 import {
   WorkingPoint, WorkingLine, WorkingCircle, WorkingScalar,
   makeWorkingPoint, makeWorkingLine,
@@ -132,10 +135,6 @@ export function synthesizeAxisLine(
 }
 
 // ─── Segment helpers ──────────────────────────────────────────────────────────
-
-export function segKey(v1: string, v2: string): string {
-  return v1 < v2 ? `${v1}:${v2}` : `${v2}:${v1}`
-}
 
 export function setLength(model: GeomModel, v1: string, v2: string, len: number) {
   model.lengths.set(segKey(v1, v2), len)
