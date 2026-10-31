@@ -21,7 +21,7 @@ import { RuleBasedPick } from './pick/rule-based/index.js'
 import { BudgetPick } from './pick/budget/index.js'
 import { NonePick } from './pick/none/index.js'
 import { buildSceneGraph } from './output.js'
-import { runSource, labelsOf, isText, SETTINGS, type Value } from '../defs/eval.js'
+import { runSource, labelsOf, isScalarValue, isText, SETTINGS, type Value } from '../defs/eval.js'
 import { PRELUDE } from '../prelude/index.js'
 import { SceneGraph, RenderConfig, DEFAULT_CONFIG } from '../../renderer/interface.js'
 
@@ -82,6 +82,7 @@ function describe(value: Value, result: SolveResult, labels: Map<string, string>
   if (value === null) return '(nothing)'
   if (typeof value === 'number') return num(value)
   if (isText(value)) return value.text
+  if (isScalarValue(value)) return 'a scalar'
 
   const name = labels.get(value) ?? value
   const found =
