@@ -56,18 +56,24 @@ builder) is rewritten against the new `SolveResult`:
 
 - a field that's empty (`[]`) anywhere in an element → contradiction, not
   drawn (unchanged from today).
-- a field that's a finite union of singleton intervals, for every field the
-  element needs → draw one point/line/circle per combination: one combination
-  is `'one'`, more than one is `'multiple'`. (This is actually new power —
-  previously only the real solver's circle/line intersections produced
-  `'multiple'`; now plain scalar arithmetic that lands on a discrete pair of
-  values does too, for free.)
-- anything else (a genuine bounded range, or fully whole) → **not drawn**.
-  `'infinite'` only ever got a pixel position in the old system because the
-  *pick* phase invented a gauge-justified placement for it; a pass-through
-  solver has nothing to invent, so there is no anchor to draw a wavy mark at.
-  The wavy drawing code in `canvas2d.ts` is left in place, dormant, for
-  whichever future solver can supply that anchor again.
+- a field that's a singleton on every field the element needs → draw it,
+  `'one'`.
+- anything else — a genuine bounded range, a discrete union of more than one
+  singleton (e.g. `{2} ∪ {5}`), or fully whole — is treated the same: **not
+  drawn**, for now. A discrete multi-valued field is *not* given the old
+  `'multiple'` treatment (drawing one point per combination of fields), even
+  though it could be: doing that correctly needs each solution kept as a
+  whole correlated element (an iterator over whole points, not independently
+  uncertain fields recombined by cartesian product), which isn't built yet.
+  Treating it like any other non-singleton avoids quietly shipping a
+  half-right version of multiplicity now. `'infinite'`/`'multiple'` only ever
+  got a pixel position in the old system because the *pick* phase invented a
+  gauge-justified placement, or the real solver found correlated branches
+  directly; a pass-through solver has neither. The wavy/jagged drawing code
+  in `canvas2d.ts` is left in place, dormant, for whichever future solver can
+  supply that again. Same treatment applies to printing a named scalar's
+  value (`describe`/`show` in `solver/index.ts`): singleton prints the
+  number, anything else prints as not yet known, no "2 or 5" text.
 
 **Lang side stops collapsing.** Wherever elaboration currently converts an
 evaluated scalar expression down to a plain `number` before building a
@@ -105,9 +111,10 @@ with known-failing cases.
 ## Open questions, not decided here
 
 - Whether `ConstraintSet`'s `picks: Map<string, number>` (user solution picks)
-  still means anything once there's no multi-branch derivation to pick
-  between from geometry — scalar arithmetic can still produce a discrete
-  multi-valued result (see `output.ts` rules above), so a pick may still be
-  meaningful there. Left as-is for now; revisit if it turns out to be dead.
+  still means anything now that no branch of this plan surfaces multiple
+  solutions at all (geometric or discrete-scalar). Likely dead under the
+  shell solver; left as-is for now rather than removed, since the real
+  solver's eventual rewrite is exactly what would need it again, with
+  solutions as whole correlated elements rather than per-field unions.
 - Exactly which existing test cases survive step 8 is a per-file judgement
   call made while doing that step, not decided in advance here.
