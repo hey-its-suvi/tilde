@@ -1,55 +1,34 @@
 # Solver
 
-Tilde's solver works the way a human does when solving a geometry problem by hand: start from what you know, apply a construction, find a new point, repeat. Each vertex is placed by intersecting circles, lines, or both — exact constructions, not approximations. A triangle with sides 3, 4, 5 always produces a right angle of exactly 90°.
+A named number is no longer just one value or unknown — underneath, it's a
+set: a range, or a few exact values, as well as those two. The language and
+the renderer moved to this without rewriting the geometric solver to
+understand it, which is its own unwritten effort.
 
-This also means the solver fails loudly when constraints are inconsistent, rather than silently producing a nonsensical result.
+Until that exists, the solver only reads back what a statement says
+directly — it works out nothing from the shape of a figure. A position, a
+radius, a line's coefficients, a named number tied to another element's
+field: each narrows only the thing it's directly about. Two facts about the
+same name combine — two `position` statements on one point intersect per
+axis, a named number bound to a circle's radius settles whichever side is
+known first. Nothing crosses between *different* elements: a point `on` a
+line or circle, a line `through` two points, `parallel`, `perpendicular`, a
+length or angle placing something, and `=` between two points (which means
+"zero distance apart") are all accepted and drawn as undetermined, never
+worked out.
 
-## The solver flow
-
-Every time you edit a program, it is read and run against its definitions, which
-hand the solver a set of elements and constraints. The solver builds a model from
-them, then runs a loop that keeps placing elements until nothing else can be
-placed.
-
-```mermaid
-flowchart TD
-    A([Program, read against its definitions]) --> P1
-
-    P1["Constraint Model
-    Register every point, line, circle and number.
-    Apply lengths, on-line, on-circle,
-    parallel and perpendicular constraints."]
-
-    P1 --> L
-
-    subgraph L ["The Loop"]
-      direction LR
-      PROP["Propagate
-      Apply every forced placement
-      (constraints uniquely determine
-      the element)."]
-      PICK["Pick
-      Place one element by canonical
-      gauge fixing, or by a
-      representative choice if no
-      gauge is available."]
-      PROP <--> PICK
-    end
-
-    L --> OUT
-    OUT([Scene Graph])
+```
+point a at 0 0
+point b at 4 0
+circle c with center a and radius 3
+point p on c
+p on b
 ```
 
-After the constraint model is built, the loop alternates between two halves:
+`a`, `b` and `c` are drawn — each comes from a direct fact. `p` is not: `on`
+is relational, and nothing works out where it has to sit.
 
-- **Propagate** scans for placements that the constraints uniquely determine — a vertex on two known lines (the intersection), a line through two placed points, etc. Every forced placement fires until none are left.
-- **Pick** places a single element when nothing is forced — either by claiming a still-free degree of freedom and placing canonically (origin, +x direction, unit scale), or by choosing a representative position along a free locus.
-
-The loop runs until neither phase fires. Whatever's left in the model becomes the scene graph.
-
-## Pages
-
-- [Constraint Model](./constraint-model) — the graph of vertices, lengths, and relationships the solver works from
-- [Anchor](./anchor) — degrees of freedom and how the solver picks a canonical position when one is free
-- [Placement](./placement) — the propagate/pick loop and the rules that place each vertex and complete each line
-- [Types](./types) — the working types, output types, and helpers used throughout the solver
+This is deliberate, not a bug. The real solver, with its propagate/pick loop
+and canonical gauge-fixing, still exists in git history, parked until it's
+rewritten to work natively over the new value. See the
+[roadmap](/roadmap#geometric-derivation) for what comes back.

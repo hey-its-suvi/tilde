@@ -50,15 +50,7 @@ export default withMermaid(defineConfig({
       {
         text: 'Internals',
         items: [
-          {
-            text: 'Solver',
-            link: '/solver/',
-            items: [
-              { text: 'Constraint Model', link: '/solver/constraint-model' },
-              { text: 'Anchor', link: '/solver/anchor' },
-              { text: 'Placement', link: '/solver/placement' },
-            ],
-          },
+          { text: 'Solver', link: '/solver/' },
           { text: 'Certainty Model', link: '/certainty' },
         ],
       },
