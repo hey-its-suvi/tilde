@@ -110,11 +110,10 @@ with known-failing cases.
 
 ## Open questions, not decided here
 
-- Whether `ConstraintSet`'s `picks: Map<string, number>` (user solution picks)
-  still means anything now that no branch of this plan surfaces multiple
-  solutions at all (geometric or discrete-scalar). Likely dead under the
-  shell solver; left as-is for now rather than removed, since the real
-  solver's eventual rewrite is exactly what would need it again, with
-  solutions as whole correlated elements rather than per-field unions.
+- **Decided:** `ConstraintSet`'s `picks: Map<string, number>` (user solution
+  picks) stays in the type and is threaded through unused — dead code, not
+  worth stripping out now. It's likely to matter again once the real
+  solver's eventual rewrite can surface multiple solutions as whole
+  correlated elements, and ripping it out now just means re-adding it later.
 - Exactly which existing test cases survive step 8 is a per-file judgement
   call made while doing that step, not decided in advance here.
