@@ -25,6 +25,13 @@ nothing crosses between elements. Per element it only:
   is the same fact written differently, not something solved for,
 - merges `scalars-equal` pairs and `scalar-equality` against a literal by
   intersecting,
+- resolves `scalar-equality`'s `{ element, field }` form (e.g. `circle c with
+  radius k` ties `k` to `c.r`) by reading whichever side is already settled
+  and intersecting it into the other — a lookup, not a derivation, since
+  nothing about `c.r` or `k` is computed from anything else. This runs after
+  the direct-fact pass above, in one or two fixed passes (so a short chain —
+  a scalar bound to a field that's itself bound to another scalar — still
+  settles), never an open-ended propagate-to-fixpoint loop,
 - otherwise leaves a field exactly as declared, or whole (fully unknown) if
   nothing declared it.
 
