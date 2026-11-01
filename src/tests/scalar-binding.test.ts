@@ -87,7 +87,7 @@ describe('a known scalar fills in the element', () => {
       cs.scalars.add('k')
       cs.constraints.push(
         { kind: 'position', point: 'o', x: exactScalar(0), y: exactScalar(0) },
-        { kind: 'circle-spec', circle: 'c', center: 'o', r: null },
+        { kind: 'circle-spec', circle: 'c', center: 'o', r: wholeScalar() },
         value('k', 3), bind('k', 'c', 'r'),
       )
     })
@@ -99,7 +99,7 @@ describe('a known scalar fills in the element', () => {
       cs.lines.add('l')
       cs.scalars.add('k')
       cs.constraints.push(
-        { kind: 'line-equation', line: 'l', a: exactScalar(0), b: exactScalar(1), c: null },
+        { kind: 'line-equation', line: 'l', a: exactScalar(0), b: exactScalar(1), c: wholeScalar() },
         value('k', -5), bind('k', 'l', 'c'),
       )
     })
@@ -117,8 +117,8 @@ describe('a known scalar fills in the element', () => {
       cs.scalars.add('k')
       cs.constraints.push(
         { kind: 'position', point: 'o', x: exactScalar(0), y: exactScalar(0) },
-        { kind: 'circle-spec', circle: 'c', center: 'o', r: null },
-        { kind: 'circle-spec', circle: 'd', center: 'o', r: null },
+        { kind: 'circle-spec', circle: 'c', center: 'o', r: wholeScalar() },
+        { kind: 'circle-spec', circle: 'd', center: 'o', r: wholeScalar() },
         value('k', 3), bind('k', 'c', 'r'), bind('k', 'd', 'r'),
       )
     })

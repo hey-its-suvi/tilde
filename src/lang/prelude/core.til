@@ -137,8 +137,8 @@ define (s: Scalar) = (v: Scalar) => Scalar at 1:
 define (p: Point) at (x: Scalar) (y: Scalar) => Point:
     tsx`
     constrain({ kind: 'position', point: p,
-        x: typeof x === 'number' ? exactScalar(x) : null,
-        y: typeof y === 'number' ? exactScalar(y) : null,
+        x: typeof x === 'number' ? exactScalar(x) : wholeScalar(),
+        y: typeof y === 'number' ? exactScalar(y) : wholeScalar(),
     })
     if (typeof x === 'string') {
         constrain({ kind: 'scalar-equality', scalar: x, target: { element: p, field: 'x' } })
@@ -151,7 +151,7 @@ define (p: Point) at (x: Scalar) (y: Scalar) => Point:
 
 define (c: Circle) with center (p: Point) => Circle:
     tsx`
-    constrain({ kind: 'circle-spec', circle: c, center: p, r: null })
+    constrain({ kind: 'circle-spec', circle: c, center: p, r: wholeScalar() })
     return c
     `
 
@@ -160,7 +160,7 @@ define (c: Circle) with radius (r: Scalar) => Circle:
     if (typeof r === 'number') {
         constrain({ kind: 'circle-spec', circle: c, center: null, r: exactScalar(r) })
     } else {
-        constrain({ kind: 'circle-spec', circle: c, center: null, r: null })
+        constrain({ kind: 'circle-spec', circle: c, center: null, r: wholeScalar() })
         constrain({ kind: 'scalar-equality', scalar: r, target: { element: c, field: 'r' } })
     }
     return c
@@ -170,7 +170,7 @@ define (c: Circle) with radius (r: Scalar) => Circle:
 
 define (a: Line) parallel (b: Line) => Line:
     tsx`
-    constrain({ kind: 'parallel', l1: a, l2: b })
+    constrain({ kind: 'parallel', l1: a, l2: b, distance: wholeScalar() })
     return a
     `
 

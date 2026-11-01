@@ -40,11 +40,14 @@ export type ResolvedConstraint =
   | ScalarEqualityConstraint
   | ScalarsEqualConstraint
 
+/** `x`/`y` are whole, not `null`, when a statement doesn't mention that axis
+ *  — `Scalar` already has its own identity for "nothing said" (intersecting
+ *  whole with anything is a no-op), so there's no need for a second one. */
 export type PositionConstraint = {
   kind: 'position'
   point: string
-  x: Scalar | null
-  y: Scalar | null
+  x: Scalar
+  y: Scalar
 }
 
 export type DistanceConstraint = {
@@ -84,25 +87,27 @@ export type OnCircleConstraint = {
 export type LineEquationConstraint = {
   kind: 'line-equation'
   line: string
-  a: Scalar | null
-  b: Scalar | null
-  c: Scalar | null
+  a: Scalar
+  b: Scalar
+  c: Scalar
 }
 
 export type CircleSpecConstraint = {
   kind: 'circle-spec'
   circle: string
-  /** Point ref (key into points) holding the centre, or null if unspecified. */
+  /** Point ref (key into points) holding the centre, or `null` if unspecified
+   *  — a point-ref has no "whole" to default to the way a `Scalar` does, so
+   *  this one genuinely needs the second state. */
   center: string | null
-  /** Radius value, or null if unspecified. */
-  r: Scalar | null
+  /** Radius value; whole when unspecified. */
+  r: Scalar
 }
 
 export type ParallelConstraint = {
   kind: 'parallel'
   l1: string
   l2: string
-  distance?: Scalar
+  distance: Scalar
 }
 
 export type PerpendicularConstraint = {

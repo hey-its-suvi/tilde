@@ -110,6 +110,16 @@ triage) turned out small enough to land in the same commit too — fixing the
 compile breaks in it surfaced most of what needed trimming anyway, and
 leaving the suite red even briefly wasn't worth the extra commit.
 
+**Follow-up, after the swap landed:** `PositionConstraint.x`/`y`,
+`LineEquationConstraint.a`/`b`/`c`, `CircleSpecConstraint.r` and
+`ParallelConstraint.distance` dropped `| null` in favour of always being a
+`Scalar`, defaulting to `wholeScalar()` when a statement doesn't mention that
+field. `Scalar` already has its own identity element for "nothing said" —
+intersecting whole with anything is a no-op, by definition, not an accident
+of `ShellSolver` being simple — so a second `null` state for the same idea
+was redundant. `CircleSpecConstraint.center: string | null` is unchanged: a
+point-ref has no "whole" to default to.
+
 ## Status
 
 | # | Step | State |

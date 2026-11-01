@@ -3,7 +3,7 @@ import { runProgram } from '../lang/defs/eval.js'
 import { byName } from './named.js'
 import type { Definition } from '../lang/defs/types.js'
 import type { ResolvedConstraint } from '../lang/solver/interface.js'
-import { exactScalar } from '@lang/values/scalar.js'
+import { exactScalar, wholeScalar } from '@lang/values/scalar.js'
 
 import { loadModule } from '../lang/defs/modules.js'
 import { PRELUDE } from '../lang/prelude/index.js'
@@ -48,7 +48,7 @@ describe('primitives emit solver constraints', () => {
   it('emits parallel with and without a distance', () => {
     const { constraints } = run('line l', 'line m', 'line n', 'l parallel m', 'l parallel n at 4')
     expect(of(constraints.constraints, 'parallel')).toEqual([
-      { kind: 'parallel', l1: 'l', l2: 'm' },
+      { kind: 'parallel', l1: 'l', l2: 'm', distance: wholeScalar() },
       { kind: 'parallel', l1: 'l', l2: 'n', distance: exactScalar(4) },
     ])
   })
@@ -68,7 +68,7 @@ describe('composed bodies expand', () => {
     const { constraints, typeOf } = run('line m', 'line l parallel m')
     expect(typeOf('l')).toBe('Line')
     expect(of(constraints.constraints, 'parallel')).toEqual([
-      { kind: 'parallel', l1: 'l', l2: 'm' },
+      { kind: 'parallel', l1: 'l', l2: 'm', distance: wholeScalar() },
     ])
   })
 
@@ -79,7 +79,7 @@ describe('composed bodies expand', () => {
     const { constraints, typeOf } = run('point o', 'circle c with center o and radius 5')
     expect(typeOf('c')).toBe('Circle')
     expect(of(constraints.constraints, 'circle-spec')).toEqual([
-      { kind: 'circle-spec', circle: 'c', center: 'o', r: null },
+      { kind: 'circle-spec', circle: 'c', center: 'o', r: wholeScalar() },
       { kind: 'circle-spec', circle: 'c', center: null, r: exactScalar(5) },
     ])
   })

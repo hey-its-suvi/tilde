@@ -68,23 +68,25 @@ function applyDirect(
     case 'position': {
       const p = points.get(c.point)
       if (!p) throw new ConstraintError(`point "${c.point}" is not declared`)
-      if (c.x !== null) p.x = intersectScalars(p.x, c.x)
-      if (c.y !== null) p.y = intersectScalars(p.y, c.y)
+      // Whole is "nothing said," so intersecting it in is always a no-op —
+      // no need to check whether this statement even mentioned the axis.
+      p.x = intersectScalars(p.x, c.x)
+      p.y = intersectScalars(p.y, c.y)
       break
     }
     case 'line-equation': {
       const l = lines.get(c.line)
       if (!l) throw new ConstraintError(`line "${c.line}" is not declared`)
-      if (c.a !== null) l.a = intersectScalars(l.a, c.a)
-      if (c.b !== null) l.b = intersectScalars(l.b, c.b)
-      if (c.c !== null) l.c = intersectScalars(l.c, c.c)
+      l.a = intersectScalars(l.a, c.a)
+      l.b = intersectScalars(l.b, c.b)
+      l.c = intersectScalars(l.c, c.c)
       break
     }
     case 'circle-spec': {
       const circ = circles.get(c.circle)
       if (!circ) throw new ConstraintError(`circle "${c.circle}" is not declared`)
       if (c.center !== null) circ.center = c.center
-      if (c.r !== null) circ.r = intersectScalars(circ.r, c.r)
+      circ.r = intersectScalars(circ.r, c.r)
       break
     }
     case 'scalar-equality': {
