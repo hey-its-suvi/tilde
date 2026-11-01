@@ -19,10 +19,6 @@ nothing crosses between elements. Per element it only:
 - merges direct constraints *on that element* (two `position` constraints on
   the same point intersect per axis; two `line-equation` constraints on the
   same line intersect per field; `circle-spec` likewise),
-- restates one directly-known fact in another element's terms where that's
-  pure bookkeeping, not derivation — e.g. a partial `position` (`x` known,
-  `y` free) still synthesises the axis-aligned line `x = <value>`, since that
-  is the same fact written differently, not something solved for,
 - merges `scalars-equal` pairs and `scalar-equality` against a literal by
   intersecting,
 - resolves `scalar-equality`'s `{ element, field }` form (e.g. `circle c with
@@ -110,23 +106,44 @@ with known-failing cases.
 Steps 1 through 7 are listed separately for narrative clarity, but they're
 mutually interdependent — none of it compiles or passes tests in any
 in-between state, so they land as one commit ("the swap"). Step 8 (test
-triage) is the genuinely incremental part: each file's pass only ever removes
-assertions that are already failing after the swap, so the suite gets
-strictly greener, never worse, file by file.
+triage) turned out small enough to land in the same commit too — fixing the
+compile breaks in it surfaced most of what needed trimming anyway, and
+leaving the suite red even briefly wasn't worth the extra commit.
 
 ## Status
 
 | # | Step | State |
 |---|------|-------|
 | 0 | Plan written | done |
-| 1 | New `solver/interface.ts`: `ConstraintSet`/`ResolvedConstraint` unchanged in shape, `Point`/`Line`/`Circle`/`Scalar`/`SolveResult`/`SolverInterface` rewritten against `values/scalar.ts` | todo |
-| 2 | Delete the real solver (`model.ts`, `model-io.ts`, `geom.ts`, `types.ts`, `solver.ts`, `propagate/`, `pick/`) and its dedicated tests | todo |
-| 3 | `ShellSolver`: direct-constraint merging only, per the rules above | todo |
-| 4 | Rewrite `solver/output.ts` against the new `SolveResult` | todo |
-| 5 | `solver/index.ts`: wire in `ShellSolver`, drop pick-strategy exports, rewrite `describe`/`show`/`equation` for `Scalar` leaves | todo |
-| 6 | `core.til`'s native (`tsx`) blocks wrap literal numbers as `exactScalar(n)` at each `constrain(...)` call site | todo |
-| 7 | Playground: remove the pick-picker dropdown | todo |
-| 8 | Triage remaining tests: strip assertions that needed real derivation, keep the rest | todo |
+| 1 | New `solver/interface.ts`: `ConstraintSet`/`ResolvedConstraint` unchanged in shape, `Point`/`Line`/`Circle`/`Scalar`/`SolveResult`/`SolverInterface` rewritten against `values/scalar.ts` | done |
+| 2 | Delete the real solver (`model.ts`, `model-io.ts`, `geom.ts`, `types.ts`, `solver.ts`, `propagate/`, `pick/`) and its dedicated tests | done |
+| 3 | `ShellSolver`: direct-constraint merging only, per the rules above | done |
+| 4 | Rewrite `solver/output.ts` against the new `SolveResult` | done |
+| 5 | `solver/index.ts`: wire in `ShellSolver`, drop pick-strategy exports, rewrite `describe`/`show`/`equation` for `Scalar` leaves | done |
+| 6 | `core.til`'s native (`tsx`) blocks wrap literal numbers as `exactScalar(n)` at each `constrain(...)` call site | done |
+| 7 | Playground: remove the pick-picker dropdown | done |
+| 8 | Triage remaining tests: strip assertions that needed real derivation, keep the rest | done — 369/369 green |
+
+`segKey` also moved from the deleted `model.ts` into `interface.ts` (it's
+boundary-level, not solver-internal), and `values/scalar.ts` gained
+`singleValue` — the one case `numbersOf` doesn't cover: a single value or
+`undefined`, never throwing on a range.
+
+Full list of test files trimmed or deleted, and why — every case was the same
+shape, something that needed on-line/on-circle/distance/angle/parallel/
+perpendicular derivation, or point/scalar `=` chaining through one of those:
+
+- Deleted outright: `solver.test.ts`, `anchor.test.ts` (tested
+  `propagate`/`pick` directly).
+- Trimmed: `circles.test.ts` (kept direct-fact circle declarations, dropped
+  the whole `on-circle constraints` block), `print.test.ts` (two derived-line
+  /circle-intersection cases), `read.test.ts` and `known-types.test.ts` (point
+  `=` is distance-zero, relational), `brackets.test.ts` and `data.test.ts`
+  (asserted a derived line resolved, now check the constraint set instead).
+- Fixed only (same behaviour, new API): everything that compared raw
+  `ConstraintSet` literals now wraps numeric fields in `exactScalar(...)`;
+  everything reading a `SolveResult` now reads `Point`/`Line`/`Circle`/
+  `Scalar` directly instead of through `.solutions`/`.dof`.
 
 ## Open questions, not decided here
 

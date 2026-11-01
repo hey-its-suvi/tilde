@@ -30,8 +30,8 @@ import { piecesOf, showPieces, type Match, type Piece } from './match.js'
 import { isScalarValue, isText, type ScalarValue, type Text, type Value } from './values.js'
 import { loadModule, type HomeMap, type Loaded, type Registry, type TypeMap } from './modules.js'
 import { signature, type Definition, type Statement } from './types.js'
-import { segKey } from '../solver/model.js'
-import type { ConstraintSet, ResolvedConstraint } from '../solver/interface.js'
+import { segKey, type ConstraintSet, type ResolvedConstraint } from '../solver/interface.js'
+import { exactScalar } from '../values/scalar.js'
 
 export class EvalError extends Error {
   constructor(message: string) {
@@ -485,7 +485,9 @@ function checkReturn(m: Match, value: Value, ctx: Context): void {
 
 /** The API a tsx body may use. Deliberately small: declare a name, add a
  *  constraint, record a segment. Everything the prelude needs, nothing that
- *  lets a body reach into evaluation itself. */
+ *  lets a body reach into evaluation itself. `exactScalar` is injected
+ *  alongside it (not through `makeApi`, since it's stateless) so a literal
+ *  number can be wrapped into the `Scalar` a constraint's fields expect. */
 type Api = {
   declare: (name: string, type: string) => string
   constrain: (c: ResolvedConstraint) => void
@@ -509,13 +511,13 @@ function runTsx(m: Match, env: Map<string, Value>, ctx: Context): Value {
     }
   }
 
-  const params = [...slots, 'declare', 'constrain', 'segment', 'alias', 'print', 'setting']
+  const params = [...slots, 'declare', 'constrain', 'segment', 'alias', 'print', 'setting', 'exactScalar']
   const args = [
     // Text reaches a body as a String object: it joins and compares like a
     // string, so `a + b` just concatenates, yet stays distinguishable from a
     // bare string, which is how an element's key arrives.
     ...slots.map(s => { const v = env.get(s)!; return isText(v) ? new String(v.text) : v }),
-    api.declare, api.constrain, api.segment, api.alias, api.print, api.setting,
+    api.declare, api.constrain, api.segment, api.alias, api.print, api.setting, exactScalar,
   ]
 
   let body: (...a: unknown[]) => Value

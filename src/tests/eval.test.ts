@@ -3,9 +3,7 @@ import { runProgram } from '../lang/defs/eval.js'
 import { byName } from './named.js'
 import type { Definition } from '../lang/defs/types.js'
 import type { ResolvedConstraint } from '../lang/solver/interface.js'
-import { Solver } from '../lang/solver/solver.js'
-import { GeometricPropagate } from '../lang/solver/propagate/geometric/index.js'
-import { RuleBasedPick } from '../lang/solver/pick/rule-based/index.js'
+import { exactScalar } from '@lang/values/scalar.js'
 
 import { loadModule } from '../lang/defs/modules.js'
 import { PRELUDE } from '../lang/prelude/index.js'
@@ -33,7 +31,7 @@ describe('primitives emit solver constraints', () => {
   it('emits a position constraint with numeric literals', () => {
     const { constraints } = run('point p', 'p at 3 5')
     expect(of(constraints.constraints, 'position')).toEqual([
-      { kind: 'position', point: 'p', x: 3, y: 5 },
+      { kind: 'position', point: 'p', x: exactScalar(3), y: exactScalar(5) },
     ])
   })
 
@@ -51,7 +49,7 @@ describe('primitives emit solver constraints', () => {
     const { constraints } = run('line l', 'line m', 'line n', 'l parallel m', 'l parallel n at 4')
     expect(of(constraints.constraints, 'parallel')).toEqual([
       { kind: 'parallel', l1: 'l', l2: 'm' },
-      { kind: 'parallel', l1: 'l', l2: 'n', distance: 4 },
+      { kind: 'parallel', l1: 'l', l2: 'n', distance: exactScalar(4) },
     ])
   })
 })
@@ -62,7 +60,7 @@ describe('composed bodies expand', () => {
     const { constraints, typeOf } = run('point p at 3 5')
     expect(typeOf('p')).toBe('Point')
     expect(of(constraints.constraints, 'position')).toEqual([
-      { kind: 'position', point: 'p', x: 3, y: 5 },
+      { kind: 'position', point: 'p', x: exactScalar(3), y: exactScalar(5) },
     ])
   })
 
@@ -82,7 +80,7 @@ describe('composed bodies expand', () => {
     expect(typeOf('c')).toBe('Circle')
     expect(of(constraints.constraints, 'circle-spec')).toEqual([
       { kind: 'circle-spec', circle: 'c', center: 'o', r: null },
-      { kind: 'circle-spec', circle: 'c', center: null, r: 5 },
+      { kind: 'circle-spec', circle: 'c', center: null, r: exactScalar(5) },
     ])
   })
 
@@ -129,10 +127,10 @@ describe('multi-name declaration forms', () => {
     // `a` and `t.point1` are two names for one point.
     const { constraints } = run('triangle t with a b c', 'a at 0 0', 'distance between t.point1 and b is 5')
     expect(of(constraints.constraints, 'position')).toEqual([
-      { kind: 'position', point: 'a', x: 0, y: 0 },
+      { kind: 'position', point: 'a', x: exactScalar(0), y: exactScalar(0) },
     ])
     expect(of(constraints.constraints, 'distance')).toEqual([
-      { kind: 'distance', p1: 'a', p2: 'b', value: 5 },
+      { kind: 'distance', p1: 'a', p2: 'b', value: exactScalar(5) },
     ])
   })
 })
@@ -168,39 +166,10 @@ describe('a program reaches the solver seam', () => {
     expect([...constraints.lines]).toEqual(['l'])
     expect([...constraints.segments]).toEqual(['a:b'])
     expect(constraints.constraints).toEqual([
-      { kind: 'position', point: 'a', x: 0, y: 0 },
+      { kind: 'position', point: 'a', x: exactScalar(0), y: exactScalar(0) },
       { kind: 'on-line', point: 'a', line: 'l' },
       { kind: 'on-line', point: 'b', line: 'l' },
-      { kind: 'distance', p1: 'a', p2: 'b', value: 10 },
+      { kind: 'distance', p1: 'a', p2: 'b', value: exactScalar(10) },
     ])
-  })
-})
-
-describe('the solver accepts what evaluation produces', () => {
-  it('solves a triangle built entirely from prelude definitions', () => {
-    const { constraints } = run(
-      'point a at 0 0',
-      'point b at 6 0',
-      'point c at 3 4',
-      'line l through a b',
-    )
-    const result = new Solver(new GeometricPropagate(), new RuleBasedPick()).solve(constraints)
-
-    expect(result.points.get('c')!.solutions![0]).toEqual({ x: 3, y: 4 })
-    expect(result.points.get('c')!.dof).toBe(0)
-    // l is pinned by two known points, giving the x-axis: ax + by + c = 0 with
-    // a = c = 0 and b free to scale.
-    const l = result.lines.get('l')!
-    expect(l.dof).toBe(0)
-    expect(l.solutions![0]!.a).toBeCloseTo(0)
-    expect(l.solutions![0]!.c).toBeCloseTo(0)
-    expect(Math.abs(l.solutions![0]!.b)).toBeGreaterThan(0)
-  })
-
-  it('leaves a line underdetermined when nothing pins it', () => {
-    // The wavy line: declaring a form without fixing it is legal in Tilde.
-    const { constraints } = run('line m', 'line l parallel m')
-    const result = new Solver(new GeometricPropagate(), new RuleBasedPick()).solve(constraints)
-    expect(result.lines.get('l')!.dof).toBeGreaterThan(0)
   })
 })

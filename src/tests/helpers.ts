@@ -1,19 +1,9 @@
 // ─── Tilde Test Helpers ───────────────────────────────────────────────────────
 //
-// `run()` reads a program against the prelude and solves it, with whichever
-// placement strategy is currently active. To run the whole suite against a
-// specific one, set the PICK env var before invoking vitest:
-//
-//   PICK=budget npx vitest run     # all tests against BudgetPick
-//   PICK=rule   npx vitest run     # default (also the default with no var)
+// `run()` reads a program against the prelude and solves it.
 
-import { solveSource, setPick, PickName } from '@lang/solver/index.js'
+import { solveSource } from '@lang/solver/index.js'
 import { SceneGraph, Solutions } from '@renderer/interface.js'
-
-const envPick = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.PICK
-if (envPick === 'rule' || envPick === 'budget') {
-  setPick(envPick as PickName)
-}
 
 /** Solve a program written against the prelude and return what it draws. */
 export function run(source: string): SceneGraph {

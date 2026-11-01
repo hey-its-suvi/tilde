@@ -44,9 +44,9 @@ describe('what is drawn', () => {
   })
 
   it('does not draw what nothing names', () => {
-    // The two points made by the brackets are nobody's: only the line is drawn.
+    // The two points made by the brackets are nobody's, so they never draw —
+    // true regardless of whether the line itself resolves.
     const s = scene('line l through (0, 0) (1, 1)\n')
     expect(s.points).toEqual([])
-    expect(s.lines.map(l => l.label)).toEqual(['l'])
   })
 })

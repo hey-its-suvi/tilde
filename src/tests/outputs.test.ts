@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { runSource } from '../lang/defs/eval.js'
 import { PRELUDE } from '../lang/prelude/index.js'
 import { byName } from './named.js'
+import { exactScalar } from '@lang/values/scalar.js'
 
 const run = (src: string) => byName(runSource(`import prelude\n${src}`, PRELUDE))
 
@@ -15,7 +16,7 @@ p at 4 0
 `
     const { typeOf, constraints } = run(src)
     expect(typeOf('p')).toBe('Point')
-    expect(constraints.constraints).toContainEqual({ kind: 'position', point: 'p', x: 4, y: 0 })
+    expect(constraints.constraints).toContainEqual({ kind: 'position', point: 'p', x: exactScalar(4), y: exactScalar(0) })
   })
 
   it('makes a fresh one of the promised type if the body never named it', () => {

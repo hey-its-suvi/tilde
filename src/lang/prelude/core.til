@@ -54,7 +54,7 @@ define scalar (n: new Scalar) is (v: Scalar) => Scalar:
 define (s: Scalar) is (v: Scalar) => Scalar:
     tsx`
     if (typeof v === 'number') {
-        constrain({ kind: 'scalar-equality', scalar: s, target: v })
+        constrain({ kind: 'scalar-equality', scalar: s, target: exactScalar(v) })
     } else {
         constrain({ kind: 'scalars-equal', a: s, b: v })
     }
@@ -137,8 +137,8 @@ define (s: Scalar) = (v: Scalar) => Scalar at 1:
 define (p: Point) at (x: Scalar) (y: Scalar) => Point:
     tsx`
     constrain({ kind: 'position', point: p,
-        x: typeof x === 'number' ? x : null,
-        y: typeof y === 'number' ? y : null,
+        x: typeof x === 'number' ? exactScalar(x) : null,
+        y: typeof y === 'number' ? exactScalar(y) : null,
     })
     if (typeof x === 'string') {
         constrain({ kind: 'scalar-equality', scalar: x, target: { element: p, field: 'x' } })
@@ -158,7 +158,7 @@ define (c: Circle) with center (p: Point) => Circle:
 define (c: Circle) with radius (r: Scalar) => Circle:
     tsx`
     if (typeof r === 'number') {
-        constrain({ kind: 'circle-spec', circle: c, center: null, r })
+        constrain({ kind: 'circle-spec', circle: c, center: null, r: exactScalar(r) })
     } else {
         constrain({ kind: 'circle-spec', circle: c, center: null, r: null })
         constrain({ kind: 'scalar-equality', scalar: r, target: { element: c, field: 'r' } })
@@ -176,7 +176,7 @@ define (a: Line) parallel (b: Line) => Line:
 
 define (a: Line) parallel (b: Line) at (d: Scalar) => Line:
     tsx`
-    constrain({ kind: 'parallel', l1: a, l2: b, distance: d })
+    constrain({ kind: 'parallel', l1: a, l2: b, distance: typeof d === 'number' ? exactScalar(d) : d })
     return a
     `
 
@@ -209,7 +209,7 @@ define (p: Point) on (c: Circle) => Point:
 define distance between (p: Point) and (q: Point) is (d: Scalar):
     tsx`
     segment(p, q)
-    constrain({ kind: 'distance', p1: p, p2: q, value: d })
+    constrain({ kind: 'distance', p1: p, p2: q, value: typeof d === 'number' ? exactScalar(d) : d })
     `
 
 -- ─── Making and naming ──────────────────────────────────────────────────────

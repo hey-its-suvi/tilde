@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { runSource } from '../lang/defs/eval.js'
-import { solveSource } from '../lang/solver/index.js'
 import { PRELUDE } from '../lang/prelude/index.js'
 
 const run = (src: string) => runSource(`import prelude\n${src}`, PRELUDE)
@@ -35,20 +34,7 @@ describe('a type must exist to be written', () => {
   })
 })
 
-describe('two points can be said to be the same', () => {
-  it('holds a field to an existing point', () => {
-    const src = `import prelude
-point p = (3, 4)
-define type TwoPoint:
-    Point a
-    Point b
-define tp (n: new TwoPoint) = (p: Point) (q: Point):
-    new TwoPoint n
-    n.a = p
-    n.b = q
-tp x = p p
-print x.a
-`
-    expect(solveSource(src).printed).toEqual(['x.a = (3, 4)'])
-  })
-})
+// Point `=` means "distance 0 apart" (constraints.til), which is relational
+// and needs real derivation — out of scope for the shell solver, see
+// plans/interval-backend.md. A "two points can be said to be the same"
+// describe block, holding a field to an existing point this way, lived here.

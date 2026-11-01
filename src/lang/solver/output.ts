@@ -1,22 +1,17 @@
 // ─── Tilde Scene Graph Builder ────────────────────────────────────────────────
 // Converts a SolveResult into a SceneGraph for the renderer.
 // This is solver-agnostic — it only reads the SolveResult interface.
+//
+// Every field crossing the solver boundary is a Scalar. A singleton draws;
+// anything else — a genuine range, a discrete union of more than one value,
+// or fully unknown — doesn't. Drawing one point per combination of
+// discrete-valued fields would need each solution kept as a whole, correlated
+// element, which isn't built yet (see plans/interval-backend.md), so a
+// multi-valued field is treated the same as any other non-singleton, for now.
 
-import { SolveResult, ElementResult } from './interface.js'
-import { SceneGraph, SceneLine, SceneCircle, SceneSegment, ScenePoint, SceneScalar, Solutions } from '../../renderer/interface.js'
-
-/** The answers to draw. An element that could be *anything* (`undefined`) and
- *  one that could be *nothing* (`[]`) differ in meaning but not on the canvas —
- *  neither gives a position to put a mark at. */
-const drawn = <T>(r: ElementResult<T>): T[] => r.solutions ?? []
-
-/** Only asked of elements that have at least one answer, so `none` never
- *  reaches it — the renderer has no way to draw "impossible" yet. */
-function solutionsStatus<T>(result: ElementResult<T>): Solutions {
-  if (drawn(result).length > 1) return 'multiple'
-  if (result.solutions === undefined || result.dof > 0) return 'infinite'
-  return 'one'
-}
+import { SolveResult } from './interface.js'
+import { singleValue } from '../values/scalar.js'
+import { SceneGraph, SceneLine, SceneCircle, SceneSegment, ScenePoint, SceneScalar } from '../../renderer/interface.js'
 
 /** Element key → what to call it on screen. A key is not what the user typed:
  *  a point is keyed `Point#1` while the program called it `a`, and the drawing
@@ -37,78 +32,50 @@ export function buildSceneGraph(result: SolveResult, labels?: Labels): SceneGrap
   const circles: SceneCircle[] = []
 
   // Lines (skip anonymous elements created from inline tuples)
-  for (const [name, lr] of result.lines) {
-    const ls = drawn(lr)
-    if (hidden(name, labels) || ls.length === 0) continue
-    const status = solutionsStatus(lr)
-    if (status === 'multiple') {
-      ls.forEach((s, i) => {
-        lines.push({ a: s.a, b: s.b, c: s.c, label: labelFor(name, labels), solutions: 'multiple', solutionIndex: i + 1 })
-      })
-    } else {
-      const s = ls[0]!
-      lines.push({ a: s.a, b: s.b, c: s.c, label: labelFor(name, labels), solutions: status })
-    }
+  for (const [name, l] of result.lines) {
+    if (hidden(name, labels)) continue
+    const a = singleValue(l.a), b = singleValue(l.b), c = singleValue(l.c)
+    if (a === undefined || b === undefined || c === undefined) continue
+    lines.push({ a, b, c, label: labelFor(name, labels), solutions: 'one' })
   }
 
   // Segments
   for (const key of result.segments) {
     const [v1, v2] = key.split(':') as [string, string]
-    const pr1 = result.points.get(v1)
-    const pr2 = result.points.get(v2)
-    if (!pr1 || !pr2) continue
-    const ps1 = drawn(pr1), ps2 = drawn(pr2)
-    if (ps1.length === 0 || ps2.length === 0) continue
-
-    const s1 = solutionsStatus(pr1)
-    const s2 = solutionsStatus(pr2)
-
-    if (s1 === 'multiple' || s2 === 'multiple') {
-      // Emit one segment per combination of solutions for ambiguous endpoints
-      for (const p1 of ps1) {
-        for (const p2 of ps2) {
-          segments.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, solutions: 'multiple', label: segLabel(v1, v2, labels) })
-        }
-      }
-    } else {
-      const p1 = ps1[0]!, p2 = ps2[0]!
-      const segStatus: Solutions = (pr1.dof === 0 && pr2.dof === 0) ? 'one' : 'infinite'
-      segments.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, solutions: segStatus, label: segLabel(v1, v2, labels) })
-    }
+    const p1 = result.points.get(v1)
+    const p2 = result.points.get(v2)
+    if (!p1 || !p2) continue
+    const x1 = singleValue(p1.x), y1 = singleValue(p1.y)
+    const x2 = singleValue(p2.x), y2 = singleValue(p2.y)
+    if (x1 === undefined || y1 === undefined || x2 === undefined || y2 === undefined) continue
+    segments.push({ x1, y1, x2, y2, solutions: 'one', label: segLabel(v1, v2, labels) })
   }
 
   // Circles (skip anonymous synthesised circles)
-  for (const [name, cr] of result.circles) {
-    const cs = drawn(cr)
-    if (hidden(name, labels) || cs.length === 0) continue
-    const s = cs[0]!
-    const centerPr = result.points.get(s.center)
-    if (!centerPr || drawn(centerPr).length === 0) continue
-    const cp = drawn(centerPr)[0]!
-    const status = solutionsStatus(cr)
-    circles.push({ cx: cp.x, cy: cp.y, r: s.r, label: labelFor(name, labels), solutions: status })
+  for (const [name, c] of result.circles) {
+    if (hidden(name, labels)) continue
+    const r = singleValue(c.r)
+    if (r === undefined || c.center === null) continue
+    const centerP = result.points.get(c.center)
+    if (!centerP) continue
+    const cx = singleValue(centerP.x), cy = singleValue(centerP.y)
+    if (cx === undefined || cy === undefined) continue
+    circles.push({ cx, cy, r, label: labelFor(name, labels), solutions: 'one' })
   }
 
   // Points (skip anonymous elements created from inline tuples)
-  for (const [key, pr] of result.points) {
-    const pts = drawn(pr)
-    if (hidden(key, labels) || pts.length === 0) continue
-    const status = solutionsStatus(pr)
-    if (status === 'multiple') {
-      pts.forEach((s, i) => {
-        points.push({ x: s.x, y: s.y, label: labelFor(key, labels), solutions: 'multiple', solutionIndex: i + 1 })
-      })
-    } else {
-      const s = pts[0]!
-      points.push({ x: s.x, y: s.y, label: labelFor(key, labels), solutions: status })
-    }
+  for (const [key, p] of result.points) {
+    if (hidden(key, labels)) continue
+    const x = singleValue(p.x), y = singleValue(p.y)
+    if (x === undefined || y === undefined) continue
+    points.push({ x, y, label: labelFor(key, labels), solutions: 'one' })
   }
 
   // Scalars
   const scalars: SceneScalar[] = []
-  for (const [name, sr] of result.scalars) {
-    const vs = drawn(sr)
-    if (vs.length > 0) scalars.push({ label: labelFor(name, labels), value: vs[0]! })
+  for (const [name, s] of result.scalars) {
+    const v = singleValue(s)
+    if (v !== undefined) scalars.push({ label: labelFor(name, labels), value: v })
   }
 
   return { segments, points, arcs: [], annotations: [], lines, circles, scalars }

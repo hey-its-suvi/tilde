@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.3.71 — current
+## 0.3.72 — current
+
+- **The solver only reads back what's said directly; it no longer works anything out.** A number, a point, a line or a circle given directly — `point p at 3 4`, `circle c with radius 5`, a named number tied to another's coordinate or radius — still resolves exactly as before. Anything that needs working out from the shape of a figure does not, for now: a point `on` a line or circle, a line `through` two points, `parallel`/`perpendicular`, a length or angle placing something, and two points or numbers said equal by `=` meaning "the same one." Those constraints are still accepted and drawn as undetermined, not rejected.
+- **Gone with it, for now:** the strategy picker in the playground (`rule` / `budget` / `none`) — there's nothing left to pick between.
+- **Numbers can be set-valued.** A named number is no longer just one value or unknown; built underneath, it can be a range or several exact values, though nothing in the language can produce one yet beyond a single exact number.
+
+## 0.3.71
 
 - **`=` binds loosest and chains.** Whatever comes after `=` is worked out first, as before, and now `a = b = c` means a = b and b = c, for numbers and for points. `=` gives back its right side, which is what makes the chain work.
 

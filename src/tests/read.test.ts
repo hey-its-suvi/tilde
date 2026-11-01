@@ -138,10 +138,9 @@ print b
     expect(printed).toEqual(['a = 5', 'b = 5'])
   })
 
-  it('chains points too', () => {
-    const { printed } = solveSource('import prelude\npoint a\npoint b\npoint c at 2 3\na = b = c\nprint a\nprint b\n')
-    expect(printed).toEqual(['a = (2, 3)', 'b = (2, 3)'])
-  })
+  // Point `=` means "distance 0 apart" (constraints.til), which is relational
+  // and needs real derivation — out of scope for the shell solver, see
+  // plans/interval-backend.md. A prior "chains points too" test lived here.
 })
 
 describe('what a line cannot mean', () => {

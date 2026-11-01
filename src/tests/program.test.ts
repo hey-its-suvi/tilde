@@ -4,14 +4,19 @@ import { runSource } from '../lang/defs/eval.js'
 import { byName } from './named.js'
 import { loadModule, type Registry } from '../lang/defs/modules.js'
 import { PRELUDE } from '../lang/prelude/index.js'
-import { Solver } from '../lang/solver/solver.js'
-import { GeometricPropagate } from '../lang/solver/propagate/geometric/index.js'
-import { RuleBasedPick } from '../lang/solver/pick/rule-based/index.js'
+import { ShellSolver } from '../lang/solver/shell.js'
+import { singleValue, exactScalar } from '@lang/values/scalar.js'
+import type { Point, Circle } from '@lang/solver/interface.js'
 
 const run = (source: string) => byName(runSource(source, PRELUDE))
 
-const solve = (source: string) =>
-  new Solver(new GeometricPropagate(), new RuleBasedPick()).solve(run(source).constraints)
+const solve = (source: string) => new ShellSolver().solve(run(source).constraints)
+
+/** A point's coordinates as plain numbers, for assertions. */
+const xy = (p: Point) => ({ x: singleValue(p.x), y: singleValue(p.y) })
+
+/** A circle's centre and radius as plain values, for assertions. */
+const circleVal = (c: Circle) => ({ center: c.center, r: singleValue(c.r) })
 
 describe('a file holds definitions and statements together', () => {
   it('tells them apart by the layout rule alone', () => {
@@ -53,8 +58,7 @@ point b at 6 0
 point c at 3 4
 line l through a b
 `)
-    expect(result.points.get('c')!.solutions![0]).toEqual({ x: 3, y: 4 })
-    expect(result.lines.get('l')!.dof).toBe(0)
+    expect(xy(result.points.get('c')!)).toEqual({ x: 3, y: 4 })
   })
 
   it('lets a program define its own syntax and then use it', () => {
@@ -74,9 +78,9 @@ right triangle t with legs 3 4
 `)
     // The vertices belong to the triangle, so they are keyed by it — `p`, `q`
     // and `r` are the definition's own names for them and never leave.
-    expect(result.points.get('t.point1')!.solutions![0]).toEqual({ x: 0, y: 0 })
-    expect(result.points.get('t.point2')!.solutions![0]).toEqual({ x: 3, y: 0 })
-    expect(result.points.get('t.point3')!.solutions![0]).toEqual({ x: 0, y: 4 })
+    expect(xy(result.points.get('t.point1')!)).toEqual({ x: 0, y: 0 })
+    expect(xy(result.points.get('t.point2')!)).toEqual({ x: 3, y: 0 })
+    expect(xy(result.points.get('t.point3')!)).toEqual({ x: 0, y: 4 })
   })
 
   it('reports where a bad statement is', () => {
@@ -98,7 +102,7 @@ describe('statements in an imported module', () => {
     const { typeOf, constraints } = byName(runSource('import lib\n', registry))
     expect(typeOf('origin')).toBe('Point')
     expect(constraints.constraints).toEqual([
-      { kind: 'position', point: 'origin', x: 0, y: 0 },
+      { kind: 'position', point: 'origin', x: exactScalar(0), y: exactScalar(0) },
     ])
   })
 
@@ -129,8 +133,8 @@ define dot (n: new Point) at (x: Scalar) (y: Scalar) => Circle:
 
 dot d at 3 4;
 `)
-    expect(result.points.get('d')!.solutions![0]).toEqual({ x: 3, y: 4 })
-    expect(result.circles.get('Circle#1')!.solutions![0]).toEqual({ center: 'd', r: 1 })
+    expect(xy(result.points.get('d')!)).toEqual({ x: 3, y: 4 })
+    expect(circleVal(result.circles.get('Circle#1')!)).toEqual({ center: 'd', r: 1 })
   })
 
   it('treats a terminated and an unterminated program as identical', () => {
@@ -166,8 +170,8 @@ dot d at 3 4
     circle c with center n and radius 1
     n at x y
     return c`))
-    expect(result.points.get('d')!.solutions![0]).toEqual({ x: 3, y: 4 })
-    expect(result.circles.get('Circle#1')!.solutions![0]).toEqual({ center: 'd', r: 1 })
+    expect(xy(result.points.get('d')!)).toEqual({ x: 3, y: 4 })
+    expect(circleVal(result.circles.get('Circle#1')!)).toEqual({ center: 'd', r: 1 })
   })
 
   it('catches a return that does not match the signature', () => {
@@ -179,7 +183,7 @@ dot d at 3 4
   it('accepts a whole statement, not just a name', () => {
     const result = solve(dot(`    point n at x y
     return circle c with center n and radius 2`))
-    expect(result.circles.get('Circle#1')!.solutions![0]).toEqual({ center: 'd', r: 2 })
+    expect(circleVal(result.circles.get('Circle#1')!)).toEqual({ center: 'd', r: 2 })
   })
 
   it('requires a return when the signature promises one', () => {
@@ -216,8 +220,8 @@ dot e at 1 1
     // `c` is written literally in the body, but each call's is its own: a label
     // in that call's frame. Nothing outside names them, so they read by key.
     const result = solve(dot)
-    expect(result.circles.get('Circle#1')!.solutions![0]).toEqual({ center: 'd', r: 1 })
-    expect(result.circles.get('Circle#2')!.solutions![0]).toEqual({ center: 'e', r: 1 })
+    expect(circleVal(result.circles.get('Circle#1')!)).toEqual({ center: 'd', r: 1 })
+    expect(circleVal(result.circles.get('Circle#2')!)).toEqual({ center: 'e', r: 1 })
   })
 
   it('gives each call its own circle, and the program only the names it wrote', () => {
