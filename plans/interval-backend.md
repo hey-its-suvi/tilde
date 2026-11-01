@@ -82,10 +82,16 @@ builder) is rewritten against the new `SolveResult`:
   value (`describe`/`show` in `solver/index.ts`): singleton prints the
   number, anything else prints as not yet known, no "2 or 5" text.
 
-**Lang side stops collapsing.** Wherever elaboration currently converts an
-evaluated scalar expression down to a plain `number` before building a
-`ResolvedConstraint` (and throws if that collapse hits a real range), it
-hands the already-evaluated `Scalar` straight through instead.
+**`core.til` starts handing `Scalar` through, nothing more.** There's no
+collapsing to stop — `+`/`-`/`*`/`/` on a named number already refuse anything
+but a plain literal (`'arithmetic on a named number is not supported yet'`),
+and `ScalarValue` (`defs/values.ts`) is defined but never actually
+constructed anywhere today. The value layer genuinely is library-only, as the
+revert commit said. So this step is just: wherever a `core.til` native
+(`tsx`) block currently hands a literal `number` to `constrain(...)`, wrap it
+as `exactScalar(n)` instead, so the boundary is consistently `Scalar`-typed.
+Teaching arithmetic to produce real ranges is separate, future work — not
+touched here.
 
 **Pick-strategy switching goes away.** `rule` / `budget` / `none` were
 policies for the real solver's gauge-fixing; there's nothing left for them to
@@ -101,6 +107,13 @@ on-line, distance/angle placement, parallel/perpendicular inference,
 intersections). The end state is a smaller, fully green suite — not a red one
 with known-failing cases.
 
+Steps 1 through 7 are listed separately for narrative clarity, but they're
+mutually interdependent — none of it compiles or passes tests in any
+in-between state, so they land as one commit ("the swap"). Step 8 (test
+triage) is the genuinely incremental part: each file's pass only ever removes
+assertions that are already failing after the swap, so the suite gets
+strictly greener, never worse, file by file.
+
 ## Status
 
 | # | Step | State |
@@ -111,7 +124,7 @@ with known-failing cases.
 | 3 | `ShellSolver`: direct-constraint merging only, per the rules above | todo |
 | 4 | Rewrite `solver/output.ts` against the new `SolveResult` | todo |
 | 5 | `solver/index.ts`: wire in `ShellSolver`, drop pick-strategy exports, rewrite `describe`/`show`/`equation` for `Scalar` leaves | todo |
-| 6 | Lang side stops collapsing evaluated scalars to `number` before the boundary | todo |
+| 6 | `core.til`'s native (`tsx`) blocks wrap literal numbers as `exactScalar(n)` at each `constrain(...)` call site | todo |
 | 7 | Playground: remove the pick-picker dropdown | todo |
 | 8 | Triage remaining tests: strip assertions that needed real derivation, keep the rest | todo |
 
