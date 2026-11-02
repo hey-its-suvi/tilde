@@ -911,6 +911,153 @@ it — a user's `(a) * (b) + (c) * (d)` could never read `a * b + c * d` — and
 over "operators only", which would shut out `line (n: new Line) = (m: Line)`.
 Kept separable because it may have costs nobody has seen yet.
 
+### 21. Numerals, and brackets as literal pattern words (being tried)
+
+Tried on its own branch, `worktree-numerals-and-brackets`, so it can be dropped
+in one go — see `plans/numerals.md` for the step-by-step build.
+
+**The motivation.** Interval notation needs two things decision 10 ran
+together: a *literal number as written* (`3`, `-1.2`, `1.7e2`), and *the set a
+scalar actually is* — built, since the interval value layer landed
+(`values/interval.ts`, `values/scalar.ts`), from a union of intervals, not the
+plain `number` the solver still privileges internally. `Scalar` did both jobs,
+hardcoded — "numeric literals fill this," decision 10. Splitting them lets
+`(a, b)`, `[a, b]`, `[a, b)`, `(a, b]` all exist as ordinary Scalar-returning
+definitions over two typed literals, the same way any other relation is
+written — not a special case.
+
+**Numeral.** A new built-in type naming exactly what the lexer hands back for
+a number token. Nothing else is ever a Numeral — there is no way to write one
+except typing a number. Scientific notation (`1.7e2`) needs the lexer
+extended, since number-scanning only recognised `[0-9.]`.
+
+**The conversion from a literal to a Scalar is an ordinary definition, not a
+hardcoded compatibility rule:**
+
+```
+define (x: Numeral) => Scalar:
+    tsx`
+    return { scalar: exactScalar(x) }
+    `
+```
+
+A literal no longer satisfies a `Scalar` slot directly — the old
+`token.kind === 'NUMBER' → Scalar or Any` special case in `typesFit` is gone.
+A bare number is read through this definition by the same dispatch every call
+goes through. Nothing is privileged, and a future type wanting the same
+treatment just writes its own `(x: Numeral) => T`.
+
+**This needed restart to recurse, not just retry once.** `point p at 3 4`
+fails its first full read (`x` wants a `Scalar`, gets a raw `Numeral` token),
+and decision 19's restart fixes `3` by finding `(x: Numeral) => Scalar`
+starting there — but the re-read then fails again at `y`'s `4`, for the
+identical reason, and the old restart was a single fallback attempt. Revised:
+**on a failed re-read, restart again**, scanning from word 2 of the *new*
+line, same as the first time.
+
+```
+point p at 3 4
+  word 1: point p → Point; at (x)(y) → fails at x        (3 is a Numeral, not a Scalar)
+  restart from word 2: 3 alone matches (x: Numeral) => Scalar → Scalar(3)
+  re-read: point p at ⟨Scalar(3)⟩ 4 → fails at y          (4 is a Numeral, not a Scalar)
+  restart again, from word 2 of the new line: 4 → Scalar(4)
+  re-read: point p at ⟨Scalar(3)⟩ ⟨Scalar(4)⟩ → succeeds
+```
+
+This terminates because every successful restart step turns one raw `NUMBER`
+piece into a value piece permanently — it is never read as a bare literal
+again — so the count of unconverted literals strictly decreases each pass. At
+most one restart per literal in the line, then either a reading succeeds or
+genuinely nothing is left to try, which is today's "no reading" error.
+
+**Brackets become literal pattern words, not just slot syntax.** Today `(` in
+a header always opens a slot (`parsePart` assumes it unconditionally), and
+`groupTokens` always strips `(`/`)` before anything is matched — so a
+definition's pattern never sees the brackets a caller typed. Needed because
+interval notation wants the bracket *character* to carry meaning (open vs.
+closed), not just mark nesting.
+
+- `(` opens a slot only when `WORD COLON` follows; otherwise it is an ordinary
+  keyword, exactly like `)`, `[`, `]` already are outside that one position.
+  `{`/`}` are new punctuation (`LBRACE`/`RBRACE`), with no role yet beyond
+  being lexable.
+- **Nesting replaces strict paired grouping.** Any opener (`(`, `[`, `{`)
+  pushes, any closer pops, by depth alone — a closer never has to match the
+  character that opened it. `[1, 5)` finds its span the same way `(1, 5)`
+  does; whether that combination *means* anything is entirely up to whether
+  some definition's pattern is literally `[ (a) , (b) )` — an ordinary "no
+  definition matches" error if not, never a structural bracket-mismatch error.
+- **Resolving a span is one pass of the ordinary line-reader**, brackets
+  included as pieces — not "try the whole bracketed pattern, then fall back
+  to stripping." `(2 + 3) * 4`'s span `(`, `2`, `+`, `3`, `)` fails from word
+  1 (nothing spans bracket-through-bracket with a `+` in the middle),
+  restarts from word 2, folds `2 + 3 → 5`, re-reads from the start, and
+  `( (x: Any) ) => Any` picks up the lone value. One mechanism, reused — not a
+  second one invented for brackets.
+- **The identity definition replaces the hardcoded single-piece passthrough**
+  that used to live in `settleGroups`
+  (`if (settled.length === 1) return settled[0]!`). `(5)`, `(p)`, and each
+  layer of `(((1,2)))` all go through it now, the same as everything else.
+
+**Known limitation, accepted for now.** The identity's slot is `Any`, not
+"whatever type `x` actually is" — Tilde has no type variable to say the
+second one (the same gap decision 18 flagged for `Type` slots). So a
+*genuinely* ambiguous bracket (multiple matches differing only by return
+type), wrapped in one redundant extra pair of parens, now errors immediately
+— `Any` slots can't defer a pick, per decision 19 — instead of floating
+outward to wherever it would actually have been consumed. Before this change
+the old structural passthrough was type-blind and let it float; now it
+doesn't. Narrow (needs real ambiguity *and* a redundant wrap before the real
+slot) and consistent with `Any`'s existing behaviour everywhere else
+(`print (2, 1)` already errors the same way) — not reopened until there is a
+real parametric type.
+
+**Point's bracket constructor takes `Numeral`, not `Scalar`.** The obvious
+spelling, `( (x: Scalar) , (y: Scalar) ) => Point`, loses to the interval
+constructors every time: a `Numeral` token satisfies a `Numeral` slot
+directly, so `( (a: Numeral) , (b: Numeral) ) => Scalar` is viable on the
+first attempt, while the Scalar-slotted Point reading only becomes viable
+*after* restart converts the literals — and restart never runs once something
+is already viable. So `(1, 2)` would silently always mean the interval, never
+a Point, and the two readings would never actually compete. Retyping Point's
+bracket form to `Numeral` puts both candidates on equal footing — same
+slots, differing only by return type — which is exactly decision 19's
+existing "the enclosing slot picks" mechanism, the same way it already
+handles any other return-type overload. Checked against the existing comment
+on the old form ("a pair of numbers is a point... used in brackets"): nothing
+is lost, since mixing in a named scalar (`point p at k 2`) was only ever
+documented for the `at` form, never for the bracket literal.
+
+```
+define ( (x: Numeral) , (y: Numeral) ) => Point:
+    point pt at x y
+    return pt
+```
+
+**The Scalar interval constructors**, one per combination of open and closed
+ends:
+
+```
+define ( (a: Numeral) , (b: Numeral) ) => Scalar:   -- open both ends
+define [ (a: Numeral) , (b: Numeral) ] => Scalar:   -- closed both ends
+define [ (a: Numeral) , (b: Numeral) ) => Scalar:   -- closed-open
+define ( (a: Numeral) , (b: Numeral) ] => Scalar:   -- open-closed
+```
+
+each a `tsx` body building one `Interval` via `values/interval.ts`'s
+`bound`/`interval` and wrapping it as `{ scalar: [iv] }`. `a ≥ b` for the
+openness given (`interval` returns `null`) becomes the empty scalar,
+`{ scalar: [] }` — the existing "contradiction, no value possible" state, not
+a new error path.
+
+**Not done by this.** Nothing guards `scalar s is (1, 5)` or arithmetic
+against a `ScalarValue` reaching their existing `typeof`-branching `tsx`
+bodies — whatever happens today (most likely a confusing crash) stays that
+way until a later step gives it a real "ranges aren't supported yet" error.
+Wiring an interval `Scalar` into the solver's own constraints is further out
+still — the solver keeps its own `number[] | undefined` representation (the
+earlier revert), untouched by this.
+
 ## The big open question: how does a user write the maths?
 
 If a user defines `parallel`, they need to say what it *means*. `l parallel m`
