@@ -1,5 +1,9 @@
+// ─── Printing a solved value ──────────────────────────────────────────────────
+// `describe`/`show` in solver/index.ts read the SolveResult directly, so what
+// prints depends on the active solver's behaviour, not just the language.
+
 import { describe, expect, it } from 'vitest'
-import { solveSource } from '../lang/solver/index.js'
+import { solveSource } from '../../lang/solver/index.js'
 
 const printed = (src: string) => solveSource(`import prelude\n${src}`).printed
 

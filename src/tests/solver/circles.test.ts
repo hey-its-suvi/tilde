@@ -8,7 +8,7 @@ import {
   run,
   assertCircle,
   assertPointAt,
-} from './helpers.js'
+} from '../helpers.js'
 
 describe('circle declarations', () => {
   it('takes a named centre and a radius', () => {
