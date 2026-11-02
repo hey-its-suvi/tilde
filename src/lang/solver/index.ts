@@ -1,53 +1,21 @@
 // ─── Tilde Solver Entry Point ─────────────────────────────────────────────────
 // Pipeline: .til source → definitions → ConstraintSet → solve → scene graph.
 //
-// One Solver class powers everything. The only swappable bit is the
-// PickStrategy — the policy for canonicalising gauges and choosing arbitrary
-// placements. The PropagateStrategy is fixed (forced placements are forced
-// regardless of policy).
-//
-// The pick is module-level state, swappable at runtime via `setPick`. This
-// lets the playground (and tests) A/B-compare pick strategies.
-//
-//   'rule'   — RuleBasedPick: rule-pile gauge fixing + locus/fallback.
-//   'budget' — BudgetPick: explicit per-axis gauge accounting (point-only;
-//              line cases still defer to the rule-default fallback).
+// The solver is a ShellSolver: it merges direct facts about the same name,
+// never derives one element from another. There's no pick strategy to choose
+// between any more — that was a policy for the real solver's gauge-fixing,
+// and a pass-through solver has nothing to pick between. See
+// plans/interval-backend.md.
 
-import { Solver } from './solver.js'
-import type { SolveResult } from './interface.js'
-import { GeometricPropagate } from './propagate/geometric/index.js'
-import { PickStrategy } from './pick/interface.js'
-import { RuleBasedPick } from './pick/rule-based/index.js'
-import { BudgetPick } from './pick/budget/index.js'
-import { NonePick } from './pick/none/index.js'
+import { ShellSolver } from './shell.js'
+import type { SolveResult, Point, Line, Circle } from './interface.js'
+import { isEmpty, singleValue, type Scalar } from '../values/scalar.js'
 import { buildSceneGraph } from './output.js'
 import { runSource, labelsOf, isScalarValue, isText, SETTINGS, type Value } from '../defs/eval.js'
 import { PRELUDE } from '../prelude/index.js'
 import { SceneGraph, RenderConfig, DEFAULT_CONFIG } from '../../renderer/interface.js'
 
-export type PickName = 'rule' | 'budget' | 'none'
-
-const pickFactories: Record<PickName, () => PickStrategy> = {
-  'rule':   () => new RuleBasedPick(),
-  'budget': () => new BudgetPick(),
-  // Diagnostic: shows only what the constraints force, leaving anything that
-  // would have been chosen for you unplaced.
-  'none':   () => new NonePick(),
-}
-
-export const PICK_NAMES: readonly PickName[] = ['rule', 'budget', 'none']
-
-let activePick: PickName = 'rule'
-let activeSolver = new Solver(new GeometricPropagate(), pickFactories[activePick]())
-
-export function setPick(name: PickName): void {
-  activePick = name
-  activeSolver = new Solver(new GeometricPropagate(), pickFactories[name]())
-}
-
-export function getPick(): PickName {
-  return activePick
-}
+const solver = new ShellSolver()
 
 // ─── From source ─────────────────────────────────────────────────────────────
 // .til source → definitions → ConstraintSet, handed to the Solver; the scene
@@ -61,7 +29,7 @@ export function solveSource(
 ): { scene: SceneGraph; config: RenderConfig; printed: string[] } {
   const program = runSource(source, PRELUDE)
   const { constraints, prints, settings } = program
-  const result = activeSolver.solve(constraints)
+  const result = solver.solve(constraints)
 
   // The solver works in keys (`Point#1`); a drawing says what the program wrote.
   // Something with no label is not drawn.
@@ -75,9 +43,22 @@ export function solveSource(
   return { scene: buildSceneGraph(result, labels), config, printed }
 }
 
+/** `fields` all singleton → `show` of their values; any of them empty → no
+ *  possible value; otherwise not known yet. */
+function describeFields(
+  name: string, sep: string, fields: Scalar[], show: (values: number[]) => string,
+): string {
+  if (fields.some(isEmpty)) return `${name} = no possible value`
+  const values = fields.map(singleValue)
+  if (values.some(v => v === undefined)) return `${name} = not known — nothing pins it down`
+  return `${name}${sep} ${show(values as number[])}`
+}
+
 /** One `print`, in words. A number written out prints as itself; anything named
- *  prints as `name = …` with every value it could take — several, none, or not
- *  yet known are all answers worth seeing. */
+ *  prints as `name = …` with its value, or that it's not yet known or not
+ *  possible — a multi-valued or ranged result reads the same as not known,
+ *  since drawing one answer out of several would need each kept as a whole,
+ *  correlated element (not built yet; see plans/interval-backend.md). */
 function describe(value: Value, result: SolveResult, labels: Map<string, string>): string {
   if (value === null) return '(nothing)'
   if (typeof value === 'number') return num(value)
@@ -85,31 +66,26 @@ function describe(value: Value, result: SolveResult, labels: Map<string, string>
   if (isScalarValue(value)) return 'a scalar'
 
   const name = labels.get(value) ?? value
-  const found =
+  const found: Point | Line | Circle | Scalar | undefined =
     result.scalars.get(value) ?? result.points.get(value) ??
     result.lines.get(value) ?? result.circles.get(value)
   if (found === undefined) return `${name} is not a shape or a number`
 
-  const sols = found.solutions
-  if (sols === undefined) return `${name} = not known — nothing pins it down`
-  if (sols.length === 0) return `${name} = no possible value`
-
-  const shown = sols.map(s => show(s, result, labels))
-  // An equation already has an `=` in it, so a line is introduced with `:`.
-  const sep = result.lines.has(value) ? ':' : ' ='
-  return `${name}${sep} ${shown.join(' or ')}`
-}
-
-function show(s: unknown, result: SolveResult, labels: Map<string, string>): string {
-  if (typeof s === 'number') return num(s)
-  const v = s as Record<string, unknown>
-  if ('x' in v) return `(${num(v.x as number)}, ${num(v.y as number)})`
-  if ('a' in v) return equation(v.a as number, v.b as number, v.c as number)
-  if ('center' in v) {
-    const centre = String(v.center)
-    return `centre ${labels.get(centre) ?? centre}, radius ${num(v.r as number)}`
+  if (Array.isArray(found)) {
+    if (isEmpty(found)) return `${name} = no possible value`
+    const v = singleValue(found)
+    return v === undefined ? `${name} = not known — nothing pins it down` : `${name} = ${num(v)}`
   }
-  return JSON.stringify(s)
+  if ('x' in found) {
+    return describeFields(name, ' =', [found.x, found.y], vs => `(${num(vs[0]!)}, ${num(vs[1]!)})`)
+  }
+  if ('a' in found) {
+    return describeFields(name, ':', [found.a, found.b, found.c], vs => equation(vs[0]!, vs[1]!, vs[2]!))
+  }
+  // Circle.
+  if (found.center === null) return `${name} = not known — nothing pins it down`
+  const centerLabel = labels.get(found.center) ?? found.center
+  return describeFields(name, ' =', [found.r], vs => `centre ${centerLabel}, radius ${num(vs[0]!)}`)
 }
 
 /** `ax + by + c = 0` as a person would write it: zero terms dropped, a

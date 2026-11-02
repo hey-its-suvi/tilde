@@ -3,6 +3,15 @@
 // A solver takes a ConstraintSet (what the user declared) and returns a
 // SolveResult (where everything ended up). The solver knows nothing about
 // the AST, renderer, or language syntax.
+//
+// Every leaf value crossing this boundary is a `Scalar` (`values/scalar.ts`)
+// — a set of disjoint intervals, never a plain number — so "unknown",
+// "contradiction", and "could be one of a few exact values" are all
+// representable on their own, without a wrapper around the whole element.
+
+import type { Scalar } from '../values/scalar.js'
+
+export type { Scalar }
 
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
@@ -31,18 +40,21 @@ export type ResolvedConstraint =
   | ScalarEqualityConstraint
   | ScalarsEqualConstraint
 
+/** `x`/`y` are whole, not `null`, when a statement doesn't mention that axis
+ *  — `Scalar` already has its own identity for "nothing said" (intersecting
+ *  whole with anything is a no-op), so there's no need for a second one. */
 export type PositionConstraint = {
   kind: 'position'
   point: string
-  x: number | null
-  y: number | null
+  x: Scalar
+  y: Scalar
 }
 
 export type DistanceConstraint = {
   kind: 'distance'
   p1: string
   p2: string
-  value: number
+  value: Scalar
 }
 
 export type AngleConstraint = {
@@ -50,7 +62,7 @@ export type AngleConstraint = {
   from: string
   vertex: string
   to: string
-  degrees: number
+  degrees: Scalar
 }
 
 export type OnLineConstraint = {
@@ -75,25 +87,27 @@ export type OnCircleConstraint = {
 export type LineEquationConstraint = {
   kind: 'line-equation'
   line: string
-  a: number | null
-  b: number | null
-  c: number | null
+  a: Scalar
+  b: Scalar
+  c: Scalar
 }
 
 export type CircleSpecConstraint = {
   kind: 'circle-spec'
   circle: string
-  /** Point ref (key into points) holding the centre, or null if unspecified. */
+  /** Point ref (key into points) holding the centre, or `null` if unspecified
+   *  — a point-ref has no "whole" to default to the way a `Scalar` does, so
+   *  this one genuinely needs the second state. */
   center: string | null
-  /** Radius value, or null if unspecified. */
-  r: number | null
+  /** Radius value; whole when unspecified. */
+  r: Scalar
 }
 
 export type ParallelConstraint = {
   kind: 'parallel'
   l1: string
   l2: string
-  distance?: number
+  distance: Scalar
 }
 
 export type PerpendicularConstraint = {
@@ -105,7 +119,7 @@ export type PerpendicularConstraint = {
 export type ScalarEqualityConstraint = {
   kind: 'scalar-equality'
   scalar: string
-  target: number | { element: string; field: string }
+  target: Scalar | { element: string; field: string }
 }
 
 /** Two named numbers are the same number. Not a copy in either direction —
@@ -132,59 +146,41 @@ export type ConstraintSet = {
   scalars: Set<string>
   /** Resolved constraints between elements */
   constraints: ResolvedConstraint[]
-  /** User solution picks: element key → 1-based solution index */
+  /** User solution picks: element key → 1-based solution index. No current
+   *  solver reads this — kept for whichever future solver can surface
+   *  multiple solutions as whole, correlated elements again. */
   picks: Map<string, number>
+}
+
+/** The canonical key for a segment between two points — sorted, so `a:b` and
+ *  `b:a` are the same segment under one key. */
+export function segKey(v1: string, v2: string): string {
+  return v1 < v2 ? `${v1}:${v2}` : `${v2}:${v1}`
 }
 
 // ─── Geometry Primitives ─────────────────────────────────────────────────────
 
-export type Scalar = number
-export type Point  = { x: Scalar; y: Scalar }
-export type Line   = { a: Scalar; b: Scalar; c: Scalar }  // ax + by + c = 0
-/** A circle. `center` is a point-ref (key into model.points), not a literal
- *  point — this lets the existing point-placement machinery handle placement
- *  of the centre. */
-export type Circle = { center: string; r: Scalar }
-
-/** Makes every leaf of T nullable. Numbers and strings become `T | null`;
- *  object fields recurse. Used by the solver's working types to represent
- *  partial knowledge (e.g. a circle whose centre is known but radius isn't). */
-export type Nullable<T> = T extends number
-  ? T | null
-  : T extends string
-  ? T | null
-  : { [K in keyof T]: Nullable<T[K]> }
+export type Point = { x: Scalar; y: Scalar }
+export type Line = { a: Scalar; b: Scalar; c: Scalar } // ax + by + c = 0
+/** A circle. `center` is a point-ref (key into points), not a literal point —
+ *  the same point may be independently constrained and drawn elsewhere, so it
+ *  has to be the one shared record, not a copy. `null` until something says
+ *  which point it is. */
+export type Circle = { center: string | null; r: Scalar }
 
 // ─── Solver Output ───────────────────────────────────────────────────────────
 
-/** What an element could be — the certainty states, made representable.
- *
- *      undefined   infinite: nothing pins it down, so it could be anything
- *      [a, b]      multiple: finitely many discrete answers
- *      [a]         one
- *      []          none: no possible answer, i.e. over-constrained
- *
- *  `undefined` and `[]` are opposites and were once the same value. Written as a
- *  set they behave properly under intersection: `undefined` is the identity and
- *  `[]` absorbs, so combining two elements known to be the same is just
- *  intersecting what each could be.
- *
- *  A contradiction is a *value* rather than a thrown error, which is what makes
- *  `[]` reachable at all — and lets the rest of a drawing survive one impossible
- *  part. */
-export type Solutions<T> = T[] | undefined
-
-export type ElementResult<T> = {
-  solutions: Solutions<T>
-  /** Geometric degrees of freedom remaining. 0 = fully determined. */
-  dof: number
-}
-
+/** Everything the solver could work out, keyed by the name it was declared
+ *  under. Every declared element gets an entry: its `Scalar` fields speak for
+ *  themselves — whole is "unknown", `[]` is "no possible value", a singleton
+ *  is "determined" — so there's no separate per-element wrapper, and nothing
+ *  here reports degrees of freedom. A pass-through solver has none to report;
+ *  a future geometric one can reintroduce that without changing these shapes. */
 export type SolveResult = {
-  points: Map<string, ElementResult<Point>>
-  lines: Map<string, ElementResult<Line>>
-  circles: Map<string, ElementResult<Circle>>
-  scalars: Map<string, ElementResult<Scalar>>
+  points: Map<string, Point>
+  lines: Map<string, Line>
+  circles: Map<string, Circle>
+  scalars: Map<string, Scalar>
   /** Passed through from input for the scene graph builder */
   segments: Set<string>
 }

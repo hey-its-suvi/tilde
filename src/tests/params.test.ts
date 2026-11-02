@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { runSource } from '../lang/defs/eval.js'
 import { PRELUDE } from '../lang/prelude/index.js'
 import { byName } from './named.js'
+import { exactScalar } from '@lang/values/scalar.js'
 
 // A call's numbers, text and words are held by its frame and read where a body
 // line names them — never written into the line as text.
@@ -17,7 +18,7 @@ describe('a body reads what its caller passed', () => {
 spot p at 3
 `
     expect(named(src).constraints.constraints).toContainEqual(
-      { kind: 'position', point: 'p', x: 3, y: 3 },
+      { kind: 'position', point: 'p', x: exactScalar(3), y: exactScalar(3) },
     )
   })
 
@@ -62,7 +63,7 @@ print (same 4)
 spot p at 5
 `
     expect(named(src).constraints.constraints).toContainEqual(
-      { kind: 'position', point: 'p', x: 5, y: 5 },
+      { kind: 'position', point: 'p', x: exactScalar(5), y: exactScalar(5) },
     )
   })
 })

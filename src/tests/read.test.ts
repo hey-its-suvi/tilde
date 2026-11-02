@@ -3,6 +3,7 @@ import { runSource } from '../lang/defs/eval.js'
 import { solveSource } from '../lang/solver/index.js'
 import { PRELUDE } from '../lang/prelude/index.js'
 import { byName } from './named.js'
+import { wholeScalar } from '@lang/values/scalar.js'
 
 // Reading a line left to right (decision 19): the longest match first, its
 // result filling the first slot of what comes next; backing off when that does
@@ -18,13 +19,13 @@ const kinds = (src: string, module?: string) =>
 describe('a line folds left to right', () => {
   it('chains a declaring form into a constraint', () => {
     const { constraints } = run('line m\npoint p at 1 1\nline l parallel m through p\n')
-    expect(constraints.constraints).toContainEqual({ kind: 'parallel', l1: 'l', l2: 'm' })
+    expect(constraints.constraints).toContainEqual({ kind: 'parallel', l1: 'l', l2: 'm', distance: wholeScalar() })
     expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 'p', line: 'l' })
   })
 
   it('chains constraints on something that already exists', () => {
     const { constraints } = run('line m\nline l\npoint p\nl parallel m through p\n')
-    expect(constraints.constraints).toContainEqual({ kind: 'parallel', l1: 'l', l2: 'm' })
+    expect(constraints.constraints).toContainEqual({ kind: 'parallel', l1: 'l', l2: 'm', distance: wholeScalar() })
     expect(constraints.constraints).toContainEqual({ kind: 'on-line', point: 'p', line: 'l' })
   })
 
@@ -32,7 +33,7 @@ describe('a line folds left to right', () => {
     // `core` has `line n` and `(a) parallel (b)`, but no declaring form.
     const { constraints, typeOf } = run('line m\nline l parallel m\n', 'core')
     expect(typeOf('l')).toBe('Line')
-    expect(constraints.constraints).toEqual([{ kind: 'parallel', l1: 'l', l2: 'm' }])
+    expect(constraints.constraints).toEqual([{ kind: 'parallel', l1: 'l', l2: 'm', distance: wholeScalar() }])
   })
 
   it('lets a longer definition win, which is how one overrides', () => {
@@ -58,7 +59,7 @@ line l parallel m
 `
     const program = run(src, 'core')
     expect(program.prints).toEqual([])
-    expect(program.constraints.constraints).toEqual([{ kind: 'parallel', l1: 'l', l2: 'm' }])
+    expect(program.constraints.constraints).toEqual([{ kind: 'parallel', l1: 'l', l2: 'm', distance: wholeScalar() }])
   })
 
   it('reads arithmetic by its precedence', () => {
@@ -115,7 +116,7 @@ define line (n: new Line) = (m: Line):
     const n = program.globals.get('n')!
     expect(program.data.typeOf(n)).toBe('Line')
     expect(n).not.toBe(l)
-    expect(program.constraints.constraints).toContainEqual({ kind: 'parallel', l1: n, l2: l })
+    expect(program.constraints.constraints).toContainEqual({ kind: 'parallel', l1: n, l2: l, distance: wholeScalar() })
   })
 
   it('reads a relation after `=` as said about the right-hand side', () => {
@@ -138,10 +139,9 @@ print b
     expect(printed).toEqual(['a = 5', 'b = 5'])
   })
 
-  it('chains points too', () => {
-    const { printed } = solveSource('import prelude\npoint a\npoint b\npoint c at 2 3\na = b = c\nprint a\nprint b\n')
-    expect(printed).toEqual(['a = (2, 3)', 'b = (2, 3)'])
-  })
+  // Point `=` means "distance 0 apart" (constraints.til), which is relational
+  // and needs real derivation — out of scope for the shell solver, see
+  // plans/interval-backend.md. A prior "chains points too" test lived here.
 })
 
 describe('what a line cannot mean', () => {

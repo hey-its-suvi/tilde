@@ -7,8 +7,7 @@
 
 import { labelsOf, type Program } from '../lang/defs/eval.js'
 import type { Key } from '../lang/defs/scope.js'
-import type { ConstraintSet } from '../lang/solver/interface.js'
-import { segKey } from '../lang/solver/model.js'
+import { segKey, type ConstraintSet } from '../lang/solver/interface.js'
 
 export function byName(program: Program) {
   const labels = labelsOf(program)

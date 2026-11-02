@@ -33,8 +33,12 @@ describe('brackets nest', () => {
 
 describe('a bracketed group fills a slot with its value', () => {
   it('makes a point where one is expected', () => {
-    const scene = draw('line l through (1,2) (3,4)\n')
-    expect(scene.lines.map(l => l.label)).toEqual(['l'])
+    // `through` is relational (on-line), so it narrows nothing under the
+    // shell solver and the line never resolves to draw — this only checks
+    // that the brackets made two usable points.
+    const { constraints } = run('line l through (1,2) (3,4)\n')
+    expect(constraints.lines.size).toBe(1)
+    expect(constraints.points.size).toBe(2)
   })
 
   it('works in any slot, not just one form', () => {

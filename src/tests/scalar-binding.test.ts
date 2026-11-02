@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { Solver } from '../lang/solver/solver.js'
-import { GeometricPropagate } from '../lang/solver/propagate/geometric/index.js'
-import { RuleBasedPick } from '../lang/solver/pick/rule-based/index.js'
-import { NonePick } from '../lang/solver/pick/none/index.js'
+import { ShellSolver } from '../lang/solver/shell.js'
 import type { ConstraintSet, ResolvedConstraint } from '../lang/solver/interface.js'
 import { solveSource } from '../lang/solver/index.js'
+import { exactScalar, wholeScalar, singleValue } from '@lang/values/scalar.js'
 
 /** A scalar bound to a field of an element: `scalar = element.field`. */
 const bind = (scalar: string, element: string, field: string): ResolvedConstraint => ({
@@ -16,7 +14,7 @@ const bind = (scalar: string, element: string, field: string): ResolvedConstrain
 const value = (scalar: string, n: number): ResolvedConstraint => ({
   kind: 'scalar-equality',
   scalar,
-  target: n,
+  target: exactScalar(n),
 })
 
 const solve = (build: (cs: ConstraintSet) => void) => {
@@ -25,7 +23,7 @@ const solve = (build: (cs: ConstraintSet) => void) => {
     scalars: new Set(), constraints: [], picks: new Map(),
   }
   build(cs)
-  return new Solver(new GeometricPropagate(), new RuleBasedPick()).solve(cs)
+  return new ShellSolver().solve(cs)
 }
 
 describe('a known element fills in its scalar', () => {
@@ -33,9 +31,12 @@ describe('a known element fills in its scalar', () => {
     const r = solve(cs => {
       cs.points.add('p')
       cs.scalars.add('k')
-      cs.constraints.push({ kind: 'position', point: 'p', x: 7, y: 2 }, bind('k', 'p', 'x'))
+      cs.constraints.push(
+        { kind: 'position', point: 'p', x: exactScalar(7), y: exactScalar(2) },
+        bind('k', 'p', 'x'),
+      )
     })
-    expect(r.scalars.get('k')!.solutions![0]).toBe(7)
+    expect(singleValue(r.scalars.get('k')!)).toBe(7)
   })
 
   it('reads a radius off a specified circle', () => {
@@ -44,12 +45,12 @@ describe('a known element fills in its scalar', () => {
       cs.circles.add('c')
       cs.scalars.add('k')
       cs.constraints.push(
-        { kind: 'position', point: 'o', x: 0, y: 0 },
-        { kind: 'circle-spec', circle: 'c', center: 'o', r: 4 },
+        { kind: 'position', point: 'o', x: exactScalar(0), y: exactScalar(0) },
+        { kind: 'circle-spec', circle: 'c', center: 'o', r: exactScalar(4) },
         bind('k', 'c', 'r'),
       )
     })
-    expect(r.scalars.get('k')!.solutions![0]).toBe(4)
+    expect(singleValue(r.scalars.get('k')!)).toBe(4)
   })
 })
 
@@ -62,7 +63,7 @@ describe('a known scalar fills in the element', () => {
       cs.scalars.add('k')
       cs.constraints.push(value('k', 7), bind('k', 'p', 'x'))
     })
-    expect(r.points.get('p')!.solutions![0]!.x).toBe(7)
+    expect(singleValue(r.points.get('p')!.x)).toBe(7)
   })
 
   it('drives both coordinates', () => {
@@ -75,8 +76,8 @@ describe('a known scalar fills in the element', () => {
         value('j', 2), bind('j', 'p', 'y'),
       )
     })
-    expect(r.points.get('p')!.solutions![0]).toEqual({ x: 7, y: 2 })
-    expect(r.points.get('p')!.dof).toBe(0)
+    const p = r.points.get('p')!
+    expect({ x: singleValue(p.x), y: singleValue(p.y) }).toEqual({ x: 7, y: 2 })
   })
 
   it('drives a radius', () => {
@@ -85,12 +86,12 @@ describe('a known scalar fills in the element', () => {
       cs.circles.add('c')
       cs.scalars.add('k')
       cs.constraints.push(
-        { kind: 'position', point: 'o', x: 0, y: 0 },
-        { kind: 'circle-spec', circle: 'c', center: 'o', r: null },
+        { kind: 'position', point: 'o', x: exactScalar(0), y: exactScalar(0) },
+        { kind: 'circle-spec', circle: 'c', center: 'o', r: wholeScalar() },
         value('k', 3), bind('k', 'c', 'r'),
       )
     })
-    expect(r.circles.get('c')!.solutions![0]!.r).toBe(3)
+    expect(singleValue(r.circles.get('c')!.r)).toBe(3)
   })
 
   it('drives a line coefficient', () => {
@@ -98,12 +99,13 @@ describe('a known scalar fills in the element', () => {
       cs.lines.add('l')
       cs.scalars.add('k')
       cs.constraints.push(
-        { kind: 'line-equation', line: 'l', a: 0, b: 1, c: null },
+        { kind: 'line-equation', line: 'l', a: exactScalar(0), b: exactScalar(1), c: wholeScalar() },
         value('k', -5), bind('k', 'l', 'c'),
       )
     })
     // 0x + 1y - 5 = 0 — the horizontal line y = 5.
-    expect(r.lines.get('l')!.solutions![0]).toEqual({ a: 0, b: 1, c: -5 })
+    const l = r.lines.get('l')!
+    expect({ a: singleValue(l.a), b: singleValue(l.b), c: singleValue(l.c) }).toEqual({ a: 0, b: 1, c: -5 })
   })
 
   it('makes two shapes share a dimension', () => {
@@ -114,31 +116,29 @@ describe('a known scalar fills in the element', () => {
       cs.circles.add('d')
       cs.scalars.add('k')
       cs.constraints.push(
-        { kind: 'position', point: 'o', x: 0, y: 0 },
-        { kind: 'circle-spec', circle: 'c', center: 'o', r: null },
-        { kind: 'circle-spec', circle: 'd', center: 'o', r: null },
+        { kind: 'position', point: 'o', x: exactScalar(0), y: exactScalar(0) },
+        { kind: 'circle-spec', circle: 'c', center: 'o', r: wholeScalar() },
+        { kind: 'circle-spec', circle: 'd', center: 'o', r: wholeScalar() },
         value('k', 3), bind('k', 'c', 'r'), bind('k', 'd', 'r'),
       )
     })
-    expect(r.circles.get('c')!.solutions![0]!.r).toBe(3)
-    expect(r.circles.get('d')!.solutions![0]!.r).toBe(3)
+    expect(singleValue(r.circles.get('c')!.r)).toBe(3)
+    expect(singleValue(r.circles.get('d')!.r)).toBe(3)
   })
 })
 
 describe('the gauge is not spent twice', () => {
-  it('leaves a driven coordinate alone when placing the rest', () => {
-    // A point with one axis fixed is no longer free to translate along it. The
-    // gauge fixer pins free points at the origin, so a raw write to `x` would be
-    // overwritten — the coordinate goes in as an axis-aligned line the point
-    // lies on, which is the same route `point p = (5,)` takes.
+  it('leaves a driven coordinate alone; the other axis is simply unknown', () => {
+    // There's no gauge fixer any more — a free axis just stays whole, it
+    // doesn't get placed at the origin the way the real solver once did.
     const r = solve(cs => {
       cs.points.add('p')
       cs.scalars.add('k')
       cs.constraints.push(value('k', 7), bind('k', 'p', 'x'))
     })
-    const p = r.points.get('p')!.solutions![0]!
-    expect(p.x).toBe(7)
-    expect(p.y).toBe(0) // free, so the gauge choice still lands at the origin
+    const p = r.points.get('p')!
+    expect(singleValue(p.x)).toBe(7)
+    expect(p.y).toEqual(wholeScalar())
   })
 
   it('does not disturb a point that is already fully placed', () => {
@@ -146,11 +146,12 @@ describe('the gauge is not spent twice', () => {
       cs.points.add('p')
       cs.scalars.add('k')
       cs.constraints.push(
-        { kind: 'position', point: 'p', x: 1, y: 2 },
+        { kind: 'position', point: 'p', x: exactScalar(1), y: exactScalar(2) },
         value('k', 1), bind('k', 'p', 'x'),
       )
     })
-    expect(r.points.get('p')!.solutions![0]).toEqual({ x: 1, y: 2 })
+    const p = r.points.get('p')!
+    expect({ x: singleValue(p.x), y: singleValue(p.y) }).toEqual({ x: 1, y: 2 })
   })
 })
 
@@ -202,57 +203,6 @@ c with radius r
   })
 })
 
-// ─── Multiple answers ────────────────────────────────────────────────────────
-
-describe('a scalar carries every answer, like any other element', () => {
-  /** A point where a circle meets the x-axis: two places, at x = ±5. */
-  const twoWays = (picks: [string, number][] = []) =>
-    solve(cs => {
-      cs.points.add('o')
-      cs.points.add('p')
-      cs.lines.add('l')
-      cs.circles.add('c')
-      cs.scalars.add('k')
-      cs.picks = new Map(picks)
-      cs.constraints.push(
-        { kind: 'position', point: 'o', x: 0, y: 0 },
-        { kind: 'circle-spec', circle: 'c', center: 'o', r: 5 },
-        { kind: 'line-equation', line: 'l', a: 0, b: 1, c: 0 },
-        { kind: 'on-circle', point: 'p', circle: 'c' },
-        { kind: 'on-line', point: 'p', line: 'l' },
-        bind('k', 'p', 'x'),
-      )
-    })
-
-  it('reports both when the element has both', () => {
-    // Previously this said [5] — one answer as though a choice had been made,
-    // walking straight past `pick`.
-    const r = twoWays()
-    expect(r.points.get('p')!.solutions!).toEqual([{ x: 5, y: 0 }, { x: -5, y: 0 }])
-    expect(r.scalars.get('k')!.solutions!).toEqual([5, -5])
-  })
-
-  it('keeps the scalar in step with the element, answer for answer', () => {
-    const r = twoWays()
-    expect(r.scalars.get('k')!.solutions!).toEqual(
-      r.points.get('p')!.solutions!.map(s => s.x),
-    )
-  })
-
-  it('can be picked between', () => {
-    expect(twoWays([['k', 2]]).scalars.get('k')!.solutions!).toEqual([-5])
-  })
-
-  it('still reports one answer when there is only one', () => {
-    const r = solve(cs => {
-      cs.points.add('p')
-      cs.scalars.add('k')
-      cs.constraints.push({ kind: 'position', point: 'p', x: 7, y: 2 }, bind('k', 'p', 'x'))
-    })
-    expect(r.scalars.get('k')!.solutions!).toEqual([7])
-  })
-})
-
 // ─── Two numbers that are the same number ────────────────────────────────────
 
 describe('scalar equality narrows both sides', () => {
@@ -262,36 +212,35 @@ describe('scalar equality narrows both sides', () => {
       cs.scalars.add('b')
       build(cs)
     })
-  const val = (s: string, n: number): ResolvedConstraint =>
-    ({ kind: 'scalar-equality', scalar: s, target: n })
+  const val = value
   const same = (a: string, b: string): ResolvedConstraint => ({ kind: 'scalars-equal', a, b })
 
   it('leaves two unknowns unknown', () => {
-    // Nothing known constrains nothing — `undefined` is the identity.
+    // Nothing known constrains nothing — whole is the identity.
     const r = pair(cs => cs.constraints.push(same('a', 'b')))
-    expect(r.scalars.get('a')!.solutions).toBeUndefined()
-    expect(r.scalars.get('b')!.solutions).toBeUndefined()
+    expect(r.scalars.get('a')).toEqual(wholeScalar())
+    expect(r.scalars.get('b')).toEqual(wholeScalar())
   })
 
   it('settles the unknown one, whichever side is known', () => {
     for (const order of [[val('a', 7), same('a', 'b')], [same('a', 'b'), val('b', 7)]]) {
       const r = pair(cs => cs.constraints.push(...order))
-      expect(r.scalars.get('a')!.solutions).toEqual([7])
-      expect(r.scalars.get('b')!.solutions).toEqual([7])
+      expect(singleValue(r.scalars.get('a')!)).toBe(7)
+      expect(singleValue(r.scalars.get('b')!)).toBe(7)
     }
   })
 
   it('is content when both agree', () => {
     const r = pair(cs => cs.constraints.push(val('a', 7), val('b', 7), same('a', 'b')))
-    expect(r.scalars.get('a')!.solutions).toEqual([7])
+    expect(singleValue(r.scalars.get('a')!)).toBe(7)
   })
 
   it('gives `none` when they disagree, rather than throwing', () => {
     // A contradiction is a value here. That is what makes `none ∩ X = none`
     // reachable at all, and it lets the rest of a drawing survive.
     const r = pair(cs => cs.constraints.push(val('a', 7), val('b', 3), same('a', 'b')))
-    expect(r.scalars.get('a')!.solutions).toEqual([])
-    expect(r.scalars.get('b')!.solutions).toEqual([])
+    expect(r.scalars.get('a')).toEqual([])
+    expect(r.scalars.get('b')).toEqual([])
   })
 
   it('carries along a chain', () => {
@@ -299,46 +248,23 @@ describe('scalar equality narrows both sides', () => {
       cs.scalars.add('a'); cs.scalars.add('b'); cs.scalars.add('c')
       cs.constraints.push(val('a', 4), same('a', 'b'), same('b', 'c'))
     })
-    expect(r.scalars.get('c')!.solutions).toEqual([4])
-  })
-
-  it('intersects rather than picking a side', () => {
-    // `a` is x of a point that could be at ±5; `b` is 5. The answer is the
-    // overlap, which is the whole point of intersecting rather than copying.
-    const r = solve(cs => {
-      cs.points.add('o'); cs.points.add('p')
-      cs.lines.add('l'); cs.circles.add('c')
-      cs.scalars.add('a'); cs.scalars.add('b')
-      cs.constraints.push(
-        { kind: 'position', point: 'o', x: 0, y: 0 },
-        { kind: 'circle-spec', circle: 'c', center: 'o', r: 5 },
-        { kind: 'line-equation', line: 'l', a: 0, b: 1, c: 0 },
-        { kind: 'on-circle', point: 'p', circle: 'c' },
-        { kind: 'on-line', point: 'p', line: 'l' },
-        bind('a', 'p', 'x'),
-        val('b', 5),
-        same('a', 'b'),
-      )
-    })
-    expect(r.scalars.get('a')!.solutions).toEqual([5])
+    expect(singleValue(r.scalars.get('c')!)).toBe(4)
   })
 })
 
 describe('unknown and impossible are different answers', () => {
   it('reports a fresh scalar as unknown, not as having no answer', () => {
     const r = solve(cs => { cs.scalars.add('k') })
-    expect(r.scalars.get('k')!.solutions).toBeUndefined()
-    expect(r.scalars.get('k')!.dof).toBe(1)
+    expect(r.scalars.get('k')).toEqual(wholeScalar())
   })
 
   it('reports an unplaced line as unknown too', () => {
-    // With the gauge fixer on, a free line gets placed canonically — so this
-    // has to ask what the constraints alone determine.
     const cs: ConstraintSet = {
       points: new Set(), segments: new Set(), lines: new Set(['l']), circles: new Set(),
       scalars: new Set(), constraints: [], picks: new Map(),
     }
-    const r = new Solver(new GeometricPropagate(), new NonePick()).solve(cs)
-    expect(r.lines.get('l')!.solutions).toBeUndefined()
+    const r = new ShellSolver().solve(cs)
+    const l = r.lines.get('l')!
+    expect([l.a, l.b, l.c]).toEqual([wholeScalar(), wholeScalar(), wholeScalar()])
   })
 })

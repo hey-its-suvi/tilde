@@ -100,6 +100,13 @@ export function makeScalarOps<N>(A: Arith<N>) {
   const isSingleton = (s: Scalar<N>): boolean =>
     s.length === 1 && I.isSingleton(s[0]!)
 
+  /** The one value a singleton scalar is, or `undefined` for anything else —
+   *  a range, several discrete values, or fully unknown. Unlike `numbersOf`,
+   *  never throws: a caller that only draws exact answers treats a range the
+   *  same as not knowing yet. */
+  const singleValue = (s: Scalar<N>): N | undefined =>
+    isSingleton(s) ? s[0]!.low.value! : undefined
+
   /** True when both are the same intervals, with the same ends. */
   function sameScalars(x: Scalar<N>, y: Scalar<N>): boolean {
     const sameValue = (p: N | null, q: N | null) =>
@@ -277,13 +284,13 @@ export function makeScalarOps<N>(A: Arith<N>) {
 
   return {
     wholeScalar, scalarOf, exactScalar, normalise, union, intersectScalars, complement,
-    isEmpty, isWhole, isSingleton, sameScalars, numbersOf,
+    isEmpty, isWhole, isSingleton, singleValue, sameScalars, numbersOf,
     add, sub, mul, div, sqrt,
   }
 }
 
 export const {
   wholeScalar, scalarOf, exactScalar, normalise, union, intersectScalars, complement,
-  isEmpty, isWhole, isSingleton, sameScalars, numbersOf,
+  isEmpty, isWhole, isSingleton, singleValue, sameScalars, numbersOf,
   add, sub, mul, div, sqrt,
 } = makeScalarOps(floatArith)

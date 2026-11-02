@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { runSource } from '../lang/defs/eval.js'
 import { PRELUDE } from '../lang/prelude/index.js'
 import { byName } from './named.js'
+import { exactScalar } from '@lang/values/scalar.js'
 
 const run = (src: string) => byName(runSource(`import prelude\n${src}`, PRELUDE))
 
@@ -52,8 +53,8 @@ outer
     const { names, constraints } = run(src)
     expect(names().sort()).toEqual(['Point#1', 'Point#2'])
     expect(constraints.constraints).toEqual([
-      { kind: 'position', point: 'Point#1', x: 1, y: 1 },
-      { kind: 'position', point: 'Point#2', x: 1, y: 1 },
+      { kind: 'position', point: 'Point#1', x: exactScalar(1), y: exactScalar(1) },
+      { kind: 'position', point: 'Point#2', x: exactScalar(1), y: exactScalar(1) },
     ])
   })
 })

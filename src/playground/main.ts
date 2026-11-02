@@ -1,7 +1,7 @@
 // ─── Tilde Playground ─────────────────────────────────────────────────────────
 
 import { createEditor } from './editor.js'
-import { solveSource, setPick, getPick, PICK_NAMES, PickName } from '../lang/solver/index.js'
+import { solveSource } from '../lang/solver/index.js'
 import { Canvas2DRenderer } from '../renderer/canvas2d.js'
 import { labelRuns } from '../renderer/label.js'
 import { DEFAULT_CONFIG } from '../renderer/interface.js'
@@ -108,30 +108,6 @@ resetBtn.addEventListener('click', () => {
   localStorage.removeItem(STORAGE_KEY)
   editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: DEFAULT_SOURCE } })
 })
-
-// ─── Pick picker (dev) ────────────────────────────────────────────────────────
-// Gated behind a literal `true` so it can be hidden on the public playground
-// later by flipping this to a real dev flag. While visible, lets us A/B
-// compare pick strategies without code changes.
-
-if (true) {
-  const header = document.querySelector('header > div:last-child') ?? document.querySelector('header')!
-  const picker = document.createElement('select')
-  picker.id = 'pick-picker'
-  picker.style.cssText = 'font-family: monospace; font-size: 0.8rem; margin-right: 12px; background: #2a2a3e; color: #f5f5f0; border: 1px solid #444; padding: 2px 6px; border-radius: 3px;'
-  for (const name of PICK_NAMES) {
-    const opt = document.createElement('option')
-    opt.value = name
-    opt.textContent = `pick: ${name}`
-    picker.appendChild(opt)
-  }
-  picker.value = getPick()
-  picker.addEventListener('change', () => {
-    setPick(picker.value as PickName)
-    compile(editor.state.doc.toString())
-  })
-  header.insertBefore(picker, header.firstChild)
-}
 
 // ─── Pan ──────────────────────────────────────────────────────────────────────
 

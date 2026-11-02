@@ -24,32 +24,8 @@ describe('print shows solved values', () => {
     expect(printed('scalar a = 2\na = 3\nprint a\n')).toEqual(['a = no possible value'])
   })
 
-  it('lists every possibility when there are several', () => {
-    const src = `point o at 0 0
-point e at 1 0
-line l through o e
-circle c with center o and radius 5
-point q on c
-q on l
-print q
-`
-    expect(printed(src)).toEqual(['q = (5, 0) or (-5, 0)'])
-  })
-
   it('prints shapes by the name the program gave them', () => {
     expect(printed('point p = (3, 4)\nprint p\n')).toEqual(['p = (3, 4)'])
-  })
-
-  it('writes a line as a person would', () => {
-    const src = `point o at 0 0
-point e at 1 0
-line l through o e
-point f at 2 3
-line m through e f
-print l
-print m
-`
-    expect(printed(src)).toEqual(['l: y = 0', 'm: 3x - y - 3 = 0'])
   })
 
   it('prints a circle by its centre and radius', () => {

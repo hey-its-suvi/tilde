@@ -270,6 +270,22 @@ Same idea could extend to other hidden internals as more shapes grow them. Usefu
 
 ## Solver
 
+### Geometric derivation
+The solver moved to set-valued numbers (a named number can be a range or a
+few exact values) without a rewrite of the geometric solver to match —
+writing one that works natively over that value, rather than plain numbers,
+is its own unwritten effort. Until it exists, nothing is worked out from how
+a figure fits together: a point `on` a line or circle, a line `through` two
+points, `parallel`/`perpendicular`, a length or angle placing something, and
+`=` between two points. Each is still accepted and drawn as undetermined, not
+rejected. See [Solver](/solver/) for the current, direct-facts-only
+behaviour, and `plans/interval-backend.md` in the repo for how this came
+about.
+
+Also gone with it, until the rewrite: the playground's strategy picker
+(`rule` / `budget` / `none`) — canonical gauge-fixing was part of the old
+solver's pick phase, and there's nothing to pick between without it.
+
 ### Angle constraints
 Angle constraints parse correctly but are not yet wired into placement. The solver needs to use angle information when placing vertices — currently only length (circle) and line constraints drive placement.
 

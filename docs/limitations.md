@@ -8,11 +8,11 @@ not described elsewhere in the docs, that is worth reporting.
 
 ---
 
-## Answers chosen for you
+## Nothing is worked out from a figure's shape
 
-A drawing has to start somewhere, and when a figure is genuinely ambiguous
-something has to settle on one version of it. Both are choices your program did
-not make, and both are invisible in the result.
+A number, point, line or circle given directly is drawn. Anything that needs
+working out from how a figure fits together is not — it's accepted and drawn
+as undetermined, not rejected.
 
 ```
 point a at 0 0
@@ -20,13 +20,17 @@ point b
 line l through a b
 ```
 
-Only `a` is actually determined here. `b` is placed at the origin because
-nothing says otherwise, and the line through two identical points comes out at
-an arbitrary angle.
+Only `a` is actually determined here: `b` has nothing said about it directly,
+and `l` needs working out from two points, so neither is drawn. This also
+covers a point `on` a line or circle, `parallel`/`perpendicular`, a length or
+angle placing something, and two points or numbers said equal by `=`. See
+[Solver](/solver/) for why, and the
+[roadmap](/roadmap#geometric-derivation) for what comes back.
 
-**To see which parts are yours:** switch the strategy picker in the playground to
-`none`. It draws only what your constraints force, and leaves out everything
-that was being chosen for you.
+Where a figure could have more than one answer — a line crossing a circle at
+two points, say — that's the same gap: it needs working out too, so it's
+drawn the same way as anything else not yet determined, not as several
+answers.
 
 ---
 
@@ -42,15 +46,6 @@ r = 3            -- r cannot be both, so it has no value and is not drawn
 
 Nothing marks it as impossible on the canvas. You find out by noticing something
 missing.
-
----
-
-## Ambiguous figures
-
-Where a figure has two possible versions, Tilde draws and prints both. There is no
-way yet to choose one — `pick` went with the classic syntax and is on the
-[roadmap](/roadmap#to-bring-back-from-the-classic-syntax). Saying something more
-that rules one out is the only way to settle it.
 
 ---
 
@@ -77,8 +72,11 @@ a triangle's corner, because a corner is a whole point. There is no `p.x` — se
 the roadmap for why that is harder than it looks.
 
 **Two points said to be the same stay two points.** `p = q` holds them at no
-distance apart, drawn on top of each other, rather than making them one point —
-that waits on `=` learning to merge. (Two numbers, `r = w`, already are one.)
+distance apart, rather than making them one point — that waits on `=` learning
+to merge. (Two numbers, `r = w`, already are one.) Right now "no distance
+apart" is also a relation nothing is worked out from — see
+[above](#nothing-is-worked-out-from-a-figure-s-shape) — so neither point
+draws unless something else pins it down directly.
 
 **A definition's helper shapes are not drawn.** A name used only inside a
 definition ends when the definition finishes, and so does any way of showing what
