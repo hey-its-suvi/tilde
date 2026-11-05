@@ -25,16 +25,33 @@
 // tried only once every fold from the first word has failed.
 
 import { matchAt, showPieces, callTypes, type Match, type Piece } from './match.js'
-import { typesFit, compatible, ANY, type Store } from './resolve.js'
+import { typesFit, compatible, form, ANY, type Store } from './resolve.js'
 import type { Definition } from './types.js'
 
 export type Call = Extract<Piece, { kind: 'call' }>
 
+/** Why a match that fit the types was refused anyway: a call sitting
+ *  unbracketed at an edge was looser than what held it (decision 20). Named
+ *  concretely enough to say, not just that precedence was the reason. */
+export type LevelConflict = {
+  slot: string
+  edge: 'first' | 'last'
+  outer: number
+  inner: { form: string; level: number }
+}
+
 /** Every definition matching one spot, at each of the three gates it must pass
  *  — shape, then type, then precedence — so a trace can say not just what was
  *  kept but what fell away and where. `kept` is what `matchesAt` actually acts
- *  on; `shape` and `typed` are wider, for showing. */
-export type Breakdown = { length: number; shape: Match[]; typed: Match[]; kept: Match[] }
+ *  on; `shape` and `typed` are wider, for showing; `conflicts` names why a
+ *  typed match didn't make it into `kept`. */
+export type Breakdown = {
+  length: number
+  shape: Match[]
+  typed: Match[]
+  kept: Match[]
+  conflicts: LevelConflict[]
+}
 
 /** One decision the reader made or considered, in the order it made it — the
  *  trace a step-by-step tool renders. Nothing here changes what the reader
@@ -173,12 +190,13 @@ class Reader {
     for (const { match, length } of matchAt(state.pieces, k, this.defs)) {
       // A pattern of one slot taking a call already read would wrap it forever.
       if (length === 1 && state.pieces[k]!.kind === 'call') continue
-      const entry = byLength.get(length) ?? { length, shape: [], typed: [], kept: [] }
+      const entry = byLength.get(length) ?? { length, shape: [], typed: [], kept: [], conflicts: [] }
       entry.shape.push(match)
       if (typesFit(match, this.store, state.given)) {
         entry.typed.push(match)
-        const fitted = levelsFit(narrowed(match))
+        const { match: fitted, conflict } = levelsFit(narrowed(match))
         if (fitted !== null) entry.kept.push(fitted)
+        if (conflict !== undefined) entry.conflicts.push(conflict)
       }
       byLength.set(length, entry)
     }
@@ -213,8 +231,9 @@ function narrowed(match: Match): Match {
  *  both sides is never fought over, and a bracket is never checked.
  *
  *  An inner call that could be several definitions keeps those that fit; if
- *  none do, the whole match is refused. */
-function levelsFit(match: Match): Match | null {
+ *  none do, the whole match is refused — and, so a trace can say why, the
+ *  first inner definition that lost the fight comes back as `conflict`. */
+function levelsFit(match: Match): { match: Match | null; conflict?: LevelConflict } {
   const parts = match.def.pattern
   const outer = match.def.level
   let changed = false
@@ -231,11 +250,22 @@ function levelsFit(match: Match): Match | null {
       return first ? inner.at(-1)?.part === 'slot' : inner[0]?.part === 'slot'
     }
     const fitting = piece.matches.filter(m => !facing(m) || fits(m.def.level, outer))
-    if (fitting.length === 0) return null
+    if (fitting.length === 0) {
+      const culprit = piece.matches.find(facing)!
+      return {
+        match: null,
+        conflict: {
+          slot: b.slot,
+          edge: first ? 'first' : 'last',
+          outer,
+          inner: { form: form(culprit), level: culprit.def.level },
+        },
+      }
+    }
     if (fitting.length !== piece.matches.length) changed = true
     bindings.push(fitting.length === piece.matches.length ? b : { ...b, piece: { ...piece, matches: fitting } })
   }
-  return changed ? { ...match, bindings } : match
+  return { match: changed ? { ...match, bindings } : match }
 }
 
 /** Whether a call at `inner` may sit unbracketed at an edge of one at `outer`:

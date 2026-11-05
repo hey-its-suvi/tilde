@@ -287,12 +287,25 @@ function linesOf(trace: Trace): { text: string; cls?: 'error' }[] {
     lines.push({ text: `${step}. at "${s.at}"` })
     for (const g of s.groups) {
       const words = `${g.length} word${g.length === 1 ? '' : 's'}`
-      const summary =
-        g.kept.length > 0 ? g.kept.join(', ')
-        : g.typed.length > 0 ? '— fits the types, but not the precedence here'
-        : g.shape.length > 0 ? '— matches the words, but not the types here'
-        : '— nothing'
-      lines.push({ text: `   ${words}:  ${summary}` })
+      if (g.kept.length > 0) {
+        lines.push({ text: `   ${words}:  ${g.kept.join(', ')}` })
+        continue
+      }
+      if (g.typed.length > 0) {
+        lines.push({ text: `   ${words}:  ${g.typed.join(', ')}  — fits the types, but not taken here:` })
+        for (const c of g.conflicts) {
+          lines.push({
+            text: `     "${c.inner.form}" is level ${c.inner.level}; this slot needs at least level ${c.outer}` +
+              ` (as tight, or tighter) — ${c.inner.level} is looser, so it's left as its own call`,
+          })
+        }
+        continue
+      }
+      if (g.shape.length > 0) {
+        lines.push({ text: `   ${words}:  ${g.shape.join(', ')}  — matches the words, not the types here` })
+        continue
+      }
+      lines.push({ text: `   ${words}: — nothing` })
     }
   }
   lines.push({ text: '' })

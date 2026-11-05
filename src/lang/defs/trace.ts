@@ -10,7 +10,7 @@
 
 import { lexHeader } from './lexer.js'
 import { piecesOf, pieceText, showPieces } from './match.js'
-import { readLine, type Breakdown, type Call, type TraceEvent } from './read.js'
+import { readLine, type Breakdown, type Call, type LevelConflict, type TraceEvent } from './read.js'
 import { form, type Store } from './resolve.js'
 import { noReading, settled } from './eval.js'
 import type { Definition } from './types.js'
@@ -26,6 +26,10 @@ export type TraceGroup = {
   /** Of those, the ones precedence still allows unbracketed here — what the
    *  reader actually had left to choose from. */
   kept: string[]
+  /** Why a typed match that isn't in `kept` lost: a nested call at an edge
+   *  was looser than what would have held it. Empty when nothing needed
+   *  explaining (`kept` already has everything `typed` has). */
+  conflicts: LevelConflict[]
 }
 
 /** One step of the trace: either the reader looking at a spot, or it giving
@@ -49,6 +53,7 @@ const group = (g: Breakdown): TraceGroup => ({
   shape: g.shape.map(form),
   typed: g.typed.map(form),
   kept: g.kept.map(form),
+  conflicts: g.conflicts,
 })
 
 const step = (e: TraceEvent): TraceStep =>

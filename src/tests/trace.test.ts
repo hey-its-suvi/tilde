@@ -37,6 +37,26 @@ point p at 1 1
     expect(trace.outcome.lines[1]).toContain('(l: Line) through (p: Point)')
   })
 
+  it('names the conflict when a looser call cannot sit in a tighter slot', () => {
+    // `+` (level 6) folds "1 + 2" first; trying to extend with `*` (level 7)
+    // fits the types but loses on precedence — named here, not just refused.
+    const program = programFor('')
+    const trace = traceStatement('1 + 2 * 3', program.store, program.scope)
+
+    const second = trace.steps[1]!
+    if (second.kind !== 'look') throw new Error('expected a look step')
+    const group = second.groups[0]!
+    expect(group.kept).toEqual([])
+    expect(group.typed).toEqual(['(a: Scalar) * (b: Scalar)'])
+    expect(group.conflicts).toEqual([
+      { slot: 'a', edge: 'first', outer: 7, inner: { form: '(a: Scalar) + (b: Scalar)', level: 6 } },
+    ])
+
+    expect(trace.outcome.kind).toBe('read')
+    if (trace.outcome.kind !== 'read') throw new Error('expected a reading')
+    expect(trace.outcome.lines.at(-1)).toContain('(a: Scalar) + (b: Scalar)')
+  })
+
   it('restarts from a later word when nothing from the first reads the whole line', () => {
     // "print 1" is complete on its own — print returns nothing a "+" could
     // continue — so nothing from the first word spans the line; the reader
