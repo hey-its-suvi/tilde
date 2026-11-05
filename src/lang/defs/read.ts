@@ -30,6 +30,22 @@ import type { Definition } from './types.js'
 
 export type Call = Extract<Piece, { kind: 'call' }>
 
+/** Every definition matching one spot, at each of the three gates it must pass
+ *  — shape, then type, then precedence — so a trace can say not just what was
+ *  kept but what fell away and where. `kept` is what `matchesAt` actually acts
+ *  on; `shape` and `typed` are wider, for showing. */
+export type Breakdown = { length: number; shape: Match[]; typed: Match[]; kept: Match[] }
+
+/** One decision the reader made or considered, in the order it made it — the
+ *  trace a step-by-step tool renders. Nothing here changes what the reader
+ *  does; it is only ever read, never branched on. */
+export type TraceEvent =
+  | { kind: 'candidates'; piece: Piece; groups: Breakdown[] }
+  | { kind: 'restart'; piece: Piece }
+
+/** Where a trace's events go, if anyone is watching. */
+export type Sink = (event: TraceEvent) => void
+
 /** Names a call on this line will give, with the type it promises. */
 type Given = ReadonlyMap<string, string>
 
@@ -48,9 +64,12 @@ export class ReadError extends Error {
 }
 
 /** The call a line reads as, or null if there is no reading. Throws only when
- *  the line has too many readings to try. */
-export function readLine(pieces: readonly Piece[], store: Store, defs: readonly Definition[]): Call | null {
-  const reader = new Reader(store, defs, showPieces(pieces))
+ *  the line has too many readings to try. `sink`, given, hears every decision
+ *  along the way — it changes nothing about the reading itself. */
+export function readLine(
+  pieces: readonly Piece[], store: Store, defs: readonly Definition[], sink?: Sink,
+): Call | null {
+  const reader = new Reader(store, defs, showPieces(pieces), sink)
   return reader.read({ pieces, given: new Map() })
 }
 
@@ -75,6 +94,7 @@ class Reader {
     private readonly store: Store,
     private readonly defs: readonly Definition[],
     private readonly shown: string,
+    private readonly sink?: Sink,
   ) {}
 
   read(state: State): Call | null {
@@ -98,6 +118,7 @@ class Reader {
     // around it — in `1 - 2 * 3 - 4`, `(2 * 3) - 4` — grouping them the wrong
     // way round. Reading again from the start keeps the rest left to right.
     for (let k = 1; k < state.pieces.length; k++) {
+      this.sink?.({ kind: 'restart', piece: state.pieces[k]! })
       for (const next of this.once(state, k)) {
         const made = next.pieces[k] as Call
         if (callTypes(made).length === 0) continue // nothing to stand in with
@@ -138,23 +159,32 @@ class Reader {
 
   /** Definitions matching at `k` whose types fit, grouped by how many pieces
    *  they take, longest first. Several in one group are overloads that all fit
-   *  — kept together, since only something outside them could tell them apart. */
+   *  — kept together, since only something outside them could tell them apart.
+   *
+   *  Every definition that merely matches by shape here is counted too, win or
+   *  lose, and handed to `sink` — not because reading needs to know, but
+   *  because a trace does: shape, then type, then precedence is exactly where
+   *  "how many possibilities" grows or shrinks. */
   private matchesAt(state: State, k: number): { matches: Match[]; length: number }[] {
     if (--this.left < 0) {
       throw new ReadError(`"${this.shown}" has too many possible readings to try — add brackets`)
     }
-    const byLength = new Map<number, Match[]>()
+    const byLength = new Map<number, Breakdown>()
     for (const { match, length } of matchAt(state.pieces, k, this.defs)) {
       // A pattern of one slot taking a call already read would wrap it forever.
       if (length === 1 && state.pieces[k]!.kind === 'call') continue
-      if (!typesFit(match, this.store, state.given)) continue
-      const fitted = levelsFit(narrowed(match))
-      if (fitted === null) continue
-      byLength.set(length, [...(byLength.get(length) ?? []), fitted])
+      const entry = byLength.get(length) ?? { length, shape: [], typed: [], kept: [] }
+      entry.shape.push(match)
+      if (typesFit(match, this.store, state.given)) {
+        entry.typed.push(match)
+        const fitted = levelsFit(narrowed(match))
+        if (fitted !== null) entry.kept.push(fitted)
+      }
+      byLength.set(length, entry)
     }
-    return [...byLength.entries()]
-      .sort(([a], [b]) => b - a)
-      .map(([length, matches]) => ({ matches, length }))
+    const groups = [...byLength.values()].sort((a, b) => b.length - a.length)
+    this.sink?.({ kind: 'candidates', piece: state.pieces[k]!, groups })
+    return groups.filter(g => g.kept.length > 0).map(({ length, kept }) => ({ matches: kept, length }))
   }
 }
 
