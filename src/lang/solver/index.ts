@@ -11,7 +11,7 @@ import { ShellSolver } from './shell.js'
 import type { SolveResult, Point, Line, Circle } from './interface.js'
 import { isEmpty, singleValue, type Scalar } from '../values/scalar.js'
 import { buildSceneGraph } from './output.js'
-import { runSource, labelsOf, isScalarValue, isText, SETTINGS, type Value } from '../defs/eval.js'
+import { runSource, labelsOf, isScalarValue, isText, SETTINGS, type Program, type Value } from '../defs/eval.js'
 import { PRELUDE } from '../prelude/index.js'
 import { SceneGraph, RenderConfig, DEFAULT_CONFIG } from '../../renderer/interface.js'
 
@@ -26,9 +26,9 @@ const solver = new ShellSolver()
 
 export function solveSource(
   source: string,
-): { scene: SceneGraph; config: RenderConfig; printed: string[] } {
+): { scene: SceneGraph; config: RenderConfig; printed: string[]; store: Program['store']; scope: Program['scope'] } {
   const program = runSource(source, PRELUDE)
-  const { constraints, prints, settings } = program
+  const { constraints, prints, settings, store, scope } = program
   const result = solver.solve(constraints)
 
   // The solver works in keys (`Point#1`); a drawing says what the program wrote.
@@ -40,7 +40,7 @@ export function solveSource(
   for (const key of SETTINGS) {
     if (settings.has(key)) (config as Record<string, boolean>)[key] = settings.get(key) === true
   }
-  return { scene: buildSceneGraph(result, labels), config, printed }
+  return { scene: buildSceneGraph(result, labels), config, printed, store, scope }
 }
 
 /** `fields` all singleton → `show` of their values; any of them empty → no

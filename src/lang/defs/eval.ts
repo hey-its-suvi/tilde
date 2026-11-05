@@ -56,6 +56,13 @@ export type Program = {
   /** What `set` lines chose, by setting name. How the result is shown, not what
    *  it is, so these are read after solving and never reach the solver. */
   settings: Settings
+  /** Everything resolution needs, as it stood once every statement had run —
+   *  for a tool that reads a further statement against this program, not for
+   *  running the program itself. */
+  store: Store
+  /** The entry module's own definitions — what a further top-level statement
+   *  reads against, the same way the program's own statements did. */
+  scope: readonly Definition[]
 }
 
 export type Settings = Map<string, unknown>
@@ -135,7 +142,9 @@ function run(units: readonly Unit[], homeOf: HomeMap, decls: TypeMap): Program {
       }
     }
   }
-  return { constraints, data, globals, prints: ctx.prints, settings: ctx.settings }
+  // The entry module is the last one loaded (decision: dependencies run first).
+  const scope = units.at(-1)?.scope ?? []
+  return { constraints, data, globals, prints: ctx.prints, settings: ctx.settings, store: ctx.store, scope }
 }
 
 /** Prefix an error with where the statement was, when we know. Statements
@@ -193,7 +202,7 @@ function evalPieces(
  *  that always described a bad line. If no pattern spans it at all, then from as
  *  far as reading left to right got: in `point p on q` with `q` unknown, that is
  *  `(point p) on q`, where both `on`s match the words and neither fits `q`. */
-function noReading(pieces: readonly Piece[], store: Store, scope: readonly Definition[]): unknown {
+export function noReading(pieces: readonly Piece[], store: Store, scope: readonly Definition[]): unknown {
   try {
     resolveStatement(pieces, store, scope)
   } catch (whole) {
@@ -213,7 +222,7 @@ function noReading(pieces: readonly Piece[], store: Store, scope: readonly Defin
 
 /** Every call in a reading must mean one definition. Checked before anything
  *  runs, so an ambiguous line adds nothing to the drawing. */
-function settled(call: Call, slot?: string): void {
+export function settled(call: Call, slot?: string): void {
   if (call.matches.length > 1) {
     if (differsOnlyByReturn(call.matches)) {
       // Sorted, so the message does not depend on which file defined what first.
