@@ -2,6 +2,9 @@
 
 import { createEditor } from './editor.js'
 import { solveSource } from '../lang/solver/index.js'
+import { traceStatement, type Trace } from '../lang/defs/trace.js'
+import type { Store } from '../lang/defs/resolve.js'
+import type { Definition } from '../lang/defs/types.js'
 import { Canvas2DRenderer } from '../renderer/canvas2d.js'
 import { labelRuns } from '../renderer/label.js'
 import { DEFAULT_CONFIG } from '../renderer/interface.js'
@@ -13,6 +16,13 @@ const tooltip    = document.getElementById('tooltip')   as HTMLDivElement
 const editorPane = document.querySelector('.editor-pane') as HTMLDivElement
 const resizeHandle = document.getElementById('resize-handle') as HTMLDivElement
 const resetBtn   = document.getElementById('reset-btn') as HTMLButtonElement
+
+const toolbox      = document.getElementById('toolbox')       as HTMLDivElement
+const toolboxBtn   = document.getElementById('toolbox-btn')   as HTMLButtonElement
+const toolboxClose = document.getElementById('toolbox-close') as HTMLButtonElement
+const traceInput   = document.getElementById('trace-input')   as HTMLInputElement
+const traceBtn     = document.getElementById('trace-btn')     as HTMLButtonElement
+const traceOutput  = document.getElementById('trace-output')  as HTMLDivElement
 
 // ─── Renderer ─────────────────────────────────────────────────────────────────
 
@@ -57,12 +67,20 @@ function clearConsole() { consoleEl.innerHTML = '' }
 
 // ─── Compile pipeline ─────────────────────────────────────────────────────────
 
+/** What the match tracer traces a further statement against: the store and
+ *  scope of the last program that compiled clean. Stale on a broken program
+ *  — still the most recent thing that actually ran — rather than nothing. */
+let liveStore: Store | undefined
+let liveScope: readonly Definition[] | undefined
+
 function compile(source: string) {
   clearConsole()
   subscripts = DEFAULT_CONFIG.subscripts
   try {
-    const { scene, config, printed } = solveSource(source)
+    const { scene, config, printed, store, scope } = solveSource(source)
     subscripts = config.subscripts
+    liveStore = store
+    liveScope = scope
     renderer.render(scene, config)
     for (const line of printed) log(line)
     log('OK')
@@ -223,6 +241,69 @@ canvas.addEventListener('mousemove', (e) => {
 })
 
 canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none' })
+
+// ─── Toolbox: match trace ────────────────────────────────────────────────────
+
+toolboxBtn.addEventListener('click', () => {
+  toolbox.hidden = !toolbox.hidden
+  if (!toolbox.hidden) traceInput.focus()
+})
+toolboxClose.addEventListener('click', () => { toolbox.hidden = true })
+
+traceBtn.addEventListener('click', runTrace)
+traceInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runTrace() })
+
+function runTrace() {
+  const statement = traceInput.value.trim()
+  traceOutput.innerHTML = ''
+  if (statement === '') return
+  if (liveStore === undefined || liveScope === undefined) {
+    appendLine(traceOutput, 'nothing has compiled yet — fix the program on the left first', 'error')
+    return
+  }
+  const trace = traceStatement(statement, liveStore, liveScope)
+  for (const { text, cls } of linesOf(trace)) appendLine(traceOutput, text, cls)
+}
+
+function appendLine(el: HTMLElement, text: string, cls?: 'error') {
+  const line = document.createElement('div')
+  if (cls) line.className = cls
+  line.textContent = text
+  el.appendChild(line)
+}
+
+/** `Trace` as plain lines: one per step the reader took, then the outcome.
+ *  Mirrors the vocabulary docs/reading.md already uses (fold, restart,
+ *  longest match) rather than inventing new terms for the same ideas. */
+function linesOf(trace: Trace): { text: string; cls?: 'error' }[] {
+  const lines: { text: string; cls?: 'error' }[] = []
+  let step = 0
+  for (const s of trace.steps) {
+    if (s.kind === 'restart') {
+      lines.push({ text: `↻  nothing from the start reads the whole line — trying from "${s.at}"` })
+      continue
+    }
+    step++
+    lines.push({ text: `${step}. at "${s.at}"` })
+    for (const g of s.groups) {
+      const words = `${g.length} word${g.length === 1 ? '' : 's'}`
+      const summary =
+        g.kept.length > 0 ? g.kept.join(', ')
+        : g.typed.length > 0 ? '— fits the types, but not the precedence here'
+        : g.shape.length > 0 ? '— matches the words, but not the types here'
+        : '— nothing'
+      lines.push({ text: `   ${words}:  ${summary}` })
+    }
+  }
+  lines.push({ text: '' })
+  if (trace.outcome.kind === 'read') {
+    lines.push({ text: 'reads as:' })
+    for (const l of trace.outcome.lines) lines.push({ text: `  ${l}` })
+  } else {
+    lines.push({ text: trace.outcome.message, cls: 'error' })
+  }
+  return lines
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
