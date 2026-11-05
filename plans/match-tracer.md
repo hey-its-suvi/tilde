@@ -47,9 +47,32 @@ larger tool, left for later if it turns out to be wanted.
 | # | Step | State |
 |---|------|-------|
 | 0 | Plan written | done |
-| 1 | `Reader` reports its decisions to an optional sink; `matchesAt`'s three-stage breakdown (shape / typed / leveled) exported as a pure, reusable piece | pending |
-| 2 | `traceStatement`: runs a statement through the instrumented reader and turns the sink's events into a flat list of steps plus a final outcome (read call tree, or the same "no reading" diagnosis `eval.ts` already gives) | pending |
+| 1 | `Reader` reports its decisions to an optional sink; `matchesAt`'s three-stage breakdown (shape / typed / kept) | done — `27f4b59` |
+| 2 | `traceStatement`; `Program`/`solveSource` expose the final `store`/`scope` | done — `7a93b4e` |
 | 3 | Playground: collapsed-by-default toolbox panel; first tool is the match tracer (input + trace button + rendered steps) | pending |
 | 4 | Changelog entry | pending |
 
-Each step below is written up once it lands.
+## Step 1 — `read.ts`
+
+`Reader` takes an optional fourth constructor argument, a `sink?: (e: TraceEvent) => void`, threaded in from `readLine`'s new optional fourth parameter. `foldFromStart` (used only to build error messages) does not take one — nothing needs to trace an error path twice.
+
+`matchesAt` used to build `byLength: Map<number, Match[]>`, keeping only matches that survived `typesFit` and `levelsFit`. It now builds `Map<number, Breakdown>`, where a `Breakdown` is `{ length, shape: Match[], typed: Match[], kept: Match[] }` — every definition matching that spot by shape, the ones among those whose types fit, and the ones among *those* precedence still allows. The method's return value is unchanged (`kept`, filtered to non-empty groups); the full breakdown is only ever handed to `sink`, once per call, as a `candidates` event carrying the spot's `Piece` and its groups, longest length first.
+
+The restart loop (trying a single match from word 2, then 3, …) reports a `restart` event naming the word it is about to try, before calling `once`.
+
+No existing test changed; the whole suite (369 tests, now 374 with step 2's) stayed green throughout, since nothing changes with no sink attached.
+
+## Step 2 — `trace.ts`, and exposing a program's final state
+
+`Program` (and so `solveSource`'s return) gained two read-only fields: `store` (the `Store` evaluation ended with — every element declared, by the time the last statement ran) and `scope` (the entry module's own definitions — what a further top-level statement reads against). Both come straight out of `run()`'s existing `ctx` and `units`; nothing new is computed.
+
+`eval.ts` exports two functions that were already there, unchanged: `noReading` (why a line failed to read, used to build its error message) and `settled` (checks a read call tree has exactly one definition per call, throwing the same ambiguity error evaluation throws). `trace.ts` reuses both rather than re-deriving "why didn't this work" in a second way that could drift from the first.
+
+`traceStatement(statement, store, defs)`:
+1. Refuses outright if the statement has brackets — `(`/`)` content is *run*, not matched (decision 19), and a trace that didn't actually run it would be guessing. Outcome `has-brackets`.
+2. Otherwise calls `readLine` with a sink that turns every `TraceEvent` into a `TraceStep` (`look`, with each group's three stages rendered via `form`; or `restart`).
+3. No reading → outcome `no-reading`, message from `noReading`.
+4. A reading, but `settled` throws → outcome `ambiguous`, its message.
+5. A reading that settles → outcome `read`, with the call tree flattened to one line per call, inner calls before the calls holding them (the order the reader built them in).
+
+Tested against the real prelude (`src/tests/trace.test.ts`): a two-fold read with an overriding definition chosen by length; a restart (`print 1 + 2` — `print 1` is complete, so nothing from the first word spans the line, and the reader restarts from `1`); no reading; two same-shape, different-return overloads producing `ambiguous`; and the bracket refusal.
