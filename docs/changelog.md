@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.72 — current
+## 0.3.73 — current
+
+- **A toolbox in the playground, with a match tracer.** A "tools" button in the editor toolbar opens a panel, closed by default, where you can type one statement and see step by step how it reads: what matches by shape at each spot, what fits the types, what precedence keeps, any restart, and the final reading — or why it has none.
+
+## 0.3.72
 
 - **The solver now works with set-valued numbers.** A named number is no longer just one value or unknown; built underneath, it can be a range or several exact values, though nothing in the language can produce one yet beyond a single exact number.
 - **Consequence: the solver only reads back what's said directly, for now.** Writing a geometric solver that works out a figure's shape over set-valued numbers, rather than plain ones, is its own unwritten effort. Until it exists, a number, a point, a line or a circle given directly — `point p at 3 4`, `circle c with radius 5`, a named number tied to another's coordinate or radius — still resolves exactly as before, but anything that needs working out from the shape of a figure does not: a point `on` a line or circle, a line `through` two points, `parallel`/`perpendicular`, a length or angle placing something, and two points or numbers said equal by `=` meaning "the same one." Those constraints are still accepted and drawn as undetermined, not rejected.

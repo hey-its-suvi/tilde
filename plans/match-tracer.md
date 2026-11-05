@@ -49,8 +49,8 @@ larger tool, left for later if it turns out to be wanted.
 | 0 | Plan written | done |
 | 1 | `Reader` reports its decisions to an optional sink; `matchesAt`'s three-stage breakdown (shape / typed / kept) | done — `27f4b59` |
 | 2 | `traceStatement`; `Program`/`solveSource` expose the final `store`/`scope` | done — `7a93b4e` |
-| 3 | Playground: collapsed-by-default toolbox panel; first tool is the match tracer (input + trace button + rendered steps) | pending |
-| 4 | Changelog entry | pending |
+| 3 | Playground: collapsed-by-default toolbox panel; first tool is the match tracer (input + trace button + rendered steps) | done — `f01525e` |
+| 4 | Changelog entry, version bump | done |
 
 ## Step 1 — `read.ts`
 
@@ -76,3 +76,15 @@ No existing test changed; the whole suite (369 tests, now 374 with step 2's) sta
 5. A reading that settles → outcome `read`, with the call tree flattened to one line per call, inner calls before the calls holding them (the order the reader built them in).
 
 Tested against the real prelude (`src/tests/trace.test.ts`): a two-fold read with an overriding definition chosen by length; a restart (`print 1 + 2` — `print 1` is complete, so nothing from the first word spans the line, and the reader restarts from `1`); no reading; two same-shape, different-return overloads producing `ambiguous`; and the bracket refusal.
+
+## Step 3 — the playground panel
+
+`index.html`: a `.toolbox` panel, `hidden` by default, absolutely positioned over the right side of the canvas pane (not the editor pane — a trace can run long, and the canvas is the wider of the two). A "tools" button joins "reset" in the editor toolbar; a "×" in the panel's own header closes it. Inside, for now, one tool: a text input, a "Trace" button, and an output area styled like the console (dark, monospace).
+
+`main.ts`: `compile()` now keeps the last program's `store`/`scope` (from `solveSource`, which passes through what step 2 added to `Program`) in two module-level variables — stale after a broken edit, rather than gone, so the tracer still has something to trace against. The trace button (and Enter in the input) calls `traceStatement` and renders its `Trace` as plain lines: one per step (`N. at "<spot>"` then each length group's shape/typed/kept forms, or `↻ … restart`), then the outcome — a `reads as:` list, or the failure message. Built with `textContent`, never `innerHTML`, on the same reasoning the console already uses: nothing a user types should ever be read as markup.
+
+Verified: `vite build` bundles the playground clean; the dev server serves the new markup and script without a transform error, and the DOM ids in `main.ts` match `index.html` exactly. `traceStatement` run directly (a throwaway script, not kept) against the playground's own default program confirmed a real multi-group fold-then-match success and a real "no reading" failure both render sensibly. Browser automation (click-through, screenshot) wasn't available in this environment — no `chromium-cli`, no Playwright installed, and installing one just to self-check felt like the wrong tradeoff for a worktree-scoped feature. Worth a manual look in a real browser before merging.
+
+## Step 4 — changelog
+
+`docs/changelog.md`: new `0.3.73` entry. `package.json` version bumped to match.
