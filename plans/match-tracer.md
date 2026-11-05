@@ -51,6 +51,7 @@ larger tool, left for later if it turns out to be wanted.
 | 2 | `traceStatement`; `Program`/`solveSource` expose the final `store`/`scope` | done — `7a93b4e` |
 | 3 | Playground: collapsed-by-default toolbox panel; first tool is the match tracer (input + trace button + rendered steps) | done — `f01525e` |
 | 4 | Changelog entry, version bump | done |
+| 5 | Name the actual precedence conflict (which call, which levels), not just that there was one | done — `f8f5f89` |
 
 ## Step 1 — `read.ts`
 
@@ -88,3 +89,17 @@ Verified: `vite build` bundles the playground clean; the dev server serves the n
 ## Step 4 — changelog
 
 `docs/changelog.md`: new `0.3.73` entry. `package.json` version bumped to match.
+
+## Step 5 — naming the precedence conflict
+
+Trying it out surfaced a real gap: when a group fit the types but lost on precedence, the trace just said "fits the types, but not the precedence here" — true, but not an explanation. `1 + 2 * 3` is exactly the case that matters: `+` folds "1 + 2" first (the only shape at word 1); trying to extend with `*` fits the types (the call returns a Scalar) but `levelsFit` throws it out, because `+`'s level (6) is looser than what `*`'s open slot needs (7) — and the old message didn't say any of that.
+
+`levelsFit` now returns `{ match: Match | null; conflict?: LevelConflict }` instead of a bare `Match | null`. On the rejection path it already had (`fitting.length === 0`), it also picks out the first inner match that lost the facing-edge check and reports its form, its level, the outer definition's level, and which slot/edge was contested. `Breakdown` gained a fourth array, `conflicts`, collected in `matchesAt` alongside `shape`/`typed`/`kept`. `trace.ts` passes it straight through; the playground's renderer uses it only when a group has `typed` but no `kept`, naming the actual call and the actual numbers instead of gesturing at "precedence."
+
+New test in `trace.test.ts` pins the exact conflict shape for `1 + 2 * 3`. Checked by hand (throwaway script, not kept) that the rendered playground text now reads:
+
+```
+2. at "1 + 2"
+   3 words:  (a: Scalar) * (b: Scalar)  — fits the types, but not taken here:
+     "(a: Scalar) + (b: Scalar)" is level 6; this slot needs at least level 7 (as tight, or tighter) — 6 is looser, so it's left as its own call
+```
